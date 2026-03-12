@@ -1,0 +1,8 @@
+{
+  "name": "DevInquire CMS",
+  "description": "A powerful, visual drag-and-drop page builder for DevInquire CMS featuring a hierarchical block system, hover-insertion, and robust page management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
