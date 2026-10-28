@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { toast } from "sonner";
 import { useCMS } from "../App";
 import {
   ChevronLeft,
@@ -29,6 +30,7 @@ import {
   Box,
   ListTree,
   FileText,
+  Home,
   Download,
   Maximize2,
   Move,
@@ -37,6 +39,7 @@ import {
   Redo2,
   Copy,
   ExternalLink,
+  FolderOpen,
   Smile,
   List,
   DollarSign,
@@ -48,6 +51,29 @@ import {
   Linkedin,
   Github,
   LogOut,
+  Pipette,
+  MapPin,
+  Quote,
+  Grid,
+  Minus,
+  Hash,
+  Activity,
+  Trello,
+  CheckSquare,
+  Check,
+  AlertCircle,
+  Mail,
+  Info,
+  CheckCircle,
+  AlertTriangle,
+  Star,
+  Heart,
+  ArrowRight,
+  Sparkles,
+  Wand2,
+  BrainCircuit,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import {
   Page,
@@ -58,8 +84,18 @@ import {
   LayoutJSON,
   Template,
   GlobalStyles,
+  URLRewrite,
+  MediaItem,
 } from "../types";
 import { BLOCK_DEFS, COLUMN_LAYOUTS } from "../constants";
+import { generatePageIdea, refineContent, suggestColorPalette, suggestBlockStyles, suggestNextItems } from "../services/geminiService";
+
+import { BlockRenderer } from '../components/BlockRenderer';
+import { QuickInserterModal, PREBUILT_SECTION_KITS, SectionKit } from '../components/QuickInserterModal';
+import { FloatingBlockToolbar } from '../components/FloatingBlockToolbar';
+import { FloatingSectionToolbar } from '../components/FloatingSectionToolbar';
+import { BlockInsertionDivider } from '../components/BlockInsertionDivider';
+import { AssetLibrarySidebar } from '../components/AssetLibrarySidebar';
 
 const Editor: React.FC = () => {
   const { id } = useParams();
@@ -72,6 +108,17 @@ const Editor: React.FC = () => {
     globalStyles,
     setGlobalStyles,
     socket,
+    syncPage,
+    syncTemplate,
+    deletePageOnServer,
+    rewrites,
+    setRewrites,
+    syncRewrite,
+    deleteRewriteOnServer,
+    media,
+    setMedia,
+    syncMedia,
+    deleteMediaOnServer,
   } = useCMS();
   const [page, setPage] = useState<Page | null>(null);
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
@@ -142,8 +189,9 @@ const Editor: React.FC = () => {
   }, [page, id, socket]);
 
   const [template, setTemplate] = useState<Template | null>(null);
+  const [isPreview, setIsPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "blocks" | "settings" | "layers" | "code" | "pages" | "templates"
+    "blocks" | "settings" | "layers" | "code" | "pages" | "templates" | "ai" | "media"
   >("blocks");
   const [pickerTab, setPickerTab] = useState<"structure" | "templates">(
     "structure",
@@ -152,11 +200,27 @@ const Editor: React.FC = () => {
     "desktop",
   );
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Clear AI vibe suggestions when changing blocks
+    setStyleVibe("");
+  }, [selectedBlockId]);
+
   const [showLayoutPicker, setShowLayoutPicker] = useState<{
     index: number;
     position: "above" | "below" | "end";
   } | null>(null);
+  const [quickInserter, setQuickInserter] = useState<{
+    isOpen: boolean;
+    columnId?: string;
+    sectionIndex?: number;
+    blockIndex?: number;
+    title?: string;
+  }>({
+    isOpen: false
+  });
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [draggedOverColumn, setDraggedOverColumn] = useState<string | null>(
     null,
   );
@@ -167,6 +231,7 @@ const Editor: React.FC = () => {
     null,
   );
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
+  const [draggedAsset, setDraggedAsset] = useState<MediaItem | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
@@ -178,6 +243,14 @@ const Editor: React.FC = () => {
     message: "",
     onConfirm: () => {},
   });
+
+  // AI Style Vibe States
+  const [styleVibe, setStyleVibe] = useState("");
+  const [isGeneratingStyles, setIsGeneratingStyles] = useState(false);
+
+  // AI Architect State
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
 
   // Undo/Redo State
   const [history, setHistory] = useState<Page[]>([]);
@@ -234,6 +307,10 @@ const Editor: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         author: foundTemplate.createdBy,
+        isCustomSite: foundTemplate.isCustomSite,
+        customHTML: foundTemplate.customHTML,
+        customCSS: foundTemplate.customCSS,
+        customJS: foundTemplate.customJS,
       };
       setPage(mockPage);
       return;
@@ -263,9 +340,14 @@ const Editor: React.FC = () => {
       type: "page",
       createdBy: "Admin",
       layoutJSON: JSON.parse(JSON.stringify(page.layoutJSON)),
+      isCustomSite: !!page.isCustomSite,
+      ...(page.customHTML ? { customHTML: page.customHTML } : {}),
+      ...(page.customCSS ? { customCSS: page.customCSS } : {}),
+      ...(page.customJS ? { customJS: page.customJS } : {}),
     };
 
     setTemplates((prev) => [newTemplate, ...prev]);
+    syncTemplate(newTemplate);
     alert("Template saved successfully!");
   };
 
@@ -273,36 +355,55 @@ const Editor: React.FC = () => {
     if (!page) return;
     if (!silent) setIsSaving(true);
 
-    if (template) {
-      // Saving a template
-      setTemplates((prev) =>
-        prev.map((t) => {
-          if (t.id === template.id) {
-            return {
-              ...t,
-              name: page.title,
-              layoutJSON:
-                t.type === "page"
-                  ? page.layoutJSON
-                  : page.layoutJSON.sections[0],
-            };
-          }
-          return t;
-        }),
-      );
-    } else {
-      // Saving a page
-      setPages((prev) =>
-        prev.map((p) =>
-          p.id === page.id
-            ? { ...page, updatedAt: new Date().toISOString() }
-            : p,
-        ),
-      );
-    }
+    try {
+      if (template) {
+        // Saving a template
+        const updatedTemplate: Template = {
+          ...template,
+          name: page.title,
+          layoutJSON:
+            template.type === "page"
+              ? page.layoutJSON
+              : page.layoutJSON.sections[0],
+          isCustomSite: !!page.isCustomSite,
+          ...(page.customHTML ? { customHTML: page.customHTML } : {}),
+          ...(page.customCSS ? { customCSS: page.customCSS } : {}),
+          ...(page.customJS ? { customJS: page.customJS } : {}),
+        };
+        setTemplates((prev) =>
+          prev.map((t) => (t.id === template.id ? updatedTemplate : t)),
+        );
+        syncTemplate(updatedTemplate);
+      } else {
+        // Saving a page
+        const updatedPage: Page = {
+          ...page,
+          updatedAt: new Date().toISOString(),
+          isCustomSite: !!page.isCustomSite,
+          ...(page.customHTML ? { customHTML: page.customHTML } : {}),
+          ...(page.customCSS ? { customCSS: page.customCSS } : {}),
+          ...(page.customJS ? { customJS: page.customJS } : {}),
+        };
+        setPages((prev) =>
+          prev.map((p) => (p.id === page.id ? updatedPage : p)),
+        );
+        syncPage(updatedPage);
+      }
 
-    if (!silent) {
-      setTimeout(() => setIsSaving(false), 800);
+      if (!silent) {
+        setTimeout(() => {
+          setIsSaving(false);
+          setShowSuccess(true);
+          toast.success("Changes saved successfully!");
+          setTimeout(() => setShowSuccess(false), 2000);
+        }, 800);
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      if (!silent) {
+        setIsSaving(false);
+        toast.error("Failed to save changes. Please try again.");
+      }
     }
   };
 
@@ -449,15 +550,27 @@ const Editor: React.FC = () => {
   };
 
   const removeSection = (sectionId: string) => {
-    if (!page) return;
-    const newSections = page.layoutJSON.sections.filter(
-      (s) => s.id !== sectionId,
-    );
-    updateLayout({ ...page.layoutJSON, sections: newSections });
-    if (selectedBlockId === sectionId) setSelectedBlockId(null);
+    setConfirmModal({
+      show: true,
+      title: "Delete Section",
+      message: "Are you sure you want to delete this section? This action cannot be undone.",
+      onConfirm: () => {
+        if (!page) return;
+        const newSections = page.layoutJSON.sections.filter(
+          (s) => s.id !== sectionId,
+        );
+        updateLayout({ ...page.layoutJSON, sections: newSections });
+        if (selectedBlockId === sectionId) setSelectedBlockId(null);
+        setConfirmModal((prev) => ({ ...prev, show: false }));
+      },
+    });
   };
 
   const addBlockToColumn = (columnId: string, type: BlockType) => {
+    addBlockToColumnAtIndex(columnId, type);
+  };
+
+  const addBlockToColumnAtIndex = (columnId: string, type: BlockType, index?: number) => {
     if (!page) return;
     const newBlock: Block = {
       id: `blk_${Math.random().toString(36).substr(2, 5)}`,
@@ -471,117 +584,248 @@ const Editor: React.FC = () => {
       .filter((s) => !!s)
       .map((sec) => ({
         ...sec,
-        columns: sec.columns.map((col) =>
-          col.id === columnId
-            ? { ...col, blocks: [...col.blocks, newBlock] }
-            : col,
-        ),
+        columns: sec.columns.map((col) => {
+          if (col.id !== columnId) return col;
+          const blocks = [...col.blocks];
+          if (index !== undefined && index >= 0 && index <= blocks.length) {
+            blocks.splice(index, 0, newBlock);
+          } else {
+            blocks.push(newBlock);
+          }
+          return { ...col, blocks };
+        }),
       }));
     updateLayout({ ...page.layoutJSON, sections: newSections });
     setSelectedBlockId(newBlock.id);
-    setActiveTab("settings");
+    toast.success(`Added ${type.toUpperCase()} block`);
   };
 
-  const getDefaultContent = (type: BlockType) => {
-    switch (type) {
-      case "text":
-        return "<h2>New Heading</h2><p>Click here to edit style...</p>";
-      case "image":
-        return "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800";
-      case "button":
-        return "Click Me";
-      case "video":
-        return "https://www.youtube.com/embed/dQw4w9WgXcQ";
-      case "spacer":
-        return "";
-      case "html":
-        return '<div style="padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">\n  <h3 style="color: #1e293b; margin-top: 0;">Custom HTML Block</h3>\n  <p style="color: #64748b;">You can add any HTML here. Use the settings panel to edit the source code.</p>\n</div>';
-      case "nav":
-        return {
-          logo: "DevInquire",
-          logoType: "text",
-          logoUrl: "",
-          showLogo: true,
-          links: [
-            { label: "Home", url: "#" },
-            { label: "About", url: "#" },
-            { label: "Services", url: "#" },
-            { label: "Contact", url: "#" },
-          ],
+  const duplicateBlock = (blockId: string) => {
+    if (!page) return;
+    let duplicatedId = '';
+    const newSections = page.layoutJSON.sections.map((sec) => ({
+      ...sec,
+      columns: sec.columns.map((col) => {
+        const idx = col.blocks.findIndex((b) => b.id === blockId);
+        if (idx === -1) return col;
+        const orig = col.blocks[idx];
+        const clone: Block = {
+          ...JSON.parse(JSON.stringify(orig)),
+          id: `blk_${Math.random().toString(36).substr(2, 5)}`,
         };
-      case "icon":
+        duplicatedId = clone.id;
+        const blocks = [...col.blocks];
+        blocks.splice(idx + 1, 0, clone);
+        return { ...col, blocks };
+      }),
+    }));
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    if (duplicatedId) {
+      setSelectedBlockId(duplicatedId);
+      toast.success("Block duplicated");
+    }
+  };
+
+  const moveBlock = (blockId: string, direction: 'up' | 'down') => {
+    if (!page) return;
+    const newSections = page.layoutJSON.sections.map((sec) => ({
+      ...sec,
+      columns: sec.columns.map((col) => {
+        const idx = col.blocks.findIndex((b) => b.id === blockId);
+        if (idx === -1) return col;
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (targetIdx < 0 || targetIdx >= col.blocks.length) return col;
+        const blocks = [...col.blocks];
+        const [moved] = blocks.splice(idx, 1);
+        blocks.splice(targetIdx, 0, moved);
+        return { ...col, blocks };
+      }),
+    }));
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+  };
+
+  const duplicateSection = (sectionId: string) => {
+    if (!page) return;
+    const secIdx = page.layoutJSON.sections.findIndex((s) => s.id === sectionId);
+    if (secIdx === -1) return;
+    const orig = page.layoutJSON.sections[secIdx];
+    const clone: Section = {
+      ...JSON.parse(JSON.stringify(orig)),
+      id: `sec_${Math.random().toString(36).substr(2, 5)}`,
+      columns: orig.columns.map((c) => ({
+        ...JSON.parse(JSON.stringify(c)),
+        id: `col_${Math.random().toString(36).substr(2, 5)}`,
+        blocks: c.blocks.map((b) => ({
+          ...JSON.parse(JSON.stringify(b)),
+          id: `blk_${Math.random().toString(36).substr(2, 5)}`,
+        })),
+      })),
+    };
+    const newSections = [...page.layoutJSON.sections];
+    newSections.splice(secIdx + 1, 0, clone);
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    setSelectedBlockId(clone.id);
+    toast.success("Section duplicated");
+  };
+
+  const moveSection = (sectionIndex: number, direction: 'up' | 'down') => {
+    if (!page) return;
+    const targetIdx = direction === 'up' ? sectionIndex - 1 : sectionIndex + 1;
+    if (targetIdx < 0 || targetIdx >= page.layoutJSON.sections.length) return;
+    const newSections = [...page.layoutJSON.sections];
+    const [moved] = newSections.splice(sectionIndex, 1);
+    newSections.splice(targetIdx, 0, moved);
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+  };
+
+  const addColumnToSection = (sectionId: string) => {
+    if (!page) return;
+    const newSections = page.layoutJSON.sections.map((sec) => {
+      if (sec.id !== sectionId) return sec;
+      const count = sec.columns.length + 1;
+      const width = Math.floor(100 / count);
+      const newCol: Column = {
+        id: `col_${Math.random().toString(36).substr(2, 5)}`,
+        width,
+        blocks: [],
+      };
+      return {
+        ...sec,
+        columns: [...sec.columns.map((c) => ({ ...c, width })), newCol],
+      };
+    });
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    toast.success("Column added");
+  };
+
+  const setSectionColumnLayout = (sectionId: string, widths: number[]) => {
+    if (!page) return;
+    const newSections = page.layoutJSON.sections.map((sec) => {
+      if (sec.id !== sectionId) return sec;
+      const currentCols = [...sec.columns];
+      const newCols: Column[] = widths.map((w, idx) => {
+        if (currentCols[idx]) {
+          return { ...currentCols[idx], width: w };
+        }
         return {
-          iconName: "Smile",
-          size: 48,
-          color: "#3b82f6",
+          id: `col_${Math.random().toString(36).substr(2, 5)}`,
+          width: w,
+          blocks: [],
         };
-      case "accordion":
-        return [
+      });
+      return { ...sec, columns: newCols };
+    });
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    toast.success("Layout grid updated");
+  };
+
+  const insertSectionKit = (kit: SectionKit, atIndex?: number) => {
+    if (!page) return;
+    const newSec: Section = {
+      id: `sec_${Math.random().toString(36).substr(2, 5)}`,
+      styles: { ...kit.section.styles },
+      columns: kit.section.columns.map((c) => ({
+        id: `col_${Math.random().toString(36).substr(2, 5)}`,
+        width: c.width,
+        blocks: c.blocks.map((b) => ({
+          ...b,
+          id: `blk_${Math.random().toString(36).substr(2, 5)}`,
+        })),
+      })),
+    };
+    const targetIdx = atIndex !== undefined ? atIndex : page.layoutJSON.sections.length;
+    const newSections = [...page.layoutJSON.sections];
+    newSections.splice(targetIdx, 0, newSec);
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    setSelectedBlockId(newSec.id);
+    toast.success(`Inserted ${kit.name}`);
+  };
+
+  const saveSectionAsTemplate = (sectionId: string) => {
+    if (!page) return;
+    const sec = page.layoutJSON.sections.find((s) => s.id === sectionId);
+    if (!sec) return;
+    const name = prompt("Enter a name for this Section Template:", "Custom Section");
+    if (!name) return;
+    const tpl: Template = {
+      id: `tpl_${Math.random().toString(36).substr(2, 5)}`,
+      name,
+      description: "Saved from page editor",
+      type: "section",
+      layoutJSON: JSON.parse(JSON.stringify(sec)),
+      category: "custom",
+      preview: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=400",
+      createdAt: new Date().toISOString(),
+      author: "Editor User",
+      createdBy: "Editor User",
+    };
+    setTemplates((prev) => [...prev, tpl]);
+    syncTemplate(tpl);
+    toast.success(`Saved "${name}" as template!`);
+  };
+
+  const updateBlockQuickStyles = (blockId: string, styleUpdates: Partial<Block['styles']>) => {
+    if (!page) return;
+    const newSections = page.layoutJSON.sections.map((sec) => ({
+      ...sec,
+      columns: sec.columns.map((col) => ({
+        ...col,
+        blocks: col.blocks.map((blk) =>
+          blk.id === blockId ? { ...blk, styles: { ...blk.styles, ...styleUpdates } } : blk,
+        ),
+      })),
+    }));
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+  };
+
+  const updateSectionQuickStyles = (sectionId: string, styleUpdates: Partial<Section['styles']>) => {
+    if (!page) return;
+    const newSections = page.layoutJSON.sections.map((sec) =>
+      sec.id === sectionId ? { ...sec, styles: { ...sec.styles, ...styleUpdates } } : sec,
+    );
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+  };
+
+  const handleGenerateBlueprint = async () => {
+    if (!aiPrompt || !page) return;
+    setIsGeneratingBlueprint(true);
+    try {
+      const idea = await generatePageIdea(aiPrompt);
+      
+      const newSections = idea.sections.map((sec: any) => ({
+        id: `sec_${Math.random().toString(36).substr(2, 5)}`,
+        columns: [
           {
-            title: "What is DevInquire?",
-            content: "DevInquire is a powerful CMS and page builder.",
-            isOpen: true,
-          },
-          {
-            title: "How do I use templates?",
-            content:
-              "You can save any section or page as a template for future use.",
-            isOpen: false,
-          },
-          {
-            title: "Can I export my site?",
-            content:
-              "Yes, you can export your site as a static HTML/CSS bundle.",
-            isOpen: false,
-          },
-        ];
-      case "pricing":
-        return {
-          plan: "Professional",
-          price: "29",
-          currency: "$",
-          period: "month",
-          features: [
-            "Unlimited Pages",
-            "Custom Domain",
-            "24/7 Support",
-            "Advanced Analytics",
-          ],
-          buttonText: "Get Started",
-          isFeatured: true,
-        };
-      case "social":
-        return [
-          { platform: "Facebook", url: "#", icon: "Facebook" },
-          { platform: "Twitter", url: "#", icon: "Twitter" },
-          { platform: "Instagram", url: "#", icon: "Instagram" },
-          { platform: "LinkedIn", url: "#", icon: "LinkedIn" },
-          { platform: "GitHub", url: "#", icon: "GitHub" },
-        ];
-      case "code":
-        return {
-          html: '<div class="custom-widget">\n  <h3>Hello Custom Widget</h3>\n  <button id="myBtn">Click Me</button>\n</div>',
-          css: ".custom-widget {\n  padding: 20px;\n  background: #f0f9ff;\n  border-radius: 12px;\n  text-align: center;\n  border: 2px solid #bae6fd;\n}\n.custom-widget h3 {\n  color: #0369a1;\n  margin-bottom: 10px;\n}\n.custom-widget button {\n  background: #0ea5e9;\n  color: white;\n  border: none;\n  padding: 8px 16px;\n  border-radius: 6px;\n  cursor: pointer;\n}",
-          js: 'const btn = document.getElementById("myBtn");\nif (btn) {\n  btn.onclick = () => alert("Hello from Custom JS!");\n}',
-          height: "auto",
-        };
-      case "form":
-        return {
-          title: "Contact Us",
-          description: "We'll get back to you as soon as possible.",
-          buttonText: "Send Message",
-          successMessage: "Thank you! Your message has been sent.",
-          fields: [
-            { id: "name", label: "Full Name", type: "text", placeholder: "John Doe", required: true },
-            { id: "email", label: "Email Address", type: "email", placeholder: "john@example.com", required: true },
-            { id: "subject", label: "Subject", type: "text", placeholder: "How can we help?", required: false },
-            { id: "message", label: "Message", type: "textarea", placeholder: "Your message here...", required: true },
-          ],
-        };
-      case "columns":
-        return [];
-      default:
-        return "";
+            id: `col_${Math.random().toString(36).substr(2, 5)}`,
+            width: 100,
+            blocks: sec.suggestedBlocks.map((block: any) => ({
+              id: `blk_${Math.random().toString(36).substr(2, 5)}`,
+              type: block.type as BlockType,
+              content: block.content || getDefaultContent(block.type as BlockType),
+              styles: { padding: "10px", textAlign: "left" },
+              settings: {},
+            }))
+          }
+        ],
+        styles: { padding: "60px 0" },
+      }));
+
+      const updatedPage = {
+        ...page,
+        layoutJSON: {
+          ...page.layoutJSON,
+          sections: [...page.layoutJSON.sections, ...newSections]
+        }
+      };
+      
+      setPage(updatedPage);
+      syncPage(updatedPage);
+      setAiPrompt("");
+      toast.success(`AI Blueprint generated: ${idea.title}`);
+    } catch (error) {
+      toast.error("Failed to generate blueprint.");
+    } finally {
+      setIsGeneratingBlueprint(false);
     }
   };
 
@@ -606,19 +850,63 @@ const Editor: React.FC = () => {
     updateLayout({ ...page.layoutJSON, sections: newSections });
   };
 
+  const handleGenerateVibeStyles = async () => {
+    const currentId = selectedBlockId;
+    if (!styleVibe || !currentId) {
+      toast.error("Please enter a vibe first");
+      return;
+    }
+    
+    const element = getSelectedBlock();
+    if (!element) return;
+
+    setIsGeneratingStyles(true);
+    try {
+      const contentStr = typeof element.content === 'string' 
+        ? element.content 
+        : JSON.stringify(element.content);
+        
+      const response = await suggestBlockStyles(element.type, contentStr, styleVibe);
+      
+      // Check if we still have the same element selected
+      if (response && response.styles && selectedBlockId === currentId) {
+        updateElement(currentId, {
+          styles: {
+            ...element.styles,
+            ...response.styles
+          }
+        });
+        toast.success(`Applied ${styleVibe} styles!`);
+      }
+    } catch (err) {
+      console.error("AI Styling Error:", err);
+      toast.error("Failed to generate AI styles. Please try again.");
+    } finally {
+      setIsGeneratingStyles(false);
+    }
+  };
+
   const removeBlock = (blockId: string) => {
-    if (!page) return;
-    const newSections = page.layoutJSON.sections
-      .filter((s) => !!s)
-      .map((sec) => ({
-        ...sec,
-        columns: sec.columns.map((col) => ({
-          ...col,
-          blocks: col.blocks.filter((blk) => blk.id !== blockId),
-        })),
-      }));
-    updateLayout({ ...page.layoutJSON, sections: newSections });
-    setSelectedBlockId(null);
+    setConfirmModal({
+      show: true,
+      title: "Delete Block",
+      message: "Are you sure you want to delete this block? This action cannot be undone.",
+      onConfirm: () => {
+        if (!page) return;
+        const newSections = page.layoutJSON.sections
+          .filter((s) => !!s)
+          .map((sec) => ({
+            ...sec,
+            columns: sec.columns.map((col) => ({
+              ...col,
+              blocks: col.blocks.filter((blk) => blk.id !== blockId),
+            })),
+          }));
+        updateLayout({ ...page.layoutJSON, sections: newSections });
+        setSelectedBlockId(null);
+        setConfirmModal((prev) => ({ ...prev, show: false }));
+      },
+    });
   };
 
   const getSelectedBlock = () => {
@@ -645,6 +933,18 @@ const Editor: React.FC = () => {
     setDraggedBlockType(type);
     setDraggedTemplateId(null);
     setDraggedPageId(null);
+    setDraggedAsset(null);
+  };
+
+  const onDragStartAsset = (e: React.DragEvent, asset: MediaItem) => {
+    e.dataTransfer.setData("mediaUrl", asset.url);
+    e.dataTransfer.setData("mediaName", asset.name);
+    e.dataTransfer.setData("mediaType", asset.type || "image/jpeg");
+    e.dataTransfer.setData("application/json", JSON.stringify(asset));
+    setDraggedAsset(asset);
+    setDraggedBlockType(null);
+    setDraggedTemplateId(null);
+    setDraggedPageId(null);
   };
 
   const onDragStartTemplate = (e: React.DragEvent, templateId: string) => {
@@ -652,6 +952,7 @@ const Editor: React.FC = () => {
     setDraggedTemplateId(templateId);
     setDraggedBlockType(null);
     setDraggedPageId(null);
+    setDraggedAsset(null);
   };
 
   const onDragStartPage = (e: React.DragEvent, pageId: string) => {
@@ -659,11 +960,269 @@ const Editor: React.FC = () => {
     setDraggedPageId(pageId);
     setDraggedBlockType(null);
     setDraggedTemplateId(null);
+    setDraggedAsset(null);
+  };
+
+  const insertAssetIntoColumn = (
+    columnId: string, 
+    mediaUrl: string, 
+    mediaName: string, 
+    mediaType: string, 
+    atIndex?: number
+  ) => {
+    if (!page) return;
+    const blockId = `blk_${Math.random().toString(36).substr(2, 5)}`;
+    let newBlock: Block;
+
+    if (mediaType.startsWith("video")) {
+      newBlock = {
+        id: blockId,
+        type: "video",
+        content: mediaUrl,
+        styles: { padding: "10px", width: "100%", borderRadius: "12px" },
+        settings: {},
+      };
+    } else if (mediaType.includes("pdf") || mediaType.includes("document") || mediaUrl.endsWith(".pdf")) {
+      newBlock = {
+        id: blockId,
+        type: "button",
+        content: `Download ${mediaName}`,
+        styles: {
+          textAlign: "center",
+          padding: "14px 28px",
+          borderRadius: "10px",
+          backgroundColor: "#2563eb",
+          color: "#ffffff",
+        },
+        settings: {
+          linkUrl: mediaUrl,
+          download: true,
+        },
+      };
+    } else {
+      newBlock = {
+        id: blockId,
+        type: "image",
+        content: mediaUrl,
+        styles: {
+          padding: "0px",
+          textAlign: "center",
+          width: "100%",
+          borderRadius: "12px",
+        },
+        settings: {
+          alt: mediaName,
+        },
+      };
+    }
+
+    const newSections = page.layoutJSON.sections
+      .filter((s) => !!s)
+      .map((sec) => ({
+        ...sec,
+        columns: sec.columns.map((col) => {
+          if (col.id !== columnId) return col;
+          const blocks = [...col.blocks];
+          if (atIndex !== undefined && atIndex >= 0 && atIndex <= blocks.length) {
+            blocks.splice(atIndex, 0, newBlock);
+          } else {
+            blocks.push(newBlock);
+          }
+          return { ...col, blocks };
+        }),
+      }));
+
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    setSelectedBlockId(newBlock.id);
+    toast.success(`Inserted ${mediaName} into canvas`);
+  };
+
+  const insertAssetIntoCanvas = (asset: MediaItem) => {
+    if (!page) return;
+
+    if (page.layoutJSON.sections.length === 0) {
+      const sectionId = `sec_${Math.random().toString(36).substr(2, 5)}`;
+      const columnId = `col_${Math.random().toString(36).substr(2, 5)}`;
+      const blockId = `blk_${Math.random().toString(36).substr(2, 5)}`;
+      const newBlock: Block = {
+        id: blockId,
+        type: (asset.type && asset.type.startsWith("video")) ? "video" : "image",
+        content: asset.url,
+        styles: { padding: "0px", textAlign: "center", width: "100%", borderRadius: "12px" },
+        settings: { alt: asset.name },
+      };
+      const newSection: Section = {
+        id: sectionId,
+        columns: [{ id: columnId, width: 100, blocks: [newBlock] }],
+        styles: { padding: "40px 0" },
+      };
+      updateLayout({ ...page.layoutJSON, sections: [newSection] });
+      setSelectedBlockId(newBlock.id);
+      toast.success(`Added ${asset.name} to page`);
+      return;
+    }
+
+    let targetColId = '';
+    let targetBlockIdx: number | undefined = undefined;
+
+    if (selectedBlockId) {
+      const sec = page.layoutJSON.sections.find((s) => s.id === selectedBlockId);
+      if (sec && sec.columns.length > 0) {
+        targetColId = sec.columns[0].id;
+      } else {
+        for (const s of page.layoutJSON.sections) {
+          for (const c of s.columns) {
+            const bIdx = c.blocks.findIndex((b) => b.id === selectedBlockId);
+            if (bIdx !== -1) {
+              targetColId = c.id;
+              targetBlockIdx = bIdx + 1;
+              break;
+            }
+          }
+          if (targetColId) break;
+        }
+      }
+    }
+
+    if (!targetColId) {
+      const lastSec = page.layoutJSON.sections[page.layoutJSON.sections.length - 1];
+      targetColId = lastSec.columns[lastSec.columns.length - 1].id;
+    }
+
+    insertAssetIntoColumn(targetColId, asset.url, asset.name, asset.type || 'image/jpeg', targetBlockIdx);
+  };
+
+  const setAssetAsBackground = (asset: MediaItem) => {
+    if (!page || page.layoutJSON.sections.length === 0) return;
+    const targetSectionId = selectedBlockId && page.layoutJSON.sections.some((s) => s.id === selectedBlockId)
+      ? selectedBlockId
+      : page.layoutJSON.sections[0].id;
+
+    const newSections = page.layoutJSON.sections.map((sec) => {
+      if (sec.id === targetSectionId) {
+        return {
+          ...sec,
+          styles: {
+            ...sec.styles,
+            backgroundImage: asset.url,
+            backgroundSize: 'cover' as const,
+            backgroundPosition: 'center center',
+            backgroundRepeat: 'no-repeat' as const,
+          },
+        };
+      }
+      return sec;
+    });
+
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    toast.success(`Set ${asset.name} as section background`);
+  };
+
+  const handleUploadMedia = (files: FileList | File[]) => {
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        const newMedia: MediaItem = {
+          id: `med_${Math.random().toString(36).substr(2, 9)}`,
+          url: base64,
+          name: file.name,
+          type: file.type || 'image/jpeg',
+          size: file.size,
+          createdAt: new Date().toISOString(),
+          category: file.type?.includes('pdf') ? 'document' : 'image',
+        };
+        setMedia((prev) => [newMedia, ...prev]);
+        syncMedia(newMedia);
+        toast.success(`Uploaded ${file.name} to Firestore`);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleDeleteMedia = (mediaId: string) => {
+    setConfirmModal({
+      show: true,
+      title: "Delete Media Asset",
+      message: "Are you sure you want to delete this asset from Firestore? This action cannot be undone.",
+      onConfirm: () => {
+        setMedia((prev) => prev.filter((m) => m.id !== mediaId));
+        deleteMediaOnServer(mediaId);
+        setConfirmModal((prev) => ({ ...prev, show: false }));
+        toast.success("Asset deleted from Firestore");
+      },
+    });
+  };
+
+  const handleAddFromUrl = (url: string, name: string, category?: string) => {
+    const newMedia: MediaItem = {
+      id: `med_${Math.random().toString(36).substr(2, 9)}`,
+      url,
+      name,
+      type: url.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
+      size: 150000,
+      createdAt: new Date().toISOString(),
+      category: (category as any) || 'image',
+    };
+    setMedia((prev) => [newMedia, ...prev]);
+    syncMedia(newMedia);
   };
 
   const handleDropOnCanvas = (e: React.DragEvent, atIndex?: number) => {
     e.preventDefault();
     if (!page) return;
+
+    const mediaUrl = e.dataTransfer.getData("mediaUrl") || draggedAsset?.url;
+    const mediaName = e.dataTransfer.getData("mediaName") || draggedAsset?.name || "Asset";
+    const mediaType = e.dataTransfer.getData("mediaType") || draggedAsset?.type || "image/jpeg";
+
+    if (mediaUrl) {
+      const sectionId = `sec_${Math.random().toString(36).substr(2, 5)}`;
+      const columnId = `col_${Math.random().toString(36).substr(2, 5)}`;
+      const blockId = `blk_${Math.random().toString(36).substr(2, 5)}`;
+
+      let newBlock: Block;
+      if (mediaType.startsWith("video")) {
+        newBlock = {
+          id: blockId,
+          type: "video",
+          content: mediaUrl,
+          styles: { padding: "10px", width: "100%", borderRadius: "12px" },
+          settings: {},
+        };
+      } else if (mediaType.includes("pdf") || mediaType.includes("document") || mediaUrl.endsWith(".pdf")) {
+        newBlock = {
+          id: blockId,
+          type: "button",
+          content: `Download ${mediaName}`,
+          styles: { textAlign: "center", padding: "14px 28px", borderRadius: "10px", backgroundColor: "#2563eb", color: "#ffffff" },
+          settings: { linkUrl: mediaUrl, download: true },
+        };
+      } else {
+        newBlock = {
+          id: blockId,
+          type: "image",
+          content: mediaUrl,
+          styles: { padding: "0px", textAlign: "center", width: "100%", borderRadius: "12px" },
+          settings: { alt: mediaName },
+        };
+      }
+
+      const newSection: Section = {
+        id: sectionId,
+        columns: [{ id: columnId, width: 100, blocks: [newBlock] }],
+        styles: { padding: "40px 0" },
+      };
+
+      const targetIdx = atIndex !== undefined ? atIndex : page.layoutJSON.sections.length;
+      const newSections = [...page.layoutJSON.sections];
+      newSections.splice(targetIdx, 0, newSection);
+      updateLayout({ ...page.layoutJSON, sections: newSections });
+      setSelectedBlockId(newBlock.id);
+      toast.success(`Inserted ${mediaName} into new section`);
+      setDraggedAsset(null);
+      return;
+    }
 
     const blockType =
       (e.dataTransfer.getData("blockType") as BlockType) || draggedBlockType;
@@ -682,7 +1241,6 @@ const Editor: React.FC = () => {
             atIndex ?? page.layoutJSON.sections.length,
           );
         } else {
-          // It's a page template, replace or append? Let's append sections for now
           const sections = (foundTemplate.layoutJSON as LayoutJSON).sections;
           const newSections = [...page.layoutJSON.sections];
           newSections.splice(
@@ -710,6 +1268,7 @@ const Editor: React.FC = () => {
     setDraggedBlockType(null);
     setDraggedTemplateId(null);
     setDraggedPageId(null);
+    setDraggedAsset(null);
   };
 
   const handleDeletePage = (e: React.MouseEvent, pageId: string) => {
@@ -725,6 +1284,7 @@ const Editor: React.FC = () => {
         "Are you sure you want to delete this page? This action cannot be undone.",
       onConfirm: () => {
         setPages((prev) => prev.filter((p) => p.id !== pageId));
+        deletePageOnServer(pageId);
         if (id === pageId) {
           const otherPage = pages.find((p) => p.id !== pageId);
           if (otherPage) {
@@ -810,6 +1370,18 @@ const Editor: React.FC = () => {
 
   const onDropOnColumn = (e: React.DragEvent, columnId: string) => {
     e.preventDefault();
+    const mediaUrl = e.dataTransfer.getData("mediaUrl") || draggedAsset?.url;
+    const mediaName = e.dataTransfer.getData("mediaName") || draggedAsset?.name || "Asset";
+    const mediaType = e.dataTransfer.getData("mediaType") || draggedAsset?.type || "image/jpeg";
+
+    if (mediaUrl) {
+      insertAssetIntoColumn(columnId, mediaUrl, mediaName, mediaType);
+      setDraggedOverColumn(null);
+      setDraggedAsset(null);
+      setDraggedBlockType(null);
+      return;
+    }
+
     const type =
       (e.dataTransfer.getData("blockType") as BlockType) || draggedBlockType;
     const templateId =
@@ -832,6 +1404,7 @@ const Editor: React.FC = () => {
     setDraggedBlockType(null);
     setDraggedTemplateId(null);
     setDraggedPageId(null);
+    setDraggedAsset(null);
   };
 
   if (!page) return null;
@@ -839,9 +1412,21 @@ const Editor: React.FC = () => {
   const selectedElement = getSelectedBlock();
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900 overflow-hidden text-slate-300">
+    <div className="h-screen flex flex-col bg-slate-900 overflow-hidden text-slate-300 relative">
+      {/* Exit Preview Button */}
+      {isPreview && (
+        <button
+          onClick={() => setIsPreview(false)}
+          className="fixed top-6 right-6 z-[100] bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 font-bold text-sm transition-all hover:scale-105 active:scale-95"
+        >
+          <X size={18} />
+          <span>Exit Preview</span>
+        </button>
+      )}
+
       {/* Top Header */}
-      <header className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 z-50">
+      {!isPreview && (
+        <header className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -901,20 +1486,23 @@ const Editor: React.FC = () => {
         <div className="flex items-center gap-3">
           {/* Active Users */}
           <div className="flex -space-x-2 mr-4">
-            {activeUsers.map((u) => (
+            {activeUsers.filter((u, index, self) => 
+              index === self.findIndex((t) => (t.socketId || t.id) === (u.socketId || u.id))
+            ).map((u, uIdx) => (
               <div
-                key={u.socketId}
+                key={u.socketId || u.id || `active-user-${uIdx}`}
                 className="w-8 h-8 rounded-full border-2 border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-lg"
                 style={{ backgroundColor: u.color }}
                 title={u.name}
               >
-                {u.name.substring(0, 2).toUpperCase()}
+                {(u.name || 'U').substring(0, 2).toUpperCase()}
               </div>
             ))}
           </div>
 
           {!template && (
             <button
+              id="editor-save-template"
               type="button"
               onClick={handleSaveTemplate}
               className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
@@ -924,13 +1512,16 @@ const Editor: React.FC = () => {
             </button>
           )}
           <button
+            id="editor-preview"
             type="button"
+            onClick={() => setIsPreview(true)}
             className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
           >
             <Eye size={16} />
             <span>Preview</span>
           </button>
           <button
+            id="editor-download"
             type="button"
             onClick={downloadPage}
             className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
@@ -939,20 +1530,32 @@ const Editor: React.FC = () => {
             <span>Download</span>
           </button>
           <button
+            id="editor-publish"
             type="button"
             onClick={() => handleSave()}
-            disabled={isSaving}
-            className={`flex items-center gap-2 bg-blue-600 text-white px-5 py-1.5 rounded-md text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20 ${isSaving ? "opacity-70 cursor-not-allowed" : ""}`}
+            disabled={isSaving || showSuccess}
+            className={`flex items-center gap-2 px-5 py-1.5 rounded-md text-sm font-bold transition-all shadow-lg ${
+              showSuccess 
+                ? "bg-green-600 text-white shadow-green-900/20" 
+                : isSaving 
+                  ? "bg-blue-600/70 text-white cursor-not-allowed" 
+                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-900/20"
+            }`}
           >
             {isSaving ? (
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            ) : showSuccess ? (
+              <Check size={16} className="animate-in zoom-in duration-300" />
             ) : (
               <Save size={16} />
             )}
-            <span>{isSaving ? "Saving..." : "Publish"}</span>
+            <span>
+              {isSaving ? "Saving..." : showSuccess ? "Saved!" : "Publish"}
+            </span>
           </button>
           <div className="w-[1px] h-6 bg-slate-700 mx-1"></div>
           <button 
+            id="editor-logout"
             onClick={() => {
               localStorage.removeItem('devinquire_auth');
               navigate('/landing');
@@ -964,53 +1567,94 @@ const Editor: React.FC = () => {
           </button>
         </div>
       </header>
+    )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidepanel */}
-        <aside className="w-72 bg-slate-800 border-r border-slate-700 flex flex-col z-40">
+        {!isPreview && (
+          <aside className="w-80 bg-slate-800 border-r border-slate-700 flex flex-col z-40">
           {/* Tab Navigation */}
-          <div className="grid grid-cols-3 border-b border-slate-700 bg-slate-800/80">
+          <div className="grid grid-cols-4 border-b border-slate-700 bg-slate-800/80">
             <TabButton
+              id="tab-widgets"
               active={activeTab === "blocks"}
               onClick={() => setActiveTab("blocks")}
-              icon={<LayoutPanelLeft size={18} />}
+              icon={<LayoutPanelLeft size={16} />}
               label="Widgets"
             />
             <TabButton
-              active={activeTab === "pages"}
-              onClick={() => setActiveTab("pages")}
-              icon={<FileText size={18} />}
-              label="Pages"
+              id="tab-assets"
+              active={activeTab === "media"}
+              onClick={() => setActiveTab("media")}
+              icon={<FolderOpen size={16} className={activeTab === 'media' ? 'text-blue-400' : ''} />}
+              label="Assets"
             />
             <TabButton
+              id="tab-templates"
               active={activeTab === "templates"}
               onClick={() => setActiveTab("templates")}
-              icon={<Copy size={18} />}
+              icon={<Copy size={16} />}
               label="Templates"
             />
             <TabButton
+              id="tab-pages"
+              active={activeTab === "pages"}
+              onClick={() => setActiveTab("pages")}
+              icon={<FileText size={16} />}
+              label="Pages"
+            />
+            <TabButton
+              id="tab-ai"
+              active={activeTab === "ai"}
+              onClick={() => setActiveTab("ai")}
+              icon={<Sparkles size={16} className={activeTab === 'ai' ? 'text-blue-400' : 'text-slate-400'} />}
+              label="AI"
+            />
+            <TabButton
+              id="tab-design"
               active={activeTab === "settings"}
               onClick={() => setActiveTab("settings")}
-              icon={<Settings size={18} />}
+              icon={<Settings size={16} />}
               label="Design"
             />
             <TabButton
+              id="tab-layers"
               active={activeTab === "layers"}
               onClick={() => setActiveTab("layers")}
-              icon={<ListTree size={18} />}
+              icon={<ListTree size={16} />}
               label="Layers"
             />
-            {page.isCustomSite && (
+            {page.isCustomSite ? (
               <TabButton
                 active={activeTab === "code"}
                 onClick={() => setActiveTab("code")}
-                icon={<Code size={18} />}
+                icon={<Code size={16} />}
                 label="Code"
               />
+            ) : (
+              <div className="border-t border-slate-700/30 flex items-center justify-center py-2 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+                CMS
+              </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 bg-slate-800">
+          <div className={`flex-1 overflow-y-auto custom-scrollbar bg-slate-800 ${activeTab === 'media' ? 'p-0 overflow-hidden' : 'p-4'}`}>
+            {/* ASSET LIBRARY PANEL */}
+            {activeTab === "media" && (
+              <div className="h-full flex flex-col">
+                <AssetLibrarySidebar
+                  media={media}
+                  onDragStartAsset={onDragStartAsset}
+                  onInsertAsset={insertAssetIntoCanvas}
+                  onSetAsBackground={setAssetAsBackground}
+                  onUploadMedia={handleUploadMedia}
+                  onDeleteMedia={handleDeleteMedia}
+                  onAddFromUrl={handleAddFromUrl}
+                  selectedBlockId={selectedBlockId}
+                />
+              </div>
+            )}
+
             {/* WIDGETS PANEL */}
             {activeTab === "blocks" && (
               <div className="space-y-6 animate-in fade-in duration-200">
@@ -1079,11 +1723,95 @@ const Editor: React.FC = () => {
               </div>
             )}
 
+            {activeTab === "ai" && (
+              <AIAssistant 
+                page={page} 
+                selectedBlockId={selectedBlockId}
+                onUpdatePage={(updates) => setPage(prev => prev ? { ...prev, ...updates } : null)}
+                onUpdateStyles={(styles) => setGlobalStyles(prev => ({ ...prev, ...styles }))}
+                onAddSection={(layout, index) => addSection(layout, index)}
+                onUpdateElement={updateElement}
+              />
+            )}
+
+            {/* MEDIA PANEL */}
+            {activeTab === "media" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon size={16} className="text-blue-400" />
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                      Media Library
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {media.length === 0 ? (
+                    <div className="col-span-2 py-12 text-center border-2 border-dashed border-slate-700 rounded-xl">
+                      <FolderOpen size={32} className="text-slate-600 mx-auto mb-2" />
+                      <p className="text-[10px] text-slate-500 italic">No media found</p>
+                    </div>
+                  ) : (
+                    media.map((item) => (
+                      <div 
+                        key={item.id} 
+                        className="group relative aspect-square bg-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-blue-500 transition-all cursor-pointer"
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.url);
+                          toast.success("Image URL copied to clipboard");
+                        }}
+                      >
+                        <img 
+                          src={item.url} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Copy size={16} className="text-white" />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* DESIGN PANEL */}
             {activeTab === "settings" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 {!selectedBlockId ? (
                   <div className="space-y-6">
+                    <div className="flex items-center gap-2 px-1 mb-2">
+                      <FileText size={16} className="text-blue-400" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Page Settings
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4 p-1 mb-6">
+                      <ControlGroup label="Page Title" tooltip="The title of the page as it appears in the dashboard and browser tab.">
+                        <input
+                          type="text"
+                          value={page.title}
+                          onChange={(e) => setPage({ ...page, title: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-slate-300"
+                        />
+                      </ControlGroup>
+                      <ControlGroup label="URL Slug" tooltip="The URL path for this page (e.g., /about-us).">
+                        <div className="flex items-center">
+                          <span className="text-xs text-slate-500 mr-1">/</span>
+                          <input
+                            type="text"
+                            value={page.slug}
+                            onChange={(e) => setPage({ ...page, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-slate-300"
+                          />
+                        </div>
+                      </ControlGroup>
+                    </div>
+
                     <div className="flex items-center gap-2 px-1 mb-2">
                       <Palette size={16} className="text-blue-400" />
                       <h3 className="text-xs font-bold text-white uppercase tracking-wider">
@@ -1092,10 +1820,16 @@ const Editor: React.FC = () => {
                     </div>
 
                     <div className="space-y-4 p-1">
-                      <ControlGroup label="Typography">
+                      <ControlGroup 
+                        label="Typography"
+                        tooltip="Set the default fonts for your entire website."
+                      >
                         <div className="space-y-3">
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">
+                            <label 
+                              className="text-[10px] font-bold text-slate-500 uppercase cursor-help"
+                              title="The font used for all H1-H6 heading elements."
+                            >
                               Primary Font (Headings)
                             </label>
                             <select
@@ -1115,7 +1849,10 @@ const Editor: React.FC = () => {
                             </select>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">
+                            <label 
+                              className="text-[10px] font-bold text-slate-500 uppercase cursor-help"
+                              title="The font used for paragraphs and standard UI text."
+                            >
                               Secondary Font (Body)
                             </label>
                             <select
@@ -1137,94 +1874,92 @@ const Editor: React.FC = () => {
                         </div>
                       </ControlGroup>
 
-                      <ControlGroup label="Colors">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase">
-                              Primary
-                            </label>
-                            <input
-                              type="color"
-                              value={globalStyles.primaryColor}
-                              onChange={(e) =>
-                                setGlobalStyles((prev) => ({
-                                  ...prev,
-                                  primaryColor: e.target.value,
-                                }))
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase">
-                              Secondary
-                            </label>
-                            <input
-                              type="color"
-                              value={globalStyles.secondaryColor}
-                              onChange={(e) =>
-                                setGlobalStyles((prev) => ({
-                                  ...prev,
-                                  secondaryColor: e.target.value,
-                                }))
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase">
-                              Accent
-                            </label>
-                            <input
-                              type="color"
-                              value={globalStyles.accentColor}
-                              onChange={(e) =>
-                                setGlobalStyles((prev) => ({
-                                  ...prev,
-                                  accentColor: e.target.value,
-                                }))
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase">
-                              Background
-                            </label>
-                            <input
-                              type="color"
-                              value={globalStyles.backgroundColor}
-                              onChange={(e) =>
-                                setGlobalStyles((prev) => ({
-                                  ...prev,
-                                  backgroundColor: e.target.value,
-                                }))
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase">
-                              Text
-                            </label>
-                            <input
-                              type="color"
-                              value={globalStyles.textColor}
-                              onChange={(e) =>
-                                setGlobalStyles((prev) => ({
-                                  ...prev,
-                                  textColor: e.target.value,
-                                }))
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </div>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 px-1">
+                          <Palette size={14} className="text-slate-500" />
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Theme Colors
+                          </h4>
                         </div>
-                      </ControlGroup>
+                        <div className="grid grid-cols-2 gap-3">
+                          <ColorControl
+                            label="Primary"
+                            tooltip="The main brand color used for buttons, links, and highlights."
+                            value={globalStyles.primaryColor}
+                            onChange={(val) =>
+                              setGlobalStyles((prev) => ({
+                                ...prev,
+                                primaryColor: val,
+                              }))
+                            }
+                          />
+                          <ColorControl
+                            label="Secondary"
+                            tooltip="A supporting color used for secondary actions and UI elements."
+                            value={globalStyles.secondaryColor}
+                            onChange={(val) =>
+                              setGlobalStyles((prev) => ({
+                                ...prev,
+                                secondaryColor: val,
+                              }))
+                            }
+                          />
+                          <ColorControl
+                            label="Accent"
+                            tooltip="A high-contrast color for special highlights and call-to-actions."
+                            value={globalStyles.accentColor}
+                            onChange={(val) =>
+                              setGlobalStyles((prev) => ({
+                                ...prev,
+                                accentColor: val,
+                              }))
+                            }
+                          />
+                          <ColorControl
+                            label="Background"
+                            tooltip="The default background color for all pages."
+                            value={globalStyles.backgroundColor}
+                            onChange={(val) =>
+                              setGlobalStyles((prev) => ({
+                                ...prev,
+                                backgroundColor: val,
+                              }))
+                            }
+                          />
+                          <ColorControl
+                            label="Text"
+                            tooltip="The default color for all body text and content."
+                            value={globalStyles.textColor}
+                            onChange={(val) =>
+                              setGlobalStyles((prev) => ({
+                                ...prev,
+                                textColor: val,
+                              }))
+                            }
+                          />
+                        </div>
+                        <GradientControl
+                          label="Global Background Gradient"
+                          tooltip="Apply a background gradient across the entire site."
+                          value={globalStyles.backgroundGradient || ""}
+                          onChange={(val) =>
+                            setGlobalStyles((prev) => ({
+                              ...prev,
+                              backgroundGradient: val,
+                            }))
+                          }
+                        />
+                      </div>
 
-                      <ControlGroup label="Layout">
+                      <ControlGroup 
+                        label="Layout"
+                        tooltip="Global layout settings for spacing and corners."
+                      >
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">
+                          <label 
+                            className="text-[10px] font-bold text-slate-500 uppercase cursor-help"
+                            title="The default corner roundness for all buttons, cards, and inputs."
+                          >
                             Border Radius
                           </label>
                           <input
@@ -1273,37 +2008,86 @@ const Editor: React.FC = () => {
                       </button>
                     </div>
 
+                    {/* Magic AI Style Generator */}
+                    <div className="bg-blue-600/10 border border-blue-500/20 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={14} className="text-blue-400" />
+                        <h4 className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">
+                          Magic Vibe Styling
+                        </h4>
+                      </div>
+                      <p className="text-[9px] text-slate-400 italic">
+                        Enter a vibe (e.g., "Cyberpunk", "Minimalist Apple", "Retro 80s") and let AI style this element.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={styleVibe}
+                          onChange={(e) => setStyleVibe(e.target.value)}
+                          placeholder="Style vibe..."
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && styleVibe && !isGeneratingStyles) {
+                              handleGenerateVibeStyles();
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={handleGenerateVibeStyles}
+                          disabled={isGeneratingStyles || !styleVibe}
+                          className={`p-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed`}
+                          title="Apply Vibe"
+                        >
+                          {isGeneratingStyles ? (
+                            <RefreshCw size={16} className="animate-spin" />
+                          ) : (
+                            <Wand2 size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="space-y-5">
                       {selectedElement?.type === "section" && (
                         <>
-                          <ControlGroup label="Section Background">
+                          <ControlGroup 
+                            label="Section Background"
+                            tooltip="Customize the background of this entire section."
+                          >
                             <div className="space-y-4 pt-2">
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1">
-                                  <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">
-                                    Color
-                                  </label>
-                                  <input
-                                    type="color"
-                                    value={
-                                      selectedElement?.styles
-                                        ?.backgroundColor || "#ffffff"
-                                    }
-                                    onChange={(e) =>
-                                      updateElement(selectedBlockId!, {
-                                        styles: {
-                                          ...selectedElement?.styles,
-                                          backgroundColor: e.target.value,
-                                        },
-                                      })
-                                    }
-                                    className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                                  />
-                                </div>
-                              </div>
+                              <ColorControl
+                                label="Background Color"
+                                tooltip="The solid color that fills the section background."
+                                value={selectedElement?.styles?.backgroundColor || "#ffffff"}
+                                onChange={(val) =>
+                                  updateElement(selectedBlockId!, {
+                                    styles: {
+                                      ...selectedElement?.styles,
+                                      backgroundColor: val,
+                                    },
+                                  })
+                                }
+                              />
+
+                              <GradientControl
+                                label="Background Gradient"
+                                tooltip="Apply a linear gradient over the section background."
+                                value={selectedElement?.styles?.backgroundImage?.startsWith('linear-gradient') ? selectedElement.styles.backgroundImage : ""}
+                                onChange={(val) =>
+                                  updateElement(selectedBlockId!, {
+                                    styles: {
+                                      ...selectedElement?.styles,
+                                      backgroundImage: val,
+                                    },
+                                  })
+                                }
+                              />
 
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                <label 
+                                  className="text-[9px] font-bold text-slate-500 uppercase block cursor-help"
+                                  title="The URL of an image to use as the section background."
+                                >
                                   Background Image URL
                                 </label>
                                 <div className="relative group">
@@ -1346,7 +2130,10 @@ const Editor: React.FC = () => {
                                 <div className="space-y-3 animate-in fade-in duration-300">
                                   <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                      <label 
+                                        className="text-[9px] font-bold text-slate-500 uppercase block cursor-help"
+                                        title="How the background image should be resized to fit the section."
+                                      >
                                         Size
                                       </label>
                                       <select
@@ -1371,7 +2158,10 @@ const Editor: React.FC = () => {
                                       </select>
                                     </div>
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                      <label 
+                                        className="text-[9px] font-bold text-slate-500 uppercase block cursor-help"
+                                        title="The starting position of the background image."
+                                      >
                                         Position
                                       </label>
                                       <select
@@ -1414,7 +2204,10 @@ const Editor: React.FC = () => {
                                     </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                    <label 
+                                      className="text-[9px] font-bold text-slate-500 uppercase block cursor-help"
+                                      title="Whether the background image should repeat if it's smaller than the section."
+                                    >
                                       Repeat
                                     </label>
                                     <select
@@ -1450,7 +2243,10 @@ const Editor: React.FC = () => {
                         </>
                       )}
 
-                      <ControlGroup label="Alignment">
+                      <ControlGroup 
+                        label="Alignment"
+                        tooltip="Set the horizontal alignment of the content within this element."
+                      >
                         <div className="flex gap-1 bg-slate-900 p-1 rounded-md border border-slate-700">
                           {["left", "center", "right"].map((align) => (
                             <button
@@ -1473,7 +2269,10 @@ const Editor: React.FC = () => {
                       </ControlGroup>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <ControlGroup label="Padding (px)">
+                        <ControlGroup 
+                          label="Padding (px)"
+                          tooltip="The space between the element's content and its border."
+                        >
                           <input
                             type="text"
                             value={selectedElement?.styles?.padding || "0px"}
@@ -1488,7 +2287,10 @@ const Editor: React.FC = () => {
                             className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                           />
                         </ControlGroup>
-                        <ControlGroup label="Border Radius">
+                        <ControlGroup 
+                          label="Border Radius"
+                          tooltip="The roundness of the element's corners."
+                        >
                           <input
                             type="text"
                             value={
@@ -1513,7 +2315,10 @@ const Editor: React.FC = () => {
                         </h4>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <ControlGroup label="Border Width">
+                          <ControlGroup 
+                            label="Border Width"
+                            tooltip="The thickness of the element's border."
+                          >
                             <input
                               type="text"
                               placeholder="e.g. 1px"
@@ -1531,27 +2336,25 @@ const Editor: React.FC = () => {
                               className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                             />
                           </ControlGroup>
-                          <ControlGroup label="Border Color">
-                            <input
-                              type="color"
-                              value={
-                                selectedElement?.styles?.borderColor ||
-                                "#000000"
-                              }
-                              onChange={(e) =>
-                                updateElement(selectedBlockId!, {
-                                  styles: {
-                                    ...selectedElement?.styles,
-                                    borderColor: e.target.value,
-                                  },
-                                })
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </ControlGroup>
+                          <ColorControl
+                            label="Border Color"
+                            tooltip="The color of the element's border."
+                            value={selectedElement?.styles?.borderColor || "#000000"}
+                            onChange={(val) =>
+                              updateElement(selectedBlockId!, {
+                                styles: {
+                                  ...selectedElement?.styles,
+                                  borderColor: val,
+                                },
+                              })
+                            }
+                          />
                         </div>
 
-                        <ControlGroup label="Border Style">
+                        <ControlGroup 
+                          label="Border Style"
+                          tooltip="The pattern of the element's border (solid, dashed, etc.)."
+                        >
                           <select
                             value={
                               selectedElement?.styles?.borderStyle || "none"
@@ -1579,45 +2382,53 @@ const Editor: React.FC = () => {
                           </h4>
 
                           <div className="grid grid-cols-2 gap-4">
-                            <ControlGroup label="Text Color">
-                              <input
-                                type="color"
-                                value={
-                                  selectedElement?.styles?.color || "#000000"
-                                }
-                                onChange={(e) =>
-                                  updateElement(selectedBlockId!, {
-                                    styles: {
-                                      ...selectedElement?.styles,
-                                      color: e.target.value,
-                                    },
-                                  })
-                                }
-                                className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                              />
-                            </ControlGroup>
-                            <ControlGroup label="Background Color">
-                              <input
-                                type="color"
-                                value={
-                                  selectedElement?.styles?.backgroundColor ||
-                                  "transparent"
-                                }
-                                onChange={(e) =>
-                                  updateElement(selectedBlockId!, {
-                                    styles: {
-                                      ...selectedElement?.styles,
-                                      backgroundColor: e.target.value,
-                                    },
-                                  })
-                                }
-                                className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                              />
-                            </ControlGroup>
+                            <ColorControl
+                              label="Text Color"
+                              tooltip="The color of the text within this element."
+                              value={selectedElement?.styles?.color || "#000000"}
+                              onChange={(val) =>
+                                updateElement(selectedBlockId!, {
+                                  styles: {
+                                    ...selectedElement?.styles,
+                                    color: val,
+                                  },
+                                })
+                              }
+                            />
+                            <ColorControl
+                              label="Background Color"
+                              tooltip="The solid background color for this specific element."
+                              value={selectedElement?.styles?.backgroundColor || "transparent"}
+                              onChange={(val) =>
+                                updateElement(selectedBlockId!, {
+                                  styles: {
+                                    ...selectedElement?.styles,
+                                    backgroundColor: val,
+                                  },
+                                })
+                              }
+                            />
+
+                            <GradientControl
+                              label="Background Gradient"
+                              tooltip="Apply a linear gradient background to this element."
+                              value={selectedElement?.styles?.backgroundImage?.startsWith('linear-gradient') ? selectedElement.styles.backgroundImage : ""}
+                              onChange={(val) =>
+                                updateElement(selectedBlockId!, {
+                                  styles: {
+                                    ...selectedElement?.styles,
+                                    backgroundImage: val,
+                                  },
+                                })
+                              }
+                            />
                           </div>
 
                           <div className="grid grid-cols-3 gap-4">
-                            <ControlGroup label="Display">
+                            <ControlGroup 
+                              label="Display"
+                              tooltip="How the element is treated in the layout flow (e.g. block vs inline)."
+                            >
                               <select
                                 value={
                                   selectedElement?.styles?.display || "block"
@@ -1639,25 +2450,23 @@ const Editor: React.FC = () => {
                                 <option value="none">None</option>
                               </select>
                             </ControlGroup>
-                            <ControlGroup label="Opacity">
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                max="1"
-                                value={selectedElement?.styles?.opacity ?? 1}
-                                onChange={(e) =>
-                                  updateElement(selectedBlockId!, {
-                                    styles: {
-                                      ...selectedElement?.styles,
-                                      opacity: parseFloat(e.target.value),
-                                    },
-                                  })
-                                }
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-[10px] outline-none focus:ring-1 focus:ring-blue-500 transition-all"
-                              />
-                            </ControlGroup>
-                            <ControlGroup label="Z-Index">
+                            <OpacitySlider
+                              label="Opacity"
+                              tooltip="The transparency level of the element (0 is invisible, 100% is solid)."
+                              value={Number(selectedElement?.styles?.opacity ?? 1)}
+                              onChange={(val) =>
+                                updateElement(selectedBlockId!, {
+                                  styles: {
+                                    ...selectedElement?.styles,
+                                    opacity: String(val),
+                                  },
+                                })
+                              }
+                            />
+                            <ControlGroup 
+                              label="Z-Index"
+                              tooltip="The stack order of the element (higher numbers appear on top)."
+                            >
                               <input
                                 type="number"
                                 value={selectedElement?.styles?.zIndex || 0}
@@ -1675,7 +2484,10 @@ const Editor: React.FC = () => {
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
-                            <ControlGroup label="Width">
+                            <ControlGroup 
+                              label="Width"
+                              tooltip="The horizontal size of the element."
+                            >
                               <input
                                 type="text"
                                 placeholder="e.g. 100% or 200px"
@@ -1691,7 +2503,10 @@ const Editor: React.FC = () => {
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                               />
                             </ControlGroup>
-                            <ControlGroup label="Height">
+                            <ControlGroup 
+                              label="Height"
+                              tooltip="The vertical size of the element."
+                            >
                               <input
                                 type="text"
                                 placeholder="e.g. auto or 300px"
@@ -1712,7 +2527,10 @@ const Editor: React.FC = () => {
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
-                            <ControlGroup label="Margin (px)">
+                            <ControlGroup 
+                              label="Margin (px)"
+                              tooltip="The space outside the element's border, separating it from others."
+                            >
                               <input
                                 type="text"
                                 placeholder="e.g. 10px"
@@ -1728,7 +2546,10 @@ const Editor: React.FC = () => {
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                               />
                             </ControlGroup>
-                            <ControlGroup label="Box Shadow">
+                            <ControlGroup 
+                              label="Box Shadow"
+                              tooltip="Apply a shadow effect around the element's frame."
+                            >
                               <input
                                 type="text"
                                 placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)"
@@ -1749,7 +2570,10 @@ const Editor: React.FC = () => {
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
-                            <ControlGroup label="Font Size">
+                            <ControlGroup 
+                              label="Font Size"
+                              tooltip="The size of the text within this element."
+                            >
                               <input
                                 type="text"
                                 placeholder="e.g. 16px"
@@ -1767,7 +2591,10 @@ const Editor: React.FC = () => {
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                               />
                             </ControlGroup>
-                            <ControlGroup label="Font Weight">
+                            <ControlGroup 
+                              label="Font Weight"
+                              tooltip="The thickness or boldness of the text."
+                            >
                               <select
                                 value={
                                   selectedElement?.styles?.fontWeight ||
@@ -1798,7 +2625,10 @@ const Editor: React.FC = () => {
                             </ControlGroup>
                           </div>
 
-                          <ControlGroup label="Custom CSS">
+                          <ControlGroup 
+                            label="Custom CSS"
+                            tooltip="Add raw CSS properties to this element for advanced styling."
+                          >
                             <textarea
                               placeholder="e.g. filter: blur(2px); opacity: 0.8;"
                               value={selectedElement?.styles?.customCSS || ""}
@@ -1816,9 +2646,12 @@ const Editor: React.FC = () => {
                         </div>
                       </div>
 
-                      {selectedElement?.type === "code" && (
+                      {(selectedElement?.type === "code" || selectedElement?.type === "embed") && (
                         <div className="space-y-4">
-                          <ControlGroup label="Widget Height">
+                          <ControlGroup 
+                            label="Widget Height"
+                            tooltip="The fixed height of the code widget container."
+                          >
                             <input
                               type="text"
                               value={selectedElement?.content?.height || "200px"}
@@ -1834,7 +2667,10 @@ const Editor: React.FC = () => {
                               placeholder="e.g. 300px or auto"
                             />
                           </ControlGroup>
-                          <ControlGroup label="HTML Content">
+                          <ControlGroup 
+                            label="HTML Content"
+                            tooltip="The raw HTML structure for this widget."
+                          >
                             <textarea
                               value={selectedElement?.content?.html || ""}
                               onChange={(e) =>
@@ -1849,7 +2685,10 @@ const Editor: React.FC = () => {
                               placeholder="<div>...</div>"
                             />
                           </ControlGroup>
-                          <ControlGroup label="Custom CSS">
+                          <ControlGroup 
+                            label="Custom CSS"
+                            tooltip="CSS styles specific to this code widget."
+                          >
                             <textarea
                               value={selectedElement?.content?.css || ""}
                               onChange={(e) =>
@@ -1864,7 +2703,10 @@ const Editor: React.FC = () => {
                               placeholder=".my-class { ... }"
                             />
                           </ControlGroup>
-                          <ControlGroup label="Custom JS">
+                          <ControlGroup 
+                            label="Custom JS"
+                            tooltip="JavaScript code to run when this widget is loaded."
+                          >
                             <textarea
                               value={selectedElement?.content?.js || ""}
                               onChange={(e) =>
@@ -1884,7 +2726,10 @@ const Editor: React.FC = () => {
 
                       {selectedElement?.type === "form" && (
                         <div className="space-y-4">
-                          <ControlGroup label="Form Title">
+                          <ControlGroup 
+                            label="Form Title"
+                            tooltip="The main heading displayed at the top of the form."
+                          >
                             <input
                               type="text"
                               value={selectedElement?.content?.title || ""}
@@ -1899,7 +2744,10 @@ const Editor: React.FC = () => {
                               className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                             />
                           </ControlGroup>
-                          <ControlGroup label="Description">
+                          <ControlGroup 
+                            label="Description"
+                            tooltip="Subtext or instructions displayed below the form title."
+                          >
                             <textarea
                               value={selectedElement?.content?.description || ""}
                               onChange={(e) =>
@@ -1913,7 +2761,10 @@ const Editor: React.FC = () => {
                               className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all h-20"
                             />
                           </ControlGroup>
-                          <ControlGroup label="Submit Button Text">
+                          <ControlGroup 
+                            label="Submit Button Text"
+                            tooltip="The label displayed on the form's submission button."
+                          >
                             <input
                               type="text"
                               value={selectedElement?.content?.buttonText || ""}
@@ -1929,14 +2780,17 @@ const Editor: React.FC = () => {
                             />
                           </ControlGroup>
                           <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            <label 
+                              className="text-[10px] font-bold text-slate-500 uppercase tracking-widest cursor-help"
+                              title="The individual input fields that make up your form."
+                            >
                               Form Fields
                             </label>
                             <div className="space-y-2">
                               {(selectedElement?.content?.fields || []).map(
                                 (field: any, index: number) => (
                                   <div
-                                    key={field.id}
+                                    key={field.id || field.label || `form-field-${index}`}
                                     className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg space-y-2"
                                   >
                                     <div className="flex items-center justify-between">
@@ -2062,8 +2916,398 @@ const Editor: React.FC = () => {
                         </div>
                       )}
 
+                      {selectedElement?.type === "map" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Map Address" tooltip="The location to display on the map.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.address || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, address: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                              placeholder="e.g. New York, NY"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Zoom Level" tooltip="The initial zoom level of the map (1-20).">
+                            <input
+                              type="number"
+                              min="1"
+                              max="20"
+                              value={selectedElement?.content?.zoom || 12}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, zoom: parseInt(e.target.value) } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "testimonial" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Quote" tooltip="The testimonial text.">
+                            <textarea
+                              value={selectedElement?.content?.quote || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, quote: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all h-24"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Author Name" tooltip="The name of the person giving the testimonial.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.author || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, author: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Role / Company" tooltip="The author's job title or company.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.role || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, role: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Avatar URL" tooltip="The URL of the author's profile picture.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.avatar || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, avatar: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "gallery" && (
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gallery Images</label>
+                          <div className="space-y-2">
+                            {(selectedElement?.content || []).map((img: string, idx: number) => (
+                              <div key={idx} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={img}
+                                  onChange={(e) => {
+                                    const newGallery = [...selectedElement.content];
+                                    newGallery[idx] = e.target.value;
+                                    updateElement(selectedBlockId!, { content: newGallery });
+                                  }}
+                                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] outline-none"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newGallery = [...selectedElement.content];
+                                    newGallery.splice(idx, 1);
+                                    updateElement(selectedBlockId!, { content: newGallery });
+                                  }}
+                                  className="text-red-400 hover:text-red-300"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => updateElement(selectedBlockId!, { content: [...(selectedElement.content || []), ""] })}
+                              className="w-full py-2 border border-dashed border-slate-700 rounded-lg text-[10px] font-bold text-slate-500 hover:border-blue-500 hover:text-blue-400 transition-all"
+                            >
+                              + Add Image
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "divider" && (
+                        <div className="space-y-4">
+                          <ColorControl
+                            label="Divider Color"
+                            value={selectedElement?.content?.color || "#e2e8f0"}
+                            onChange={(val) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, color: val } })}
+                          />
+                          <ControlGroup label="Thickness (px)" tooltip="The height of the divider line.">
+                            <input
+                              type="number"
+                              value={selectedElement?.content?.thickness || 2}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, thickness: parseInt(e.target.value) } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Width" tooltip="The horizontal width of the divider.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.width || "100%"}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, width: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Style" tooltip="The line style (solid, dashed, dotted).">
+                            <select
+                              value={selectedElement?.content?.style || "solid"}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, style: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-slate-300"
+                            >
+                              <option value="solid">Solid</option>
+                              <option value="dashed">Dashed</option>
+                              <option value="dotted">Dotted</option>
+                            </select>
+                          </ControlGroup>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "counter" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Target Number" tooltip="The number the counter will count up to.">
+                            <input
+                              type="number"
+                              value={selectedElement?.content?.number || 0}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, number: parseInt(e.target.value) } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Label" tooltip="The text displayed below the number.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.label || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, label: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <div className="grid grid-cols-2 gap-4">
+                            <ControlGroup label="Prefix" tooltip="Text displayed before the number.">
+                              <input
+                                type="text"
+                                value={selectedElement?.content?.prefix || ""}
+                                onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, prefix: e.target.value } })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                              />
+                            </ControlGroup>
+                            <ControlGroup label="Suffix" tooltip="Text displayed after the number.">
+                              <input
+                                type="text"
+                                value={selectedElement?.content?.suffix || ""}
+                                onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, suffix: e.target.value } })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                              />
+                            </ControlGroup>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "progress" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Label" tooltip="The text displayed above the progress bar.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.label || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, label: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Percentage" tooltip="The fill level of the progress bar (0-100).">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={selectedElement?.content?.percentage || 0}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, percentage: parseInt(e.target.value) } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ColorControl
+                            label="Bar Color"
+                            value={selectedElement?.content?.color || globalStyles.primaryColor}
+                            onChange={(val) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, color: val } })}
+                          />
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "tabs" && (
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tabs Content</label>
+                          <div className="space-y-3">
+                            {(selectedElement?.content?.tabs || []).map((tab: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-400">Tab #{idx + 1}</span>
+                                  <button
+                                    onClick={() => {
+                                      const newTabs = [...selectedElement.content.tabs];
+                                      newTabs.splice(idx, 1);
+                                      updateElement(selectedBlockId!, { content: { ...selectedElement.content, tabs: newTabs } });
+                                    }}
+                                    className="text-red-400 hover:text-red-300"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  placeholder="Tab Title"
+                                  value={tab.title}
+                                  onChange={(e) => {
+                                    const newTabs = [...selectedElement.content.tabs];
+                                    newTabs[idx] = { ...tab, title: e.target.value };
+                                    updateElement(selectedBlockId!, { content: { ...selectedElement.content, tabs: newTabs } });
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] outline-none"
+                                />
+                                <textarea
+                                  placeholder="Tab Content"
+                                  value={tab.content}
+                                  onChange={(e) => {
+                                    const newTabs = [...selectedElement.content.tabs];
+                                    newTabs[idx] = { ...tab, content: e.target.value };
+                                    updateElement(selectedBlockId!, { content: { ...selectedElement.content, tabs: newTabs } });
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] outline-none h-16"
+                                />
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const newTab = { title: "New Tab", content: "Content for new tab" };
+                                updateElement(selectedBlockId!, { content: { ...selectedElement.content, tabs: [...(selectedElement.content.tabs || []), newTab] } });
+                              }}
+                              className="w-full py-2 border border-dashed border-slate-700 rounded-lg text-[10px] font-bold text-slate-500 hover:border-blue-500 hover:text-blue-400 transition-all"
+                            >
+                              + Add Tab
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "list" && (
+                        <div className="space-y-4">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">List Items</label>
+                          <div className="space-y-3">
+                            {(selectedElement?.content?.items || []).map((item: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-400">Item #{idx + 1}</span>
+                                  <button
+                                    onClick={() => {
+                                      const newItems = [...selectedElement.content.items];
+                                      newItems.splice(idx, 1);
+                                      updateElement(selectedBlockId!, { content: { ...selectedElement.content, items: newItems } });
+                                    }}
+                                    className="text-red-400 hover:text-red-300"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                                <div className="flex gap-2">
+                                  <select
+                                    value={item.icon || "Check"}
+                                    onChange={(e) => {
+                                      const newItems = [...selectedElement.content.items];
+                                      newItems[idx] = { ...item, icon: e.target.value };
+                                      updateElement(selectedBlockId!, { content: { ...selectedElement.content, items: newItems } });
+                                    }}
+                                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] outline-none"
+                                  >
+                                    <option value="Check">Check</option>
+                                    <option value="Smile">Smile</option>
+                                    <option value="Star">Star</option>
+                                    <option value="Heart">Heart</option>
+                                    <option value="ArrowRight">Arrow</option>
+                                  </select>
+                                  <input
+                                    type="text"
+                                    placeholder="Item Text"
+                                    value={item.text}
+                                    onChange={(e) => {
+                                      const newItems = [...selectedElement.content.items];
+                                      newItems[idx] = { ...item, text: e.target.value };
+                                      updateElement(selectedBlockId!, { content: { ...selectedElement.content, items: newItems } });
+                                    }}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] outline-none"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const newItem = { icon: "Check", text: "New list item" };
+                                updateElement(selectedBlockId!, { content: { ...selectedElement.content, items: [...(selectedElement.content.items || []), newItem] } });
+                              }}
+                              className="w-full py-2 border border-dashed border-slate-700 rounded-lg text-[10px] font-bold text-slate-500 hover:border-blue-500 hover:text-blue-400 transition-all"
+                            >
+                              + Add Item
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "alert" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Alert Type" tooltip="The visual style of the alert.">
+                            <select
+                              value={selectedElement?.content?.type || "info"}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, type: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-slate-300"
+                            >
+                              <option value="info">Info</option>
+                              <option value="success">Success</option>
+                              <option value="warning">Warning</option>
+                              <option value="error">Error</option>
+                            </select>
+                          </ControlGroup>
+                          <ControlGroup label="Title" tooltip="The bold heading of the alert.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.title || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, title: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Message" tooltip="The detailed message text.">
+                            <textarea
+                              value={selectedElement?.content?.message || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, message: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all h-20"
+                            />
+                          </ControlGroup>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "newsletter" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Title" tooltip="The main heading for the newsletter signup.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.title || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, title: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Description" tooltip="Supporting text to encourage signups.">
+                            <textarea
+                              value={selectedElement?.content?.description || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, description: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all h-20"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Button Text" tooltip="The label for the subscribe button.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.buttonText || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, buttonText: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          <ControlGroup label="Input Placeholder" tooltip="The hint text inside the email input field.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.placeholder || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, placeholder: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                        </div>
+                      )}
+
                       {selectedElement?.type === "button" && (
-                        <ControlGroup label="Button Label">
+                        <ControlGroup 
+                          label="Button Label"
+                          tooltip="The text displayed inside the button."
+                        >
                           <input
                             type="text"
                             value={selectedElement?.content || ""}
@@ -2079,7 +3323,10 @@ const Editor: React.FC = () => {
 
                       {selectedElement?.type === "nav" && (
                         <div className="space-y-4">
-                          <ControlGroup label="Logo Visibility">
+                          <ControlGroup 
+                            label="Logo Visibility"
+                            tooltip="Toggle whether the logo is visible in the navigation bar."
+                          >
                             <div className="flex items-center justify-between bg-slate-900 p-2 rounded border border-slate-700">
                               <span className="text-xs text-slate-400">
                                 Display Logo
@@ -2107,7 +3354,10 @@ const Editor: React.FC = () => {
                           </ControlGroup>
 
                           {selectedElement?.content?.showLogo !== false && (
-                            <ControlGroup label="Logo Type">
+                            <ControlGroup 
+                              label="Logo Type"
+                              tooltip="Choose between text-only, image-only, or both for your logo."
+                            >
                               <div className="flex gap-1 bg-slate-900 p-1 rounded border border-slate-700">
                                 {(["text", "image", "both"] as const).map(
                                   (type) => (
@@ -2136,7 +3386,10 @@ const Editor: React.FC = () => {
                               {(selectedElement?.content?.logoType === "text" ||
                                 selectedElement?.content?.logoType === "both" ||
                                 !selectedElement?.content?.logoType) && (
-                                <ControlGroup label="Logo Text">
+                                <ControlGroup 
+                                  label="Logo Text"
+                                  tooltip="The text to display as your logo."
+                                >
                                   <input
                                     type="text"
                                     value={selectedElement?.content?.logo || ""}
@@ -2158,7 +3411,10 @@ const Editor: React.FC = () => {
                                 "image" ||
                                 selectedElement?.content?.logoType ===
                                   "both") && (
-                                <ControlGroup label="Logo Image">
+                                <ControlGroup 
+                                  label="Logo Image"
+                                  tooltip="The URL of the image to use as your logo."
+                                >
                                   <div className="space-y-2">
                                     <input
                                       type="text"
@@ -2197,7 +3453,10 @@ const Editor: React.FC = () => {
                             </>
                           )}
                           <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            <label 
+                              className="text-[10px] font-bold text-slate-500 uppercase tracking-widest cursor-help"
+                              title="The links displayed in your navigation menu."
+                            >
                               Navigation Links
                             </label>
                             {(selectedElement?.content?.links || []).map(
@@ -2298,7 +3557,10 @@ const Editor: React.FC = () => {
                       )}
 
                       {selectedElement?.type === "html" && (
-                        <ControlGroup label="HTML Source">
+                        <ControlGroup 
+                          label="HTML Source"
+                          tooltip="The raw HTML code to be rendered in this block."
+                        >
                           <textarea
                             value={selectedElement?.content || ""}
                             onChange={(e) =>
@@ -2313,7 +3575,10 @@ const Editor: React.FC = () => {
                       )}
 
                       {selectedElement?.type === "image" && (
-                        <ControlGroup label="Image Source">
+                        <ControlGroup 
+                          label="Image Source"
+                          tooltip="The URL of the image to display."
+                        >
                           <input
                             type="text"
                             value={selectedElement?.content || ""}
@@ -2330,7 +3595,10 @@ const Editor: React.FC = () => {
 
                       {selectedElement?.type === "icon" && (
                         <div className="space-y-4">
-                          <ControlGroup label="Icon Name">
+                          <ControlGroup 
+                            label="Icon Name"
+                            tooltip="Select the icon to display from the Lucide library."
+                          >
                             <select
                               value={
                                 selectedElement?.content?.iconName || "Smile"
@@ -2365,7 +3633,10 @@ const Editor: React.FC = () => {
                               ))}
                             </select>
                           </ControlGroup>
-                          <ControlGroup label="Icon Size">
+                          <ControlGroup 
+                            label="Icon Size"
+                            tooltip="Adjust the size of the icon in pixels."
+                          >
                             <input
                               type="range"
                               min="12"
@@ -2385,32 +3656,29 @@ const Editor: React.FC = () => {
                               className="w-full"
                             />
                           </ControlGroup>
-                          <ControlGroup label="Icon Color">
-                            <input
-                              type="color"
-                              value={
-                                selectedElement?.content?.color || "#3b82f6"
-                              }
-                              onChange={(e) =>
-                                updateElement(selectedBlockId!, {
-                                  content: {
-                                    ...(typeof selectedElement?.content ===
-                                    "object"
-                                      ? selectedElement.content
-                                      : {}),
-                                    color: e.target.value,
-                                  },
-                                })
-                              }
-                              className="w-full h-8 bg-slate-900 border border-slate-700 rounded cursor-pointer"
-                            />
-                          </ControlGroup>
+                          <ColorControl
+                            label="Icon Color"
+                            value={selectedElement?.content?.color || "#3b82f6"}
+                            onChange={(val) =>
+                              updateElement(selectedBlockId!, {
+                                content: {
+                                  ...(typeof selectedElement?.content === "object"
+                                    ? selectedElement.content
+                                    : {}),
+                                  color: val,
+                                },
+                              })
+                            }
+                          />
                         </div>
                       )}
 
                       {selectedElement?.type === "accordion" && (
                         <div className="space-y-4">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          <label 
+                            className="text-[10px] font-bold text-slate-500 uppercase tracking-widest cursor-help"
+                            title="The collapsible items that make up your accordion."
+                          >
                             Accordion Items
                           </label>
                           {(selectedElement?.content || []).map(
@@ -2499,7 +3767,10 @@ const Editor: React.FC = () => {
 
                       {selectedElement?.type === "pricing" && (
                         <div className="space-y-4">
-                          <ControlGroup label="Plan Name">
+                          <ControlGroup 
+                            label="Plan Name"
+                            tooltip="The name of the pricing plan (e.g., Basic, Pro, Enterprise)."
+                          >
                             <input
                               type="text"
                               value={selectedElement?.content?.plan || ""}
@@ -2518,7 +3789,11 @@ const Editor: React.FC = () => {
                             />
                           </ControlGroup>
                           <div className="flex gap-2">
-                            <ControlGroup label="Currency" className="w-1/3">
+                            <ControlGroup 
+                              label="Currency" 
+                              className="w-1/3"
+                              tooltip="The currency symbol or code (e.g., $, €, USD)."
+                            >
                               <input
                                 type="text"
                                 value={selectedElement?.content?.currency || ""}
@@ -2536,7 +3811,11 @@ const Editor: React.FC = () => {
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                               />
                             </ControlGroup>
-                            <ControlGroup label="Price" className="flex-1">
+                            <ControlGroup 
+                              label="Price" 
+                              className="flex-1"
+                              tooltip="The numeric price value for this plan."
+                            >
                               <input
                                 type="text"
                                 value={selectedElement?.content?.price || ""}
@@ -2555,7 +3834,10 @@ const Editor: React.FC = () => {
                               />
                             </ControlGroup>
                           </div>
-                          <ControlGroup label="Featured Plan">
+                          <ControlGroup 
+                            label="Featured Plan"
+                            tooltip="Highlight this plan as the recommended or most popular option."
+                          >
                             <button
                               onClick={() =>
                                 updateElement(selectedBlockId!, {
@@ -2581,7 +3863,10 @@ const Editor: React.FC = () => {
 
                       {selectedElement?.type === "social" && (
                         <div className="space-y-4">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          <label 
+                            className="text-[10px] font-bold text-slate-500 uppercase tracking-widest cursor-help"
+                            title="Links to your social media profiles."
+                          >
                             Social Links
                           </label>
                           {(selectedElement?.content || []).map(
@@ -2674,6 +3959,55 @@ const Editor: React.FC = () => {
                           >
                             + Add Social Link
                           </button>
+                        </div>
+                      )}
+
+                      {selectedElement?.type === "sitemap" && (
+                        <div className="space-y-4">
+                          <ControlGroup label="Widget Title" tooltip="The heading displayed above the site map.">
+                            <input
+                              type="text"
+                              value={selectedElement?.content?.title || ""}
+                              onChange={(e) => updateElement(selectedBlockId!, { content: { ...selectedElement.content, title: e.target.value } })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                          </ControlGroup>
+                          
+                          <ControlGroup label="Layout Style" tooltip="Choose how the pages are displayed.">
+                            <div className="flex gap-1 bg-slate-900 p-1 rounded border border-slate-700">
+                              {(["list", "grid"] as const).map((layout) => (
+                                <button
+                                  key={layout}
+                                  onClick={() => updateElement(selectedBlockId!, { content: { ...selectedElement.content, layout } })}
+                                  className={`flex-1 py-1.5 text-[9px] rounded font-bold uppercase transition-all ${selectedElement?.content?.layout === layout ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"}`}
+                                >
+                                  {layout}
+                                </button>
+                              ))}
+                            </div>
+                          </ControlGroup>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between bg-slate-900 p-2 rounded border border-slate-700">
+                              <span className="text-xs text-slate-400">Show Home Page</span>
+                              <button
+                                onClick={() => updateElement(selectedBlockId!, { content: { ...selectedElement.content, showHome: !selectedElement.content.showHome } })}
+                                className={`w-10 h-5 rounded-full transition-all relative ${selectedElement?.content?.showHome ? "bg-blue-600" : "bg-slate-700"}`}
+                              >
+                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${selectedElement?.content?.showHome ? "left-6" : "left-1"}`} />
+                              </button>
+                            </div>
+                            
+                            <div className="flex items-center justify-between bg-slate-900 p-2 rounded border border-slate-700">
+                              <span className="text-xs text-slate-400">Show Draft Pages</span>
+                              <button
+                                onClick={() => updateElement(selectedBlockId!, { content: { ...selectedElement.content, showDrafts: !selectedElement.content.showDrafts } })}
+                                className={`w-10 h-5 rounded-full transition-all relative ${selectedElement?.content?.showDrafts ? "bg-blue-600" : "bg-slate-700"}`}
+                              >
+                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${selectedElement?.content?.showDrafts ? "left-6" : "left-1"}`} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2906,7 +4240,10 @@ const Editor: React.FC = () => {
             {activeTab === "code" && page.isCustomSite && (
               <div className="flex flex-col h-full animate-in fade-in duration-300 gap-6">
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">
+                  <label 
+                    className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1 cursor-help"
+                    title="The raw HTML code for your custom site."
+                  >
                     HTML Content
                   </label>
                   <textarea
@@ -2918,7 +4255,10 @@ const Editor: React.FC = () => {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">
+                  <label 
+                    className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1 cursor-help"
+                    title="Custom CSS styles to apply to your custom site."
+                  >
                     Custom CSS
                   </label>
                   <textarea
@@ -2931,7 +4271,10 @@ const Editor: React.FC = () => {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">
+                  <label 
+                    className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1 cursor-help"
+                    title="Custom JavaScript to run on your custom site."
+                  >
                     Custom JS
                   </label>
                   <textarea
@@ -2964,9 +4307,10 @@ const Editor: React.FC = () => {
             </button>
           </div>
         </aside>
+      )}
 
         {/* Center Canvas */}
-        <main className="flex-1 overflow-y-auto builder-canvas px-4 py-8 relative">
+        <main className={`flex-1 overflow-y-auto relative ${!isPreview ? "builder-canvas px-4 py-8" : "p-0"}`}>
           <style
             dangerouslySetInnerHTML={{
               __html: `
@@ -2984,6 +4328,7 @@ const Editor: React.FC = () => {
               font-family: '${globalStyles.bodyFont}', sans-serif !important;
               color: ${globalStyles.textColor} !important;
               background-color: ${globalStyles.backgroundColor} !important;
+              ${globalStyles.backgroundGradient ? `background: ${globalStyles.backgroundGradient} !important;` : ""}
             }
             .builder-canvas-content h1, 
             .builder-canvas-content h2, 
@@ -3019,14 +4364,19 @@ const Editor: React.FC = () => {
             }}
           />
           <div
-            className={`mx-auto shadow-2xl transition-all min-h-[calc(100vh-100px)] border relative border-dashed border-slate-200 builder-canvas-content ${
+            className={`mx-auto shadow-2xl transition-all border relative builder-canvas-content ${
+              !isPreview ? "border-dashed border-slate-200 min-h-[calc(100vh-100px)]" : "border-none shadow-none min-h-screen"
+            } ${
               viewMode === "desktop"
                 ? "w-full"
                 : viewMode === "tablet"
                   ? "max-w-2xl"
                   : "max-w-sm"
             }`}
-            style={{ backgroundColor: globalStyles.backgroundColor }}
+            style={{ 
+              backgroundColor: globalStyles.backgroundColor,
+              background: globalStyles.backgroundGradient || undefined
+            }}
           >
             {page.isCustomSite ? (
               <div className="p-0 h-full w-full relative">
@@ -3054,26 +4404,29 @@ const Editor: React.FC = () => {
                   .filter((s) => !!s)
                   .map((section, sIdx) => (
                     <div key={section.id} className="relative group/section">
-                      <div
-                        className="absolute top-0 left-0 right-0 h-4 -translate-y-1/2 opacity-0 group-hover/section:opacity-100 flex items-center justify-center z-10 transition-opacity"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => handleDropOnCanvas(e, sIdx)}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowLayoutPicker({
-                              index: sIdx,
-                              position: "above",
-                            })
-                          }
-                          className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                      {!isPreview && (
+                        <div
+                          className="absolute top-0 left-0 right-0 h-4 -translate-y-1/2 opacity-0 group-hover/section:opacity-100 flex items-center justify-center z-10 transition-opacity"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => handleDropOnCanvas(e, sIdx)}
                         >
-                          <Plus size={18} />
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowLayoutPicker({
+                                index: sIdx,
+                                position: "above",
+                              })
+                            }
+                            className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      )}
 
                       <section
+                        id={`section-${section.id}`}
                         style={{
                           padding: section.styles?.padding,
                           backgroundColor: section.styles?.backgroundColor,
@@ -3103,193 +4456,353 @@ const Editor: React.FC = () => {
                           zIndex: section.styles?.zIndex,
                         }}
                         onClick={() => {
-                          setSelectedBlockId(section.id);
-                          setActiveTab("settings");
+                          if (!isPreview) {
+                            setSelectedBlockId(section.id);
+                            setActiveTab("settings");
+                          }
                         }}
-                        className={`flex flex-wrap border-2 border-transparent hover:border-blue-400 relative transition-colors ${selectedBlockId === section.id ? "border-blue-500 bg-blue-50/5" : ""}`}
+                        className={`flex flex-wrap border-2 relative transition-all ${
+                          !isPreview && selectedBlockId === section.id 
+                            ? "border-blue-500 bg-blue-50/5 ring-4 ring-blue-500/10 shadow-lg" 
+                            : !isPreview ? "border-transparent hover:border-blue-300/80" : "border-transparent"
+                        }`}
                       >
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 hidden group-hover/section:flex items-center gap-1 bg-blue-600 rounded-full px-2 py-1 shadow-lg z-20">
-                          <div className="p-1 hover:bg-white/20 rounded-full text-white cursor-grab">
-                            <GripVertical size={12} />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeSection(section.id);
+                        {/* Interactive Floating Section Toolbar */}
+                        {!isPreview && selectedBlockId === section.id && (
+                          <FloatingSectionToolbar
+                            section={section}
+                            sectionIndex={sIdx}
+                            totalSections={page.layoutJSON.sections.length}
+                            onAddColumn={() => addColumnToSection(section.id)}
+                            onSetLayout={(widths) => setSectionColumnLayout(section.id, widths)}
+                            onMoveUp={() => moveSection(sIdx, 'up')}
+                            onMoveDown={() => moveSection(sIdx, 'down')}
+                            onDuplicate={() => duplicateSection(section.id)}
+                            onSaveTemplate={() => saveSectionAsTemplate(section.id)}
+                            onDelete={() => removeSection(section.id)}
+                            onOpenSettings={() => {
+                              setSelectedBlockId(section.id);
+                              setActiveTab("settings");
                             }}
-                            className="p-1 hover:bg-white/20 rounded-full text-white"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                            onQuickStyleChange={(styles) => updateSectionQuickStyles(section.id, styles)}
+                          />
+                        )}
 
                         {section.columns.map((column) => (
                           <div
                             key={column.id}
+                            id={`column-${column.id}`}
                             style={{ width: `${column.width}%` }}
-                            onDragOver={(e) => onDragOverColumn(e, column.id)}
-                            onDrop={(e) => onDropOnColumn(e, column.id)}
-                            className={`min-h-[120px] border-r last:border-r-0 border-dashed border-slate-200 p-4 flex flex-col gap-4 relative group/column transition-all ${
-                              draggedOverColumn === column.id
-                                ? "bg-blue-50/50 ring-2 ring-blue-400 ring-inset"
+                            onDragOver={(e) => !isPreview && onDragOverColumn(e, column.id)}
+                            onDrop={(e) => !isPreview && onDropOnColumn(e, column.id)}
+                            className={`min-h-[140px] border-r last:border-r-0 p-4 flex flex-col gap-2 relative group/column transition-all ${
+                              !isPreview ? "border-dashed border-slate-200" : "border-none"
+                            } ${
+                              !isPreview && draggedOverColumn === column.id
+                                ? "bg-blue-50/60 ring-2 ring-blue-500 ring-inset"
                                 : ""
                             }`}
                           >
-                            {column.blocks.map((block) => (
-                              <div
-                                key={block.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedBlockId(block.id);
-                                  setActiveTab("settings");
-                                }}
-                                style={{
-                                  borderWidth: block.styles?.borderWidth,
-                                  borderStyle:
-                                    block.styles?.borderStyle || "none",
-                                  borderColor: block.styles?.borderColor,
-                                  borderRadius: block.styles?.borderRadius,
-                                  backgroundColor:
-                                    block.styles?.backgroundColor,
-                                  margin: block.styles?.margin,
-                                  boxShadow: block.styles?.boxShadow,
-                                  fontSize: block.styles?.fontSize,
-                                  fontWeight: block.styles?.fontWeight,
-                                  color: block.styles?.color,
-                                  width: block.styles?.width,
-                                  height: block.styles?.height,
-                                  display: block.styles?.display,
-                                  opacity: block.styles?.opacity,
-                                  zIndex: block.styles?.zIndex,
-                                }}
-                                className={`relative border-2 ${selectedBlockId === block.id ? "border-blue-500 bg-blue-50/20 shadow-sm" : "border-transparent hover:border-blue-200"} p-2 group/block transition-all rounded`}
-                              >
-                                {selectedBlockId === block.id && (
-                                  <div className="absolute -top-6 right-0 flex items-center gap-1 bg-blue-600 text-white text-[10px] font-bold rounded-t-md px-2 py-1 z-30">
-                                    <span>
-                                      {(block.type || "").toUpperCase()}
-                                    </span>
+                            {column.blocks.map((block, bIdx) => (
+                              <React.Fragment key={block.id}>
+                                {/* Between-block Inserter Divider */}
+                                {!isPreview && bIdx > 0 && (
+                                  <BlockInsertionDivider
+                                    label="Add Block Here"
+                                    onInsert={() =>
+                                      setQuickInserter({
+                                        isOpen: true,
+                                        columnId: column.id,
+                                        blockIndex: bIdx,
+                                        title: `Insert at Slot #${bIdx + 1}`
+                                      })
+                                    }
+                                  />
+                                )}
+
+                                <div
+                                  id={`block-${block.id}`}
+                                  onClick={(e) => {
+                                    if (!isPreview) {
+                                      e.stopPropagation();
+                                      setSelectedBlockId(block.id);
+                                    }
+                                  }}
+                                  style={{
+                                    borderWidth: block.styles?.borderWidth,
+                                    borderStyle:
+                                      block.styles?.borderStyle || "none",
+                                    borderColor: block.styles?.borderColor,
+                                    borderRadius: block.styles?.borderRadius,
+                                    backgroundColor:
+                                      block.styles?.backgroundColor,
+                                    margin: block.styles?.margin,
+                                    boxShadow: block.styles?.boxShadow,
+                                    fontSize: block.styles?.fontSize,
+                                    fontWeight: block.styles?.fontWeight,
+                                    color: block.styles?.color,
+                                    width: block.styles?.width,
+                                    height: block.styles?.height,
+                                    display: block.styles?.display,
+                                    opacity: block.styles?.opacity,
+                                    zIndex: block.styles?.zIndex,
+                                  }}
+                                  className={`relative border-2 transition-all rounded-xl p-2 group/block ${
+                                    !isPreview && selectedBlockId === block.id 
+                                      ? "border-blue-500 bg-blue-50/15 ring-4 ring-blue-500/15 shadow-md" 
+                                      : !isPreview ? "border-transparent hover:border-blue-300/80" : "border-transparent"
+                                  }`}
+                                >
+                                  {/* Floating Block Toolbar */}
+                                  {!isPreview && selectedBlockId === block.id && (
+                                    <FloatingBlockToolbar
+                                      block={block}
+                                      canMoveUp={bIdx > 0}
+                                      canMoveDown={bIdx < column.blocks.length - 1}
+                                      onDuplicate={() => duplicateBlock(block.id)}
+                                      onMoveUp={() => moveBlock(block.id, 'up')}
+                                      onMoveDown={() => moveBlock(block.id, 'down')}
+                                      onDelete={() => removeBlock(block.id)}
+                                      onAddBelow={() =>
+                                        setQuickInserter({
+                                          isOpen: true,
+                                          columnId: column.id,
+                                          blockIndex: bIdx + 1,
+                                          title: `Insert Below ${block.type.toUpperCase()}`
+                                        })
+                                      }
+                                      onAlignChange={(align) =>
+                                        updateBlockQuickStyles(block.id, { textAlign: align })
+                                      }
+                                      onOpenSettings={() => {
+                                        setSelectedBlockId(block.id);
+                                        setActiveTab("settings");
+                                      }}
+                                      onAiEnhance={() => {
+                                        setSelectedBlockId(block.id);
+                                        setActiveTab("ai");
+                                      }}
+                                      onQuickStyleChange={(styles) =>
+                                        updateBlockQuickStyles(block.id, styles)
+                                      }
+                                    />
+                                  )}
+
+                                  <BlockRenderer
+                                    block={block}
+                                    globalStyles={globalStyles}
+                                    pages={pages}
+                                    onRemove={() => removeBlock(block.id)}
+                                    onUpdate={(updates) =>
+                                      updateElement(block.id, updates)
+                                    }
+                                  />
+                                </div>
+                              </React.Fragment>
+                            ))}
+
+                            {/* Column State: Empty vs Populated */}
+                            {!isPreview && column.blocks.length === 0 ? (
+                              <div className="flex-1 min-h-[160px] border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-3 bg-slate-50/60 transition-all group/empty">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuickInserter({
+                                      isOpen: true,
+                                      columnId: column.id,
+                                      title: "Add Element to Column"
+                                    });
+                                  }}
+                                  className="w-12 h-12 rounded-2xl bg-blue-600/10 text-blue-600 group-hover/empty:bg-blue-600 group-hover/empty:text-white flex items-center justify-center transition-all shadow-sm group-hover/empty:scale-110"
+                                >
+                                  <Plus size={24} className="stroke-[2.5]" />
+                                </button>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-700">Empty Column</p>
+                                  <p className="text-[11px] text-slate-400">Click to insert widgets or choose quick preset below</p>
+                                </div>
+
+                                {/* Quick Inserter Presets */}
+                                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                                  {[
+                                    { label: "+ Heading", type: "text" as BlockType },
+                                    { label: "+ Button", type: "button" as BlockType },
+                                    { label: "+ Image", type: "image" as BlockType },
+                                    { label: "+ Form", type: "form" as BlockType },
+                                    { label: "+ Card", type: "pricing" as BlockType },
+                                  ].map((p, pIdx) => (
                                     <button
+                                      key={pIdx}
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        removeBlock(block.id);
+                                        addBlockToColumn(column.id, p.type);
                                       }}
+                                      className="text-[10px] font-bold px-2 py-1 bg-white hover:bg-blue-600 hover:text-white text-slate-600 border border-slate-200 hover:border-blue-600 rounded-lg shadow-xs transition-colors"
                                     >
-                                      <X size={10} />
+                                      {p.label}
                                     </button>
-                                  </div>
-                                )}
-                                <BlockRenderer
-                                  block={block}
-                                  globalStyles={globalStyles}
-                                  onRemove={() => removeBlock(block.id)}
-                                  onUpdate={(updates) =>
-                                    updateElement(block.id, updates)
-                                  }
-                                />
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setQuickInserter({
+                                        isOpen: true,
+                                        columnId: column.id,
+                                        title: "Explore All Widgets"
+                                      });
+                                    }}
+                                    className="text-[10px] font-bold px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg transition-colors"
+                                  >
+                                    + More...
+                                  </button>
+                                </div>
                               </div>
-                            ))}
-
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addBlockToColumn(column.id, "text");
-                              }}
-                              className={`w-full py-4 border-2 border-dashed rounded-lg mt-auto flex flex-col items-center gap-2 transition-all ${
-                                draggedOverColumn === column.id
-                                  ? "border-blue-500 text-blue-600 bg-blue-100/50"
-                                  : "border-slate-200 text-slate-300 hover:border-blue-400 hover:text-blue-400"
-                              }`}
-                            >
-                              <Plus size={16} />
-                              <span className="text-[10px] font-bold uppercase">
-                                {draggedOverColumn === column.id
-                                  ? "Drop to Add"
-                                  : "Add Widget"}
-                              </span>
-                            </button>
+                            ) : !isPreview && (
+                              <button
+                                id={`add-block-${column.id}`}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickInserter({
+                                    isOpen: true,
+                                    columnId: column.id,
+                                    title: "Add Widget to Column"
+                                  });
+                                }}
+                                className={`w-full py-2.5 border border-dashed rounded-xl mt-2 flex items-center justify-center gap-1.5 transition-all text-xs font-bold ${
+                                  draggedOverColumn === column.id
+                                    ? "border-blue-500 text-blue-600 bg-blue-100/50"
+                                    : "border-slate-300 text-slate-500 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/40"
+                                }`}
+                              >
+                                <Plus size={14} className="stroke-[2.5]" />
+                                <span>Add Widget</span>
+                              </button>
+                            )}
                           </div>
                         ))}
                       </section>
 
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-4 translate-y-1/2 opacity-0 group-hover/section:opacity-100 flex items-center justify-center z-10 transition-opacity"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => handleDropOnCanvas(e, sIdx + 1)}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowLayoutPicker({
-                              index: sIdx + 1,
-                              position: "below",
-                            })
-                          }
-                          className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                      {!isPreview && (
+                        <div
+                          className="absolute bottom-0 left-0 right-0 h-4 translate-y-1/2 opacity-0 group-hover/section:opacity-100 flex items-center justify-center z-10 transition-opacity"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => handleDropOnCanvas(e, sIdx + 1)}
                         >
-                          <Plus size={18} />
-                        </button>
-                      </div>
+                          <button
+                            id={`add-section-after-${sIdx}`}
+                            type="button"
+                            onClick={() =>
+                              setShowLayoutPicker({
+                                index: sIdx + 1,
+                                position: "below",
+                              })
+                            }
+                            className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
 
-                {page.layoutJSON.sections.length === 0 && (
+                {!isPreview && page.layoutJSON.sections.length === 0 && (
                   <div
-                    className="flex flex-col items-center justify-center min-h-[70vh] text-slate-300 p-8"
+                    className="flex flex-col items-center justify-center min-h-[85vh] text-slate-300 p-8 bg-slate-50/30"
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => handleDropOnCanvas(e)}
                   >
-                    <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 p-10 flex flex-col items-center gap-8">
-                      <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-                          Build your page from scratch
-                        </h3>
-                        <p className="text-slate-500 text-sm max-w-md mx-auto">
-                          Click any widget below to add it to your canvas or
-                          start with a section layout.
-                        </p>
-                      </div>
+                    <div className="w-full max-w-4xl animate-in fade-in zoom-in duration-700">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Option 1: AI Architect */}
+                        <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-10 flex flex-col justify-between group hover:border-blue-500/30 transition-all">
+                          <div className="space-y-6">
+                            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                              <BrainCircuit size={32} />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-2xl font-black text-slate-900 tracking-tight">The AI Architect</h3>
+                              <p className="text-slate-500 text-sm leading-relaxed">
+                                Describe your vision, and I'll build the entire structure with sections and content for you.
+                              </p>
+                            </div>
+                            <div className="relative">
+                              <textarea
+                                value={aiPrompt}
+                                onChange={(e) => setAiPrompt(e.target.value)}
+                                placeholder="e.g., A landing page for a boutique hotel with booking, amenities, and a gallery..."
+                                className="w-full h-32 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none shadow-inner"
+                              />
+                              {isGeneratingBlueprint && (
+                                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center gap-3">
+                                  <RefreshCw size={24} className="text-blue-600 animate-spin" />
+                                  <span className="text-xs font-bold text-blue-600 uppercase tracking-widest animate-pulse">Architecting...</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleGenerateBlueprint}
+                            disabled={!aiPrompt || isGeneratingBlueprint}
+                            className="mt-8 w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-500/20 active:scale-[0.98]"
+                          >
+                            <Sparkles size={20} />
+                            <span>Build Blueprint</span>
+                          </button>
+                        </div>
 
-                      <div className="grid grid-cols-3 md:grid-cols-4 gap-4 w-full">
-                        {BLOCK_DEFS.filter((b) => b.type !== "columns").map(
-                          (block) => (
-                            <button
-                              key={block.type}
-                              onClick={() => onWidgetClick(block.type)}
-                              className="flex flex-col items-center gap-3 p-4 rounded-2xl border border-slate-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all group"
-                            >
-                              <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
-                                {block.icon}
+                        {/* Option 2: Templates & Manual */}
+                        <div className="flex flex-col gap-6">
+                          <div className="flex-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-8 flex flex-col justify-between group hover:border-purple-500/30 transition-all">
+                            <div className="space-y-4">
+                              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 group-hover:rotate-6 transition-transform">
+                                <LayoutPanelLeft size={24} />
                               </div>
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
-                                {block.label}
-                              </span>
+                              <div className="space-y-1">
+                                <h4 className="text-lg font-black text-slate-900 tracking-tight">Browse Templates</h4>
+                                <p className="text-slate-500 text-xs leading-relaxed">
+                                  Start with a professionally crafted layout and customize every pixel.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setShowLayoutPicker({ index: 0, position: "end" })}
+                              className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg active:scale-[0.98]"
+                            >
+                              Open Layout Picker
                             </button>
-                          ),
-                        )}
-                      </div>
+                          </div>
 
-                      <div className="flex items-center gap-4 w-full">
-                        <div className="flex-1 h-[1px] bg-slate-100" />
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          OR
-                        </span>
-                        <div className="flex-1 h-[1px] bg-slate-100" />
-                      </div>
+                          <div className="flex-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-8 flex flex-col justify-between group hover:border-amber-500/30 transition-all">
+                            <div className="space-y-4">
+                              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 group-hover:translate-x-1 transition-transform">
+                                <Layers size={24} />
+                              </div>
+                              <div className="space-y-1">
+                                <h4 className="text-lg font-black text-slate-900 tracking-tight">Manual Assembly</h4>
+                                <p className="text-slate-500 text-xs leading-relaxed">
+                                  Drag and drop widgets from the sidebar to create your unique design.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setActiveTab("blocks")}
+                              className="mt-6 w-full py-3 bg-amber-50 rounded-xl text-xs font-bold text-amber-700 flex items-center justify-center gap-2 hover:bg-amber-100 transition-all active:scale-[0.98]"
+                            >
+                              Explore Widgets
+                              <ChevronRight size={14} />
+                            </button>
+                          </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowLayoutPicker({ index: 0, position: "end" })
-                        }
-                        className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3 active:scale-95"
-                      >
-                        <LayoutPanelLeft size={20} />
-                        Choose a Section Layout
-                      </button>
+                          <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                            Pro Tip: You can drag templates from the left sidebar directly here.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3318,6 +4831,7 @@ const Editor: React.FC = () => {
                   </button>
                 </div>
                 <button
+                  id="layout-picker-close"
                   type="button"
                   onClick={() => setShowLayoutPicker(null)}
                   className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -3430,14 +4944,31 @@ const Editor: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Quick Inserter Modal */}
+      <QuickInserterModal
+        isOpen={quickInserter.isOpen}
+        onClose={() => setQuickInserter((prev) => ({ ...prev, isOpen: false }))}
+        targetInfo={quickInserter}
+        onSelectBlock={(type) => {
+          if (quickInserter.columnId) {
+            addBlockToColumnAtIndex(quickInserter.columnId, type, quickInserter.blockIndex);
+          } else {
+            onWidgetClick(type);
+          }
+        }}
+        onSelectSectionKit={(kit) => {
+          insertSectionKit(kit, quickInserter.sectionIndex);
+        }}
+      />
+
       {/* Cursor Overlay */}
-      {Object.entries(otherCursors).map(([socketId, cursor]) => {
-        const user = activeUsers.find((u) => u.socketId === socketId);
+      {!isPreview && Object.entries(otherCursors).map(([socketId, cursor], cIdx) => {
+        const user = activeUsers.find((u) => (u.socketId || u.id) === socketId);
         if (!user) return null;
         const c = cursor as { x: number; y: number };
         return (
           <div
-            key={socketId}
+            key={socketId || `cursor-${cIdx}`}
             className="fixed pointer-events-none z-[9999] transition-all duration-75"
             style={{ left: c.x, top: c.y }}
           >
@@ -3460,13 +4991,573 @@ const Editor: React.FC = () => {
 
 /* --- Internal Sidebar Components --- */
 
+const getDefaultContent = (type: BlockType) => {
+  switch (type) {
+    case "text":
+      return "<h2>New Heading</h2><p>Click here to edit style...</p>";
+    case "image":
+      return "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800";
+    case "button":
+      return "Click Me";
+    case "video":
+      return "https://www.youtube.com/embed/dQw4w9WgXcQ";
+    case "spacer":
+      return "";
+    case "html":
+      return '<div style="padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">\n  <h3 style="color: #1e293b; margin-top: 0;">Custom HTML Block</h3>\n  <p style="color: #64748b;">You can add any HTML here. Use the settings panel to edit the source code.</p>\n</div>';
+    case "nav":
+      return {
+        logo: "DevInquire",
+        logoType: "text",
+        logoUrl: "",
+        showLogo: true,
+        links: [
+          { label: "Home", url: "#" },
+          { label: "About", url: "#" },
+          { label: "Services", url: "#" },
+          { label: "Contact", url: "#" },
+        ],
+      };
+    case "icon":
+      return {
+        iconName: "Smile",
+        size: 48,
+        color: "#3b82f6",
+      };
+    case "accordion":
+      return [
+        {
+          title: "What is DevInquire?",
+          content: "DevInquire is a powerful CMS and page builder.",
+          isOpen: true,
+        },
+        {
+          title: "How do I use templates?",
+          content:
+            "You can save any section or page as a template for future use.",
+          isOpen: false,
+        },
+        {
+          title: "Can I export my site?",
+          content:
+            "Yes, you can export your site as a static HTML/CSS bundle.",
+          isOpen: false,
+        },
+      ];
+    case "pricing":
+      return {
+        plan: "Professional",
+        price: "29",
+        currency: "$",
+        period: "month",
+        features: [
+          "Unlimited Pages",
+          "Custom Domain",
+          "24/7 Support",
+          "Advanced Analytics",
+        ],
+        buttonText: "Get Started",
+        isFeatured: true,
+      };
+    case "social":
+      return [
+        { platform: "facebook", url: "#" },
+        { platform: "twitter", url: "#" },
+        { platform: "instagram", url: "#" },
+      ];
+    case "form":
+      return {
+        title: "Contact Us",
+        fields: [
+          { id: "field_name", label: "Name", type: "text", placeholder: "Your name" },
+          { id: "field_email", label: "Email", type: "email", placeholder: "Your email" },
+          { id: "field_message", label: "Message", type: "textarea", placeholder: "Your message" },
+        ],
+        buttonText: "Send Message",
+      };
+    case "map":
+      return {
+        address: "San Francisco, CA",
+        zoom: 14,
+      };
+    case "testimonial":
+      return {
+        quote: "This is the best page builder I have ever used!",
+        author: "John Doe",
+        role: "Web Designer",
+        avatar: "https://i.pravatar.cc/150?u=john",
+      };
+    case "gallery":
+      return [
+        "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&q=80&w=800",
+      ];
+    case "divider":
+      return null;
+    case "counter":
+      return {
+        number: 100,
+        suffix: "+",
+        label: "Happy Clients",
+      };
+    case "progress":
+      return {
+        label: "Design Skills",
+        percentage: 85,
+      };
+    case "tabs":
+      return [
+        { title: "Tab 1", content: "Content for tab 1" },
+        { title: "Tab 2", content: "Content for tab 2" },
+      ];
+    case "list":
+      return [
+        { icon: "Check", text: "Feature one" },
+        { icon: "Check", text: "Feature two" },
+        { icon: "Check", text: "Feature three" },
+      ];
+    case "alert":
+      return {
+        type: "info",
+        title: "Heads up!",
+        message: "This is an important message.",
+      };
+    case "newsletter":
+      return {
+        title: "Subscribe to our newsletter",
+        description: "Get the latest updates and news.",
+        buttonText: "Subscribe",
+        placeholder: "Your email address",
+      };
+    case "embed":
+      return {
+        html: '<div style="padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">\n  <h3 style="color: #1e293b; margin-top: 0;">Custom Embed Block</h3>\n  <p style="color: #64748b;">You can add any HTML/CSS/JS here.</p>\n</div>',
+        css: "",
+        js: "",
+      };
+    case "sitemap":
+      return null;
+    default:
+      return "";
+  }
+};
+
+const AIAssistant: React.FC<{
+  page: Page;
+  selectedBlockId: string | null;
+  onUpdatePage: (updates: Partial<Page>) => void;
+  onUpdateStyles: (styles: Partial<GlobalStyles>) => void;
+  onAddSection: (layout: number[] | Section, atIndex: number) => void;
+  onUpdateElement: (id: string, updates: any) => void;
+}> = ({ page, selectedBlockId, onUpdatePage, onUpdateStyles, onAddSection, onUpdateElement }) => {
+  const [prompt, setPrompt] = useState("");
+  const [refinePrompt, setRefinePrompt] = useState("");
+  const [styleVibe, setStyleVibe] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [suggestion, setSuggestion] = useState<any>(null);
+  const [styleSuggestion, setStyleSuggestion] = useState<any>(null);
+  const [nextSuggestions, setNextSuggestions] = useState<any[]>([]);
+  const { pages } = useCMS();
+
+  useEffect(() => {
+    const fetchNextSuggestions = async () => {
+      try {
+        const suggestions = await suggestNextItems(pages, `Current page: ${page.title}`);
+        setNextSuggestions(suggestions);
+      } catch (err) {
+        console.error("Failed to fetch next suggestions:", err);
+      }
+    };
+    fetchNextSuggestions();
+  }, [page.id]);
+
+  const getSelectedBlock = () => {
+    if (!selectedBlockId || !page) return null;
+    for (const sec of page.layoutJSON.sections) {
+      for (const col of sec.columns) {
+        const blk = col.blocks.find((b) => b.id === selectedBlockId);
+        if (blk) return blk;
+      }
+    }
+    return null;
+  };
+
+  const selectedBlock = getSelectedBlock();
+
+  const handleRefineContent = async () => {
+    if (!refinePrompt || !selectedBlock) return;
+    setLoading(true);
+    try {
+      const currentContent = typeof selectedBlock.content === 'string' 
+        ? selectedBlock.content 
+        : JSON.stringify(selectedBlock.content);
+      
+      const refined = await refineContent(currentContent, refinePrompt);
+      
+      let newContent = refined;
+      if (typeof selectedBlock.content !== 'string') {
+        try {
+          // If it was an object, try to parse it back or just update a specific field if we knew which one.
+          // For simplicity, if it's not a string, we might need more complex logic.
+          // But most text-heavy blocks use string content.
+          if (selectedBlock.type === 'text') {
+            newContent = refined;
+          } else {
+            // For other types, we might just update the main text field if it exists.
+            newContent = { ...selectedBlock.content, text: refined };
+          }
+        } catch (e) {
+          newContent = refined;
+        }
+      }
+
+      onUpdateElement(selectedBlockId!, { content: newContent });
+      setRefinePrompt("");
+      toast.success("Content refined successfully!");
+    } catch (error) {
+      toast.error("Failed to refine content.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSuggestStyles = async () => {
+    if (!styleVibe || !selectedBlock) return;
+    setLoading(true);
+    try {
+      const content = typeof selectedBlock.content === 'string' 
+        ? selectedBlock.content 
+        : JSON.stringify(selectedBlock.content);
+      
+      const suggestion = await suggestBlockStyles(selectedBlock.type, content, styleVibe);
+      setStyleSuggestion(suggestion);
+      toast.success("Style suggestions generated!");
+    } catch (error) {
+      toast.error("Failed to suggest styles.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applySuggestedStyles = () => {
+    if (!styleSuggestion || !selectedBlockId) return;
+    onUpdateElement(selectedBlockId, { styles: { ...selectedBlock.styles, ...styleSuggestion.styles } });
+    setStyleSuggestion(null);
+    setStyleVibe("");
+    toast.success("Applied suggested styles to block!");
+  };
+
+  const handleGenerateIdea = async () => {
+    if (!prompt) return;
+    setLoading(true);
+    try {
+      const idea = await generatePageIdea(prompt);
+      setSuggestion(idea);
+      toast.success("AI generated some ideas for you!");
+    } catch (error) {
+      toast.error("Failed to generate ideas.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddAllSections = () => {
+    if (!suggestion || !page) return;
+    
+    const newSections = suggestion.sections.map((sec: any) => ({
+      id: `sec_${Math.random().toString(36).substr(2, 5)}`,
+      columns: [
+        {
+          id: `col_${Math.random().toString(36).substr(2, 5)}`,
+          width: 100,
+          blocks: sec.suggestedBlocks.map((block: any) => ({
+            id: `blk_${Math.random().toString(36).substr(2, 5)}`,
+            type: block.type as BlockType,
+            content: block.content || getDefaultContent(block.type as BlockType),
+            styles: { padding: "10px", textAlign: "left" },
+            settings: {},
+          }))
+        }
+      ],
+      styles: { padding: "40px 0" },
+    }));
+
+    const updatedSections = [...page.layoutJSON.sections, ...newSections];
+    onUpdatePage({
+      layoutJSON: {
+        ...page.layoutJSON,
+        sections: updatedSections
+      }
+    });
+    toast.success(`Added all ${newSections.length} suggested sections!`);
+  };
+
+  const handleApplyPalette = async (vibe: string) => {
+    setLoading(true);
+    try {
+      const palette = await suggestColorPalette(vibe);
+      onUpdateStyles({
+        primaryColor: palette.primary,
+        secondaryColor: palette.secondary,
+        accentColor: palette.accent,
+        backgroundColor: palette.background,
+      });
+      toast.success(`Applied ${vibe} color palette!`);
+    } catch (error) {
+      toast.error("Failed to suggest colors.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar animate-in fade-in slide-in-from-right-4 duration-300">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-blue-400">
+          <Sparkles size={18} />
+          <h3 className="text-sm font-bold uppercase tracking-wider">AI Assistant</h3>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Tell me what kind of page you want to build, and I'll help you with structure and ideas.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="e.g., A landing page for a modern coffee shop with a cozy vibe..."
+          className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 focus:ring-1 focus:ring-blue-500 outline-none transition-all resize-none"
+        />
+        <button
+          onClick={handleGenerateIdea}
+          disabled={loading || !prompt}
+          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+        >
+          {loading ? <RefreshCw size={14} className="animate-spin" /> : <BrainCircuit size={16} />}
+          <span>Generate Page Ideas</span>
+        </button>
+      </div>
+
+      {suggestion && (
+        <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 space-y-4 animate-in zoom-in-95 duration-300">
+          <div>
+            <h4 className="text-xs font-bold text-blue-400 mb-1">{suggestion.title}</h4>
+            <p className="text-[10px] text-slate-400 italic">{suggestion.description}</p>
+          </div>
+          
+          <div className="space-y-3">
+            {suggestion.sections.map((sec: any, idx: number) => (
+              <div key={idx} className="p-2.5 bg-slate-800 rounded-lg border border-slate-700 group hover:border-slate-500 transition-all">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold text-slate-200">{sec.title}</span>
+                  <button 
+                    onClick={() => {
+                      const newSection: Section = {
+                        id: `sec_${Math.random().toString(36).substr(2, 5)}`,
+                        columns: [
+                          {
+                            id: `col_${Math.random().toString(36).substr(2, 5)}`,
+                            width: 100,
+                            blocks: sec.suggestedBlocks.map((block: any) => ({
+                              id: `blk_${Math.random().toString(36).substr(2, 5)}`,
+                              type: block.type as BlockType,
+                              content: block.content || getDefaultContent(block.type as BlockType),
+                              styles: { padding: "10px", textAlign: "left" },
+                              settings: {},
+                            }))
+                          }
+                        ],
+                        styles: { padding: "40px 0" },
+                      };
+                      onAddSection(newSection, page.layoutJSON.sections.length);
+                      toast.success(`Added ${sec.title} section with suggested widgets!`);
+                    }}
+                    className="p-1 hover:bg-slate-700 rounded text-blue-400 transition-colors"
+                    title="Add this section"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+                <p className="text-[9px] text-slate-500 mb-2">{sec.purpose}</p>
+                <div className="flex flex-wrap gap-1">
+                  {sec.suggestedBlocks.map((b: any, bIdx: number) => (
+                    <span key={bIdx} className="text-[8px] px-1.5 py-0.5 bg-slate-900 text-slate-400 rounded border border-slate-700 uppercase font-bold tracking-tighter">
+                      {b.type}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={handleAddAllSections}
+            className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 border border-slate-700 transition-all mt-2"
+          >
+            <Plus size={12} />
+            <span>Add All Suggested Sections</span>
+          </button>
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-slate-700 space-y-4">
+        <div className="flex items-center gap-2 text-purple-400">
+          <Wand2 size={18} />
+          <h3 className="text-sm font-bold uppercase tracking-wider">Refine Content</h3>
+        </div>
+        
+        {selectedBlock ? (
+          <div className="space-y-3">
+            <p className="text-[10px] text-slate-400">
+              Refine the content of the selected <span className="text-blue-400 font-bold">{selectedBlock.type}</span> block.
+            </p>
+            <textarea
+              value={refinePrompt}
+              onChange={(e) => setRefinePrompt(e.target.value)}
+              placeholder="e.g., Make this more concise, Add a stronger call to action..."
+              className="w-full h-20 bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 focus:ring-1 focus:ring-purple-500 outline-none transition-all resize-none"
+            />
+            <button
+              onClick={handleRefineContent}
+              disabled={loading || !refinePrompt}
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-900/20"
+            >
+              {loading ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={16} />}
+              <span>Refine with AI</span>
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-900/30 border border-dashed border-slate-700 rounded-xl text-center">
+            <p className="text-[10px] text-slate-500 italic">
+              Select a block on the canvas to refine its content with AI.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="pt-4 border-t border-slate-700 space-y-4">
+        <div className="flex items-center gap-2 text-pink-400">
+          <Palette size={18} />
+          <h3 className="text-sm font-bold uppercase tracking-wider">Suggest Styles</h3>
+        </div>
+        
+        {selectedBlock ? (
+          <div className="space-y-3">
+            <p className="text-[10px] text-slate-400">
+              Get AI-powered style suggestions for the selected <span className="text-blue-400 font-bold">{selectedBlock.type}</span>.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={styleVibe}
+                onChange={(e) => setStyleVibe(e.target.value)}
+                placeholder="Vibe (e.g., minimalist, neon, retro)..."
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:ring-1 focus:ring-pink-500 outline-none transition-all"
+              />
+              <button
+                onClick={handleSuggestStyles}
+                disabled={loading || !styleVibe}
+                className="px-3 py-2 bg-pink-600 hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all"
+              >
+                {loading ? <RefreshCw size={14} className="animate-spin" /> : <Wand2 size={16} />}
+              </button>
+            </div>
+
+            {styleSuggestion && (
+              <div className="p-3 bg-slate-900/50 border border-pink-500/30 rounded-lg space-y-2 animate-in zoom-in-95 duration-200">
+                <p className="text-[9px] text-slate-400 leading-relaxed italic">
+                  "{styleSuggestion.explanation}"
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(styleSuggestion.styles).map(([key, value]: [string, any]) => (
+                    <span key={key} className="text-[8px] px-1.5 py-0.5 bg-slate-800 text-pink-400 rounded border border-slate-700">
+                      {key}: {value}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={applySuggestedStyles}
+                  className="w-full py-1.5 bg-pink-600/20 hover:bg-pink-600/30 text-pink-400 border border-pink-500/30 rounded-md text-[10px] font-bold transition-all"
+                >
+                  Apply Styles
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-900/30 border border-dashed border-slate-700 rounded-xl text-center">
+            <p className="text-[10px] text-slate-500 italic">
+              Select a block to get style suggestions.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="pt-4 border-t border-slate-700 space-y-4">
+        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Quick Style Suggestions</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {['Minimalist', 'Vibrant', 'Professional', 'Dark Mode', 'Nature'].map(vibe => (
+            <button
+              key={vibe}
+              onClick={() => handleApplyPalette(vibe)}
+              disabled={loading}
+              className="py-2 px-3 bg-slate-900 border border-slate-700 hover:border-blue-500 rounded-lg text-[10px] font-medium text-slate-300 transition-all flex items-center justify-center gap-2"
+            >
+              <Palette size={12} className="text-slate-500" />
+              {vibe}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-slate-700">
+        <div className="flex items-center gap-2 text-indigo-400 mb-3">
+          <Zap size={16} />
+          <h3 className="text-sm font-bold uppercase tracking-wider">Next Building Steps</h3>
+        </div>
+        <div className="space-y-3 pb-4">
+          {nextSuggestions.length > 0 ? (
+            nextSuggestions.map((item, index) => (
+              <div key={index} className="p-3 bg-slate-900/40 border border-slate-800 rounded-xl hover:border-indigo-500/50 transition-all group cursor-pointer" onClick={() => toast.info(`Action suggested: ${item.action}`)}>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-110 transition-transform">
+                    <Sparkles size={14} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-bold text-slate-100 mb-0.5 group-hover:text-indigo-300 transition-colors truncate">{item.title}</h4>
+                    <p className="text-[10px] text-slate-500 leading-snug mb-2 line-clamp-2">{item.description}</p>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">{item.type}</span>
+                       <span className="w-1 h-1 rounded-full bg-slate-700" />
+                       <span className="text-[9px] text-slate-400 italic truncate opacity-70">{item.action}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-4 text-center">
+              <RefreshCw className="w-6 h-6 text-slate-700 animate-spin mx-auto mb-2" />
+              <p className="text-[10px] text-slate-600 italic">Curating growth ideas...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TabButton: React.FC<{
+  id?: string;
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-}> = ({ active, onClick, icon, label }) => (
+}> = ({ id, active, onClick, icon, label }) => (
   <button
+    id={id}
     type="button"
     onClick={onClick}
     className={`flex-1 flex flex-col items-center justify-center gap-2 py-4 text-[11px] font-bold uppercase tracking-widest transition-all relative outline-none ${
@@ -3483,526 +5574,172 @@ const TabButton: React.FC<{
   </button>
 );
 
-const ControlGroup: React.FC<{ label: string; children: React.ReactNode }> = ({
+const ColorControl: React.FC<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  tooltip?: string;
+}> = ({ label, value, onChange, className = "", tooltip }) => (
+  <div className={`space-y-2 ${className}`}>
+    <label 
+      className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1 cursor-help"
+      title={tooltip}
+    >
+      {label}
+    </label>
+    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded p-1.5 group hover:border-slate-500 transition-all">
+      <div className="relative w-8 h-8 rounded overflow-hidden border border-slate-700 flex-shrink-0">
+        <input
+          type="color"
+          value={value || "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer"
+        />
+      </div>
+      <div className="flex-1 flex items-center gap-2">
+        <input
+          type="text"
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 bg-transparent border-none text-[10px] text-slate-300 outline-none font-mono"
+          placeholder="#000000"
+        />
+        <Pipette size={12} className="text-slate-500 group-hover:text-blue-400 transition-colors" />
+      </div>
+    </div>
+  </div>
+);
+
+const OpacitySlider: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  className?: string;
+  tooltip?: string;
+}> = ({ label, value, onChange, className = "", tooltip }) => (
+  <div className={`space-y-2 ${className}`}>
+    <div className="flex items-center justify-between px-1">
+      <label 
+        className="text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-help"
+        title={tooltip}
+      >
+        {label}
+      </label>
+      <span className="text-[10px] font-mono text-slate-400">{Math.round((value ?? 1) * 100)}%</span>
+    </div>
+    <div className="flex items-center gap-3 bg-slate-900 border border-slate-700 rounded p-2 group hover:border-slate-500 transition-all">
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        value={value ?? 1}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+      />
+    </div>
+  </div>
+);
+
+const GradientControl: React.FC<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  tooltip?: string;
+}> = ({ label, value, onChange, className = "", tooltip }) => {
+  const parseGradient = (grad: string) => {
+    const match = grad?.match(/linear-gradient\((\d+)deg,\s*(#[a-fA-F0-9]{6}|rgba?\(.*?\)),\s*(#[a-fA-F0-9]{6}|rgba?\(.*?\))\)/);
+    if (match) {
+      return { angle: match[1], color1: match[2], color2: match[3] };
+    }
+    return { angle: "180", color1: "#3b82f6", color2: "#8b5cf6" };
+  };
+
+  const { angle, color1, color2 } = parseGradient(value);
+
+  const updateGradient = (updates: { angle?: string; color1?: string; color2?: string }) => {
+    const newAngle = updates.angle ?? angle;
+    const newColor1 = updates.color1 ?? color1;
+    const newColor2 = updates.color2 ?? color2;
+    onChange(`linear-gradient(${newAngle}deg, ${newColor1}, ${newColor2})`);
+  };
+
+  return (
+    <div className={`space-y-3 ${className}`}>
+      <label 
+        className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1 cursor-help"
+        title={tooltip}
+      >
+        {label}
+      </label>
+      <div className="bg-slate-900 border border-slate-700 rounded p-3 space-y-4">
+        <div 
+          className="h-12 w-full rounded border border-slate-700 shadow-inner" 
+          style={{ background: value || `linear-gradient(${angle}deg, ${color1}, ${color2})` }}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <ColorControl
+            label="Start"
+            value={color1}
+            onChange={(val) => updateGradient({ color1: val })}
+          />
+          <ColorControl
+            label="End"
+            value={color2}
+            onChange={(val) => updateGradient({ color2: val })}
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex justify-between items-center px-1">
+            <label className="text-[9px] font-bold text-slate-500 uppercase">Angle</label>
+            <span className="text-[9px] font-mono text-slate-400">{angle}°</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="360"
+            value={angle}
+            onChange={(e) => updateGradient({ angle: e.target.value })}
+            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[9px] font-bold text-slate-500 uppercase px-1">Raw CSS String</label>
+          <input
+            type="text"
+            value={value || `linear-gradient(${angle}deg, ${color1}, ${color2})`}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-[10px] text-slate-300 outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+            placeholder="linear-gradient(180deg, #3b82f6, #8b5cf6)"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ControlGroup: React.FC<{ 
+  label: string; 
+  children: React.ReactNode; 
+  className?: string;
+  tooltip?: string;
+}> = ({
   label,
   children,
+  className = "",
+  tooltip,
 }) => (
-  <div className="space-y-2">
-    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">
+  <div className={`space-y-2 ${className}`}>
+    <label 
+      className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1 cursor-help"
+      title={tooltip}
+    >
       {label}
     </label>
     {children}
   </div>
 );
-
-const BlockRenderer: React.FC<{
-  block: Block;
-  onUpdate: (updates: any) => void;
-  onRemove: () => void;
-  globalStyles: GlobalStyles;
-}> = ({ block, onUpdate, onRemove, globalStyles }) => {
-  const alignClass =
-    block.styles?.textAlign === "center"
-      ? "text-center"
-      : block.styles?.textAlign === "right"
-        ? "text-right"
-        : "text-left";
-
-  const getIcon = (name: string) => {
-    const icons: Record<string, any> = {
-      Smile,
-      Facebook,
-      Twitter,
-      Instagram,
-      Linkedin,
-      LinkedIn: Linkedin,
-      Github,
-      GitHub: Github,
-      ExternalLink,
-      Play,
-      Code,
-    };
-    const IconComp = icons[name] || Smile;
-    return (
-      <IconComp
-        size={block.type === "icon" ? block.content.size : 20}
-        color={block.type === "icon" ? block.content.color : undefined}
-      />
-    );
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
-    onUpdate({ content: e.currentTarget.innerHTML });
-  };
-
-  const handleTextBlur = (e: React.FocusEvent<HTMLElement>) => {
-    onUpdate({ content: e.currentTarget.innerHTML });
-  };
-
-  const handleButtonBlur = (e: React.FocusEvent<HTMLElement>) => {
-    onUpdate({ content: e.currentTarget.innerText });
-  };
-
-  switch (block.type) {
-    case "text":
-      return (
-        <div
-          className={`text-slate-800 prose max-w-none outline-none focus:ring-2 focus:ring-blue-500/20 rounded px-1 ${alignClass}`}
-          contentEditable
-          suppressContentEditableWarning
-          onBlur={handleTextBlur}
-          dangerouslySetInnerHTML={{ __html: block.content }}
-        />
-      );
-    case "image":
-      return (
-        <div className="relative group/img">
-          <img
-            src={block.content}
-            className="max-w-full h-auto rounded shadow-sm mx-auto select-none"
-            alt="Widget"
-            draggable={false}
-          />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center rounded">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const url = prompt("Enter Image URL:", block.content);
-                if (url) onUpdate({ content: url });
-              }}
-              className="bg-white text-slate-900 px-3 py-1 rounded-full text-xs font-bold shadow-lg"
-            >
-              Change Image
-            </button>
-          </div>
-        </div>
-      );
-    case "button":
-      return (
-        <div className={alignClass}>
-          <button
-            type="button"
-            contentEditable
-            suppressContentEditableWarning
-            onBlur={handleButtonBlur}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.preventDefault();
-            }}
-            className="px-6 py-3 text-white font-bold rounded shadow-sm transition-all active:scale-95 outline-none focus:ring-4 focus:ring-blue-500/30 btn-primary"
-          >
-            {block.content}
-          </button>
-        </div>
-      );
-    case "video":
-      return (
-        <div className="aspect-video bg-black rounded overflow-hidden flex items-center justify-center relative group/vid">
-          <iframe
-            src={block.content}
-            className="w-full h-full pointer-events-none"
-            title="Video"
-          />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const url = prompt(
-                  "Enter YouTube/Vimeo Embed URL:",
-                  block.content,
-                );
-                if (url) onUpdate({ content: url });
-              }}
-              className="bg-white text-slate-900 px-3 py-1 rounded-full text-xs font-bold shadow-lg"
-            >
-              Change Video
-            </button>
-          </div>
-        </div>
-      );
-    case "nav":
-      const navContent =
-        typeof block.content === "object" && block.content !== null
-          ? block.content
-          : { logo: "DevInquire", links: [], logoType: "text", logoUrl: "" };
-      return (
-        <nav className="flex items-center justify-between py-4 px-6 bg-white border rounded shadow-sm group/nav">
-          <div className="flex items-center gap-4">
-            {navContent.showLogo !== false && (
-              <div className="flex items-center gap-3">
-                {(navContent.logoType === "image" ||
-                  navContent.logoType === "both") &&
-                  navContent.logoUrl && (
-                    <div className="relative group/logo">
-                      <img
-                        src={navContent.logoUrl}
-                        alt="Logo"
-                        className="h-8 w-auto object-contain select-none"
-                        draggable={false}
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center rounded">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const url = prompt(
-                              "Enter Logo Image URL:",
-                              navContent.logoUrl,
-                            );
-                            if (url)
-                              onUpdate({
-                                content: { ...navContent, logoUrl: url },
-                              });
-                          }}
-                          className="bg-white text-slate-900 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-lg"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                {(navContent.logoType === "text" ||
-                  navContent.logoType === "both" ||
-                  !navContent.logoType) && (
-                  <div
-                    data-heading="true"
-                    className="text-xl font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 rounded px-1"
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={(e) =>
-                      onUpdate({
-                        content: {
-                          ...navContent,
-                          logo: e.currentTarget.innerText,
-                        },
-                      })
-                    }
-                  >
-                    {navContent.logo}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-6">
-            {(navContent.links || []).map((link: any, idx: number) => (
-              <div key={idx} className="relative group/link flex items-center">
-                <span
-                  contentEditable
-                  suppressContentEditableWarning
-                  onBlur={(e) => {
-                    const newLinks = [...navContent.links];
-                    newLinks[idx] = {
-                      ...newLinks[idx],
-                      label: e.currentTarget.innerText,
-                    };
-                    onUpdate({ content: { ...navContent, links: newLinks } });
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.preventDefault();
-                  }}
-                  className="text-sm font-medium transition-colors cursor-text outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-1"
-                  style={{ color: globalStyles.textColor }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = globalStyles.primaryColor)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = globalStyles.textColor)
-                  }
-                >
-                  {link.label}
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const newLinks = [...navContent.links];
-                    newLinks.splice(idx, 1);
-                    onUpdate({ content: { ...navContent, links: newLinks } });
-                  }}
-                  className="absolute -top-4 -right-2 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/link:opacity-100 transition-opacity hover:bg-red-600 z-10"
-                  title="Remove Link"
-                >
-                  <X size={10} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const url = prompt("Enter Link URL:", link.url);
-                    if (url !== null) {
-                      const newLinks = [...navContent.links];
-                      newLinks[idx] = { ...newLinks[idx], url };
-                      onUpdate({ content: { ...navContent, links: newLinks } });
-                    }
-                  }}
-                  className="absolute -top-4 right-3 w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/link:opacity-100 transition-opacity hover:bg-blue-600 z-10"
-                  title="Edit URL"
-                >
-                  <ExternalLink size={10} />
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const newLinks = [
-                  ...(navContent.links || []),
-                  { label: "New Link", url: "#" },
-                ];
-                onUpdate({ content: { ...navContent, links: newLinks } });
-              }}
-              className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center hover:bg-blue-50 hover:text-blue-500 transition-all opacity-0 group-hover/nav:opacity-100"
-              title="Add Link"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-        </nav>
-      );
-    case "icon":
-      return (
-        <div className={alignClass}>{getIcon(block.content.iconName)}</div>
-      );
-    case "accordion":
-      return (
-        <div className="space-y-2">
-          {(block.content || []).map((item: any, idx: number) => (
-            <div
-              key={idx}
-              className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm"
-            >
-              <button
-                onClick={() => {
-                  const newContent = [...block.content];
-                  newContent[idx] = {
-                    ...newContent[idx],
-                    isOpen: !newContent[idx].isOpen,
-                  };
-                  onUpdate({ content: newContent });
-                }}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
-              >
-                <span
-                  data-heading="true"
-                  className="font-semibold text-slate-800"
-                >
-                  {item.title}
-                </span>
-                <ChevronDown
-                  size={18}
-                  className={`text-slate-400 transition-transform ${item.isOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {item.isOpen && (
-                <div className="px-4 py-3 text-sm text-slate-600 border-t border-slate-100 bg-slate-50/30">
-                  {item.content}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      );
-    case "pricing":
-      const p = block.content;
-      return (
-        <div
-          className={`p-8 rounded-2xl border ${p.isFeatured ? "border-blue-500 shadow-xl ring-4 ring-blue-500/10 bg-white scale-105" : "border-slate-200 bg-white shadow-md"} flex flex-col items-center text-center`}
-        >
-          <h3 className="text-lg font-bold text-slate-900 mb-2">{p.plan}</h3>
-          <div data-heading="true" className="flex items-baseline gap-1 mb-6">
-            <span className="text-2xl font-bold text-slate-900">
-              {p.currency}
-            </span>
-            <span className="text-5xl font-black text-slate-900">
-              {p.price}
-            </span>
-            <span className="text-slate-500">/{p.period}</span>
-          </div>
-          <ul className="space-y-3 mb-8 w-full">
-            {p.features.map((f: string, i: number) => (
-              <li
-                key={i}
-                className="text-sm text-slate-600 flex items-center justify-center gap-2"
-              >
-                <div
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: globalStyles.primaryColor }}
-                />
-                {f}
-              </li>
-            ))}
-          </ul>
-          <button
-            className={`w-full py-3 rounded-xl font-bold transition-all ${p.isFeatured ? "text-white hover:opacity-90 shadow-lg shadow-blue-500/25 btn-primary" : "bg-slate-100 text-slate-900 hover:bg-slate-200"}`}
-          >
-            {p.buttonText}
-          </button>
-        </div>
-      );
-    case "social":
-      return (
-        <div
-          className={`flex gap-4 ${alignClass === "text-center" ? "justify-center" : alignClass === "text-right" ? "justify-end" : "justify-start"}`}
-        >
-          {(block.content || []).map((s: any, i: number) => (
-            <a
-              key={i}
-              href={s.url}
-              className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-            >
-              {getIcon(s.icon)}
-            </a>
-          ))}
-        </div>
-      );
-    case "spacer":
-      return (
-        <div className="h-10 w-full bg-slate-50/10 border border-dashed border-slate-200 flex items-center justify-center text-[10px] text-slate-300">
-          Spacer
-        </div>
-      );
-    case "html":
-      return (
-        <div
-          className="text-sm prose max-w-none"
-          dangerouslySetInnerHTML={{ __html: block.content }}
-        />
-      );
-    case "code":
-      const codeContent = block.content || {
-        html: "",
-        css: "",
-        js: "",
-        height: "auto",
-      };
-      const combinedCode = `
-        <html>
-          <head>
-            <style>
-              body { margin: 0; font-family: sans-serif; overflow: hidden; }
-              ${codeContent.css}
-            </style>
-          </head>
-          <body>
-            <div id="wrapper">
-              ${codeContent.html}
-            </div>
-            <script>
-              try {
-                ${codeContent.js}
-              } catch (e) {
-                console.error("Custom JS Error:", e);
-              }
-              
-              function sendHeight() {
-                const wrapper = document.getElementById('wrapper');
-                if (wrapper) {
-                  const height = wrapper.scrollHeight;
-                  window.parent.postMessage({
-                    type: 'resize-iframe',
-                    blockId: '${block.id}',
-                    height: height
-                  }, '*');
-                }
-              }
-              
-              window.onload = sendHeight;
-              if (window.ResizeObserver) {
-                new ResizeObserver(sendHeight).observe(document.getElementById('wrapper'));
-              }
-              // Fallback for dynamic content
-              setInterval(sendHeight, 1000);
-            </script>
-          </body>
-        </html>
-      `;
-
-      return (
-        <div className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <iframe
-            id={`iframe-${block.id}`}
-            srcDoc={combinedCode}
-            style={{
-              height:
-                codeContent.height === "auto" ? "auto" : codeContent.height,
-              minHeight: codeContent.height === "auto" ? "50px" : undefined,
-            }}
-            className="w-full border-none"
-            title="Custom Widget"
-            sandbox="allow-scripts allow-modals"
-          />
-        </div>
-      );
-    case "form":
-      const f = block.content;
-      return (
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-          {f.title && (
-            <h3 className="text-xl font-bold text-slate-900 mb-1">{f.title}</h3>
-          )}
-          {f.description && (
-            <p className="text-sm text-slate-500 mb-6">{f.description}</p>
-          )}
-          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-            {(f.fields || []).map((field: any) => (
-              <div key={field.id} className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {field.label}
-                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                </label>
-                {field.type === "textarea" ? (
-                  <textarea
-                    placeholder={field.placeholder}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[100px]"
-                    required={field.required}
-                  />
-                ) : (
-                  <input
-                    type={field.type}
-                    placeholder={field.placeholder}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    required={field.required}
-                  />
-                )}
-              </div>
-            ))}
-            <button
-              type="submit"
-              style={{ backgroundColor: globalStyles.primaryColor }}
-              className="w-full text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-blue-500/20 mt-2"
-            >
-              {f.buttonText}
-            </button>
-          </form>
-        </div>
-      );
-    case "columns":
-      return (
-        <div className="p-6 bg-blue-50/50 border border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center text-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-            <Columns size={20} />
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-slate-800">
-              Legacy Columns Block
-            </p>
-            <p className="text-[10px] text-slate-500 max-w-[200px]">
-              Please use the "Columns / Layout" tool in the Widgets tab to add
-              multi-column sections.
-            </p>
-          </div>
-          <button
-            onClick={onRemove}
-            className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
-          >
-            Remove this block
-          </button>
-        </div>
-      );
-    default:
-      return (
-        <div className="p-4 bg-slate-100 border italic text-slate-400 text-xs">
-          Unknown: {block.type}
-        </div>
-      );
-  }
-};
 
 export default Editor;

@@ -1,5 +1,5 @@
 
-import { Page, Template, Section, Block, LayoutJSON } from './types';
+import { Page, Template, Section, Block, LayoutJSON, MediaItem } from './types';
 
 const createId = (prefix: string) => `${prefix}_${Math.random().toString(36).substr(2, 5)}`;
 
@@ -750,3 +750,97 @@ export const SAMPLE_TEMPLATES: Template[] = [
     } as Section
   }
 ];
+
+export const SAMPLE_MEDIA: MediaItem[] = [
+  {
+    id: 'med_saas_dashboard',
+    name: 'Analytics Dashboard UI',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200',
+    size: 245760,
+    createdAt: new Date().toISOString(),
+    category: 'image',
+    dimensions: '1920x1080'
+  },
+  {
+    id: 'med_hero_abstract',
+    name: 'Cosmic Violet Flow',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200',
+    size: 318400,
+    createdAt: new Date().toISOString(),
+    category: 'banner',
+    dimensions: '2400x1350'
+  },
+  {
+    id: 'med_mobile_mockup',
+    name: 'Modern Mobile App Showcase',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=1000',
+    size: 198200,
+    createdAt: new Date().toISOString(),
+    category: 'image',
+    dimensions: '1200x800'
+  },
+  {
+    id: 'med_cyber_workspace',
+    name: 'Minimal Workspace Setup',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200',
+    size: 278100,
+    createdAt: new Date().toISOString(),
+    category: 'banner',
+    dimensions: '2000x1250'
+  },
+  {
+    id: 'med_team_leader',
+    name: 'Sarah Jenkins - Founder Portrait',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=600',
+    size: 92400,
+    createdAt: new Date().toISOString(),
+    category: 'image',
+    dimensions: '800x800'
+  },
+  {
+    id: 'med_lead_engineer',
+    name: 'Alex Chen - Lead Architect',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=600',
+    size: 88500,
+    createdAt: new Date().toISOString(),
+    category: 'image',
+    dimensions: '800x800'
+  },
+  {
+    id: 'med_abstract_3d',
+    name: 'Prism Geometry 3D Render',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&q=80&w=1000',
+    size: 215000,
+    createdAt: new Date().toISOString(),
+    category: 'illustration',
+    dimensions: '1600x1200'
+  },
+  {
+    id: 'med_product_chart',
+    name: 'Growth Metrics Report',
+    type: 'image/jpeg',
+    url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1000',
+    size: 165400,
+    createdAt: new Date().toISOString(),
+    category: 'image',
+    dimensions: '1400x900'
+  },
+  {
+    id: 'med_whitepaper_pdf',
+    name: 'DevInquire CMS Architecture Whitepaper.pdf',
+    type: 'application/pdf',
+    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    size: 420000,
+    createdAt: new Date().toISOString(),
+    category: 'document',
+    dimensions: 'PDF File'
+  }
+];
+

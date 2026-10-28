@@ -1,0 +1,135 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: pages
+// Fields: id, title, slug, content, status, lastModified, author
+//
+// Collection: templates
+// Fields: id, name, category, thumbnail, content
+//
+// Collection: media
+// Fields: id, name, type, size, url, date
+//
+// Collection: users
+// Fields: id, name, email, role, status, lastActive
+//
+// Collection: config
+// Document: globalStyles
+// Fields: primaryColor, secondaryColor, fontFamily, containerWidth
+//
+// Document: siteConfig
+// Fields: siteName, baseUrl
+//
+// Collection: rewrites
+// Fields: id, source, destination, type
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          request.auth.token.email == "dsdm0012@gmail.com" ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'Administrator'])
+        );
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidPage(data) {
+      return data.title is string && data.title.size() > 0 && 
+             data.slug is string && data.slug.size() > 0 &&
+             data.status in ['draft', 'published'];
+    }
+
+    function isValidUser(data) {
+      return data.name is string && data.name.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role is string && data.role.size() > 0;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /pages/{pageId} {
+      // Allow public read for Headless API access
+      allow read: if true;
+      allow create, update: if isAuthenticated() && isValidPage(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /templates/{templateId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /media/{mediaId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
+    }
+
+    match /config/{configId} {
+      allow read: if true; // Allow public read for global styles/config
+      allow write: if isAdmin();
+    }
+
+    match /rewrites/{rewriteId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /collections/{collectionId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /entries/{entryId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

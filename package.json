@@ -11,20 +11,30 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^1.46.0",
     "@tailwindcss/vite": "^4.2.1",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
+    "firebase": "^12.11.0",
     "lucide-react": "^0.564.0",
+    "motion": "^12.38.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-joyride": "^3.0.0",
     "react-router-dom": "^7.13.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
+    "sonner": "^2.0.7",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

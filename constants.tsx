@@ -3,7 +3,9 @@ import React from 'react';
 import { 
   Type, Image as ImageIcon, MousePointer2, Play, 
   SeparatorVertical, Code, Columns, LayoutPanelLeft, Menu,
-  Smile, List, DollarSign, Share2, ClipboardList
+  Smile, List, DollarSign, Share2, ClipboardList,
+  MapPin, Quote, Grid, Minus, Hash, Activity, Trello, CheckSquare,
+  AlertCircle, Mail, ListTree
 } from 'lucide-react';
 import { BlockType } from './types';
 
@@ -179,6 +181,152 @@ export const BLOCK_DEFS: Array<{ type: BlockType; icon: React.ReactNode; label: 
       </div>
     )
   },
+  { 
+    type: 'map', 
+    icon: <MapPin size={18} />, 
+    label: 'Google Maps',
+    preview: (
+      <div className="w-full h-full flex items-center justify-center p-2">
+        <div className="w-full h-full bg-slate-200 rounded-md flex items-center justify-center">
+          <MapPin size={24} className="text-red-500" />
+        </div>
+      </div>
+    )
+  },
+  { 
+    type: 'testimonial', 
+    icon: <Quote size={18} />, 
+    label: 'Testimonial',
+    preview: (
+      <div className="w-full h-full flex flex-col gap-1 p-2">
+        <Quote size={12} className="text-blue-500" />
+        <div className="h-1.5 w-full bg-slate-300 rounded-full" />
+        <div className="h-1.5 w-2/3 bg-slate-300 rounded-full" />
+        <div className="flex items-center gap-1 mt-1">
+          <div className="w-3 h-3 bg-slate-400 rounded-full" />
+          <div className="w-6 h-1 bg-slate-400 rounded-full" />
+        </div>
+      </div>
+    )
+  },
+  { 
+    type: 'gallery', 
+    icon: <Grid size={18} />, 
+    label: 'Image Gallery',
+    preview: (
+      <div className="w-full h-full grid grid-cols-2 gap-1 p-2">
+        <div className="bg-slate-200 rounded-sm" />
+        <div className="bg-slate-200 rounded-sm" />
+        <div className="bg-slate-200 rounded-sm" />
+        <div className="bg-slate-200 rounded-sm" />
+      </div>
+    )
+  },
+  { 
+    type: 'divider', 
+    icon: <Minus size={18} />, 
+    label: 'Divider',
+    preview: (
+      <div className="w-full h-full flex items-center justify-center p-2">
+        <div className="w-full h-0.5 bg-slate-400 rounded-full" />
+      </div>
+    )
+  },
+  { 
+    type: 'counter', 
+    icon: <Hash size={18} />, 
+    label: 'Counter',
+    preview: (
+      <div className="w-full h-full flex flex-col items-center justify-center p-2">
+        <div className="text-lg font-bold text-blue-600">99+</div>
+        <div className="h-1 w-8 bg-slate-300 rounded-full" />
+      </div>
+    )
+  },
+  { 
+    type: 'progress', 
+    icon: <Activity size={18} />, 
+    label: 'Progress Bar',
+    preview: (
+      <div className="w-full h-full flex flex-col justify-center gap-1.5 p-2">
+        <div className="h-1 w-1/2 bg-slate-400 rounded-full" />
+        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+          <div className="h-full w-2/3 bg-blue-500" />
+        </div>
+      </div>
+    )
+  },
+  { 
+    type: 'tabs', 
+    icon: <Trello size={18} />, 
+    label: 'Tabs',
+    preview: (
+      <div className="w-full h-full flex flex-col p-2 gap-1">
+        <div className="flex gap-1">
+          <div className="w-6 h-2 bg-blue-500 rounded-t-sm" />
+          <div className="w-6 h-2 bg-slate-200 rounded-t-sm" />
+          <div className="w-6 h-2 bg-slate-200 rounded-t-sm" />
+        </div>
+        <div className="flex-1 bg-slate-100 rounded-b-sm border border-slate-200" />
+      </div>
+    )
+  },
+  { 
+    type: 'list', 
+    icon: <CheckSquare size={18} />, 
+    label: 'Icon List',
+    preview: (
+      <div className="w-full h-full flex flex-col gap-1.5 p-2">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 bg-blue-500 rounded-sm" />
+          <div className="h-1 w-10 bg-slate-300 rounded-full" />
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 bg-blue-500 rounded-sm" />
+          <div className="h-1 w-12 bg-slate-300 rounded-full" />
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 bg-blue-500 rounded-sm" />
+          <div className="h-1 w-8 bg-slate-300 rounded-full" />
+        </div>
+      </div>
+    )
+  },
+  {
+    type: 'alert',
+    label: 'Alert',
+    icon: <AlertCircle size={20} />,
+    preview: <div className="w-full h-8 bg-blue-100 rounded border border-blue-200" />
+  },
+  {
+    type: 'newsletter',
+    label: 'Newsletter',
+    icon: <Mail size={20} />,
+    preview: <div className="w-full h-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center"><Mail size={12} className="text-slate-400" /></div>
+  },
+  {
+    type: 'embed',
+    label: 'HTML/CSS/JS Embed',
+    icon: <Code size={20} />,
+    preview: (
+      <div className="w-full h-full flex items-center justify-center p-2">
+        <div className="w-full h-full bg-slate-900 rounded-md flex flex-col items-center justify-center gap-1 border border-slate-700">
+          <div className="flex gap-1">
+            <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+            <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+          </div>
+          <Code size={16} className="text-blue-400" />
+        </div>
+      </div>
+    )
+  },
+  {
+    type: 'sitemap',
+    label: 'Site Map',
+    icon: <ListTree size={20} />,
+    preview: <div className="w-full h-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center"><ListTree size={12} className="text-slate-400" /></div>
+  }
 ];
 
 export const COLUMN_LAYOUTS = [

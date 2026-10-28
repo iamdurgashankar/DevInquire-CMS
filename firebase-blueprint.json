@@ -1,0 +1,129 @@
+{
+  "entities": {
+    "Page": {
+      "title": "Page",
+      "description": "A CMS page document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "content": { "type": "array" },
+        "status": { "type": "string", "enum": ["Draft", "Published"] },
+        "lastModified": { "type": "string" },
+        "author": { "type": "string" }
+      },
+      "required": ["id", "title", "slug", "content", "status"]
+    },
+    "Template": {
+      "title": "Template",
+      "description": "A reusable page template",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "content": { "type": "array" }
+      },
+      "required": ["id", "name", "category", "content"]
+    },
+    "MediaItem": {
+      "title": "MediaItem",
+      "description": "An uploaded media asset",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "size": { "type": "string" },
+        "url": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "url"]
+    },
+    "UserManagementItem": {
+      "title": "UserManagementItem",
+      "description": "A team member in the CMS with granular RBAC permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive", "Pending"] },
+        "lastActive": { "type": "string" },
+        "permissions": { "type": "object" }
+      },
+      "required": ["id", "name", "email", "role", "status"]
+    },
+    "GlobalStyles": {
+      "title": "GlobalStyles",
+      "description": "Site-wide styling configuration",
+      "type": "object",
+      "properties": {
+        "primaryColor": { "type": "string" },
+        "secondaryColor": { "type": "string" },
+        "fontFamily": { "type": "string" },
+        "containerWidth": { "type": "string" }
+      }
+    },
+    "SiteConfig": {
+      "title": "SiteConfig",
+      "description": "General site configuration",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "baseUrl": { "type": "string" }
+      }
+    },
+    "URLRewrite": {
+      "title": "URLRewrite",
+      "description": "A URL redirection rule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" },
+        "destination": { "type": "string" },
+        "type": { "type": "string", "enum": ["301", "302"] }
+      },
+      "required": ["id", "source", "destination", "type"]
+    },
+    "Collection": {
+      "title": "Collection",
+      "description": "A custom content collection definition (e.g. Blog, Products)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "fields": { "type": "array" }
+      },
+      "required": ["id", "name", "slug", "fields"]
+    },
+    "CollectionItem": {
+      "title": "CollectionItem",
+      "description": "An entry in a custom collection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "collectionId": { "type": "string" },
+        "data": { "type": "object" },
+        "status": { "type": "string", "enum": ["Draft", "Published"] },
+        "publishedAt": { "type": "string" }
+      },
+      "required": ["id", "collectionId", "data", "status"]
+    }
+  },
+  "firestore": {
+    "/pages/{pageId}": { "schema": "Page", "description": "CMS Pages" },
+    "/templates/{templateId}": { "schema": "Template", "description": "Page Templates" },
+    "/media/{mediaId}": { "schema": "MediaItem", "description": "Media Library" },
+    "/users/{userId}": { "schema": "UserManagementItem", "description": "Team Members" },
+    "/config/globalStyles": { "schema": "GlobalStyles", "description": "Global Styles" },
+    "/config/siteConfig": { "schema": "SiteConfig", "description": "Site Configuration" },
+    "/rewrites/{rewriteId}": { "schema": "URLRewrite", "description": "URL Rewrites" },
+    "/collections/{collectionId}": { "schema": "Collection", "description": "Content Type Definitions" },
+    "/entries/{entryId}": { "schema": "CollectionItem", "description": "Collection Entries" }
+  }
+}
