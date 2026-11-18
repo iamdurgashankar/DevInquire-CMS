@@ -10,14 +10,14 @@ import {
   ChevronRight, ExternalLink, Activity, Repeat, X,
   ChevronUp, ChevronDown, TrendingUp, Users, Zap, LogOut, Lock, Sparkles, Loader2,
   Database, Code, Terminal, Link as LinkIcon, Layers, List,
-  PanelLeftClose, PanelLeftOpen, ChevronsLeft, ChevronsRight, Menu, HelpCircle, Shield
+  PanelLeftClose, PanelLeftOpen, ChevronsLeft, ChevronsRight, Menu, HelpCircle, Shield, FolderTree, Monitor, History
 } from 'lucide-react';
 import { Page, Template, LayoutJSON, Section, MediaItem, URLRewrite, Collection, CollectionEntry, CollectionField, UserManagementItem, AccessLevel, getPermissionsForRole } from '../types';
 import { SAMPLE_TEMPLATES } from '../sampleData';
 import { generatePageIdea, generateCollectionSchema, smartSearchPages } from '../services/geminiService';
 import { toast } from 'sonner';
 
-type DashboardView = 'dashboard' | 'pages' | 'templates' | 'media' | 'settings' | 'seo' | 'global-styles' | 'profile' | 'page-settings' | 'rewrites' | 'users' | 'headless-api' | 'collections';
+type DashboardView = 'dashboard' | 'pages' | 'experience' | 'templates' | 'media' | 'settings' | 'seo' | 'global-styles' | 'profile' | 'page-settings' | 'rewrites' | 'users' | 'headless-api' | 'collections';
 
 import { logout } from '../firebase';
 import SmartSuggestions from '../components/SmartSuggestions';
@@ -33,6 +33,10 @@ import {
   SectionAccessDenied,
   AccessLevelPill
 } from '../components/UserManagementRBAC';
+import { ExperienceManager } from '../components/ExperienceManager';
+import { VersionHistoryModal } from '../components/VersionHistoryModal';
+import { CsvPageAutomation } from '../components/CsvPageAutomation';
+import { AppleThemeSwitcher } from '../components/AppleThemeSwitcher';
 
 const Dashboard: React.FC = () => {
   const { 
@@ -57,10 +61,13 @@ const Dashboard: React.FC = () => {
     entries, setEntries,
     syncCollection, deleteCollectionOnServer,
     syncEntry, deleteEntryOnServer,
-    logoutDemoUser
+    logoutDemoUser,
+    theme
   } = useCMS();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<DashboardView>('dashboard');
+  const [versionHistoryPageId, setVersionHistoryPageId] = useState<string | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Granular RBAC simulation & active permissions resolution
   const [simulatedUser, setSimulatedUser] = useState<UserManagementItem | null>(null);
@@ -220,7 +227,7 @@ const Dashboard: React.FC = () => {
   };
   const [activeFilter, setActiveFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'site' | 'styles' | 'pages' | 'hosting'>('site');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'site' | 'styles' | 'pages' | 'hosting' | 'users' | 'automation'>('site');
   const [isSaving, setIsSaving] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -232,6 +239,7 @@ const Dashboard: React.FC = () => {
   const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
   const [newTemplateData, setNewTemplateData] = useState({ name: '', type: 'section' as 'section' | 'page' });
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [experiencePageId, setExperiencePageId] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
@@ -1062,7 +1070,7 @@ const Dashboard: React.FC = () => {
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image size should be less than 2MB');
+      toast.error('Image size should be less than 2MB');
       return;
     }
 
@@ -1141,7 +1149,7 @@ const Dashboard: React.FC = () => {
             if (importedData.templates) {
               importedData.templates.forEach((t: Template) => syncTemplate(t));
             }
-            alert('Full site imported successfully!');
+            toast.success('Full site imported successfully!');
           } else {
             // Single page import
             const newPage: Page = {
@@ -1161,7 +1169,7 @@ const Dashboard: React.FC = () => {
             };
             setPages(prev => [newPage, ...prev]);
             syncPage(newPage);
-            alert('Page imported successfully!');
+            toast.success('Page imported successfully!');
           }
         } 
         // If HTML, import as a Custom Site
@@ -1181,11 +1189,11 @@ const Dashboard: React.FC = () => {
           };
           setPages(prev => [newPage, ...prev]);
           syncPage(newPage);
-          alert('HTML file imported as a Custom Site!');
+          toast.success('HTML file imported as a Custom Site!');
         }
       } catch (err) {
         console.error('Import error:', err);
-        alert('Failed to import file. Please ensure it is a valid JSON or HTML file.');
+        toast.error('Failed to import file. Please ensure it is a valid JSON or HTML file.');
       }
     };
     reader.readAsText(file);
@@ -1276,7 +1284,7 @@ const Dashboard: React.FC = () => {
           };
           setTemplates(prev => [newTemplate, ...prev]);
           syncTemplate(newTemplate);
-          alert('Template imported successfully!');
+          toast.success('Template imported successfully!');
         } else if (file.name.endsWith('.html')) {
           const newTemplate: Template = {
             id,
@@ -1289,11 +1297,11 @@ const Dashboard: React.FC = () => {
           };
           setTemplates(prev => [newTemplate, ...prev]);
           syncTemplate(newTemplate);
-          alert('HTML file imported as a Template!');
+          toast.success('HTML file imported as a Template!');
         }
       } catch (err) {
         console.error('Import error:', err);
-        alert('Failed to import template. Please ensure it is a valid JSON or HTML file.');
+        toast.error('Failed to import template. Please ensure it is a valid JSON or HTML file.');
       }
     };
     reader.readAsText(file);
@@ -1607,7 +1615,7 @@ const Dashboard: React.FC = () => {
       setSmartSearchResults(result);
     } catch (error) {
       console.error('Smart search error:', error);
-      alert('Failed to perform smart search. Please try again.');
+      toast.error('Failed to perform smart search. Please try again.');
     } finally {
       setIsSmartSearching(false);
     }
@@ -1615,7 +1623,7 @@ const Dashboard: React.FC = () => {
 
   const handleCreateTemplate = () => {
     if (!newTemplateData.name) {
-      alert('Please enter a template name');
+      toast.error('Please enter a template name');
       return;
     }
 
@@ -1675,6 +1683,11 @@ const Dashboard: React.FC = () => {
         title: 'Pages & Visual Editor',
         cap: 'Pages: View or Manage',
       },
+      experience: {
+        level: activePermissions.pages,
+        title: 'Experience Manager & Sitemap',
+        cap: 'Pages: View or Manage',
+      },
       templates: {
         level: activePermissions.templates,
         title: 'Template Library',
@@ -1700,11 +1713,6 @@ const Dashboard: React.FC = () => {
         title: 'Headless API Explorer',
         cap: 'Headless API: View or Manage',
       },
-      settings: {
-        level: activePermissions.settings,
-        title: 'Site Settings & Global Styles',
-        cap: 'Site Settings: View or Manage',
-      },
       seo: {
         level: activePermissions.seo,
         title: 'SEO & Search Console',
@@ -1712,8 +1720,13 @@ const Dashboard: React.FC = () => {
       },
     };
 
+    const isContentHubView =
+      activeView === 'pages' ||
+      activeView === 'templates' ||
+      activeView === 'media';
+
     const currentSectionRule = sectionAccessMap[activeView];
-    if (currentSectionRule && currentSectionRule.level === 'none') {
+    if (!isContentHubView && currentSectionRule && currentSectionRule.level === 'none') {
       return (
         <SectionAccessDenied
           sectionTitle={currentSectionRule.title}
@@ -1726,69 +1739,607 @@ const Dashboard: React.FC = () => {
       );
     }
 
+    if (activeView === 'experience') {
+      return (
+        <ExperienceManager
+          pages={pages}
+          rewrites={rewrites}
+          globalStyles={globalStyles}
+          siteConfig={siteConfig}
+          accessLevel={activePermissions.pages}
+          initialPageId={experiencePageId}
+          onSavePage={async updatedPage => {
+            setPages(prev =>
+              prev.map(p => (p.id === updatedPage.id ? updatedPage : p))
+            );
+            await syncPage(updatedPage);
+          }}
+          onCreatePage={() => createPage()}
+          onDeletePage={pageId => deletePage(pageId)}
+          onOpenFullEditor={pageId => navigate(`/editor/${pageId}`)}
+        />
+      );
+    }
+
+    if (isContentHubView) {
+      const canUploadMedia =
+        activePermissions.media.level === 'manage' && activePermissions.media.canUpload;
+      const canDeleteMedia =
+        activePermissions.media.level === 'manage' && activePermissions.media.canDelete;
+
+      const filteredMedia = media.filter(m => {
+        const q = searchQuery.toLowerCase().trim();
+        if (!q) return true;
+        return (
+          (m.name || '').toLowerCase().includes(q) ||
+          (m.category || '').toLowerCase().includes(q) ||
+          (m.type || '').toLowerCase().includes(q) ||
+          (m.dimensions || '').toLowerCase().includes(q) ||
+          (m.url && !m.url.startsWith('data:') && m.url.toLowerCase().includes(q))
+        );
+      });
+
+      const hubTabs: Array<{
+        id: 'pages' | 'templates' | 'media';
+        label: string;
+        description: string;
+        count: number;
+        icon: React.ReactNode;
+        accessLevel: AccessLevel;
+      }> = [
+        {
+          id: 'pages',
+          label: 'Pages',
+          description: 'Site pages & list view',
+          count: pages.length,
+          icon: <FileText size={18} />,
+          accessLevel: activePermissions.pages,
+        },
+        {
+          id: 'templates',
+          label: 'Templates',
+          description: 'Reusable sections & layouts',
+          count: templates.length,
+          icon: <Layout size={18} />,
+          accessLevel: activePermissions.templates,
+        },
+        {
+          id: 'media',
+          label: 'Media Library',
+          description: 'Images & uploaded assets',
+          count: media.length,
+          icon: <FolderOpen size={18} />,
+          accessLevel: activePermissions.media.level,
+        },
+      ];
+
+      return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+          {/* Unified Pages, Templates & Media Navigation Bar */}
+          <div className="bg-white dark:bg-[#2C2C2E] rounded-[22px] border border-black/[0.06] dark:border-white/[0.08] p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+              {hubTabs.map(tab => {
+                const isActive = activeView === tab.id;
+                const isRestricted = tab.accessLevel === 'none';
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveView(tab.id)}
+                    className={`flex items-center justify-between gap-3 px-4 py-3 rounded-[16px] text-left transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-md shadow-[#007AFF]/20'
+                        : 'bg-[#F5F5F7]/80 dark:bg-[#1C1C1E]/60 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] text-[#1D1D1F] dark:text-[#F5F5F7]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-white dark:bg-[#2C2C2E] text-[#86868B] dark:text-[#98989D] border border-black/[0.06] dark:border-white/[0.08]'
+                        }`}
+                      >
+                        {tab.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-sm truncate">{tab.label}</span>
+                          {isRestricted && (
+                            <Lock
+                              size={12}
+                              className={isActive ? 'text-white/80' : 'text-[#FF3B30]'}
+                            />
+                          )}
+                        </div>
+                        <p
+                          className={`text-[11px] truncate ${
+                            isActive ? 'text-white/80' : 'text-[#86868B] dark:text-[#98989D]'
+                          }`}
+                        >
+                          {tab.description}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold tabular-nums shrink-0 ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] border border-black/[0.06] dark:border-white/[0.08]'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Per-Tab RBAC Access Check */}
+          {currentSectionRule && currentSectionRule.level === 'none' ? (
+            <SectionAccessDenied
+              sectionTitle={currentSectionRule.title}
+              requiredCapability={currentSectionRule.cap}
+              activeRoleName={activeRoleLabel}
+              isSimulating={Boolean(simulatedUser)}
+              onExitSimulation={() => setSimulatedUser(null)}
+              onBackToDashboard={() => setActiveView('dashboard')}
+            />
+          ) : activeView === 'pages' ? (
+            <div className="space-y-6">
+              {/* Stats Overview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <StatCard label="Total Pages" value={stats.total} trend="+2 this week" icon={<FileText className="text-[#007AFF] dark:text-[#0A84FF]" size={20} />} />
+                <StatCard label="Published" value={stats.published} trend="Live" icon={<Globe className="text-[#34C759]" size={20} />} />
+                <StatCard label="Drafts" value={stats.drafts} trend="In Progress" icon={<Edit3 className="text-[#FF9500]" size={20} />} />
+                <StatCard label="Page Views" value={stats.views.toLocaleString()} trend="+12.5%" icon={<Eye className="text-[#AF52DE]" size={20} />} />
+              </div>
+
+              {/* Filters & View Controls */}
+              <div className="bg-white dark:bg-[#2C2C2E] rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-black/[0.06] dark:border-white/[0.08] p-2 flex flex-wrap items-center gap-2">
+                <FilterTab active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} label="All Pages" count={stats.total} />
+                <FilterTab active={activeFilter === 'published'} onClick={() => setActiveFilter('published')} label="Published" count={stats.published} />
+                <FilterTab active={activeFilter === 'draft'} onClick={() => setActiveFilter('draft')} label="Drafts" count={stats.drafts} />
+                <div className="ml-auto flex items-center gap-2 px-4">
+                  <span className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider mr-1">Sort By</span>
+                  <select className="text-xs font-semibold bg-transparent outline-none cursor-pointer text-[#1D1D1F] dark:text-[#F5F5F7]">
+                    <option>Last Modified</option>
+                    <option>A-Z</option>
+                    <option>Creation Date</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bulk Actions Bar */}
+              {selectedPageIds.length > 0 && (
+                <div className="bg-[#1D1D1F] dark:bg-[#2C2C2E] text-white rounded-[20px] shadow-xl p-4 flex flex-wrap items-center justify-between gap-4 mb-6 animate-in fade-in slide-in-from-top-2 duration-300 border border-white/[0.1]">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-[#007AFF] dark:bg-[#0A84FF] flex items-center justify-center text-xs font-bold">
+                        {selectedPageIds.length}
+                      </div>
+                      <span className="text-sm font-semibold text-white">Pages Selected</span>
+                    </div>
+                    <div className="h-6 w-px bg-white/10 mx-1 hidden sm:block" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button 
+                        onClick={handleBulkPublish}
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl hover:bg-white/10 transition-all text-xs font-semibold text-[#30D158] cursor-pointer"
+                      >
+                        <Globe size={14} />
+                        Publish
+                      </button>
+                      <button 
+                        onClick={handleBulkUnpublish}
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl hover:bg-white/10 transition-all text-xs font-semibold text-[#FF9F0A] cursor-pointer"
+                      >
+                        <Edit3 size={14} />
+                        Unpublish
+                      </button>
+                      <button 
+                        onClick={handleBulkDownload}
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl hover:bg-white/10 transition-all text-xs font-semibold text-[#0A84FF] cursor-pointer"
+                      >
+                        <Download size={14} />
+                        Export
+                      </button>
+                      <button 
+                        onClick={handleBulkDelete}
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl hover:bg-[#FF453A]/20 transition-all text-xs font-semibold text-[#FF453A] cursor-pointer"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPageIds([])}
+                    className="p-2 hover:bg-white/10 rounded-xl transition-all text-[#98989D] hover:text-white cursor-pointer"
+                    title="Clear Selection"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              )}
+
+              {/* Page List */}
+              <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden">
+                {filteredPages.length === 0 ? (
+                  <div className="px-6 py-24 text-center">
+                    <div className="w-20 h-20 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-full flex items-center justify-center mx-auto mb-6">
+                      <FileText size={36} className="text-[#86868B] dark:text-[#98989D]" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">No pages found</h3>
+                    <p className="text-[#86868B] dark:text-[#98989D] text-sm max-w-xs mx-auto mb-8">
+                      {searchQuery ? "We couldn't find anything matching your search." : "Ready to launch your site? Create your first page to get started."}
+                    </p>
+                    {!searchQuery && (
+                      <button 
+                        onClick={() => createPage()}
+                        className="inline-flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-7 py-3 rounded-full font-semibold hover:bg-[#0071E3] transition-all shadow-sm cursor-pointer"
+                      >
+                        <Plus size={18} />
+                        Start Creating
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60 border-b border-black/[0.06] dark:border-white/[0.08]">
+                        <tr>
+                          <th className="px-6 py-4 w-10">
+                            <div className="flex items-center justify-center">
+                              <input 
+                                type="checkbox" 
+                                className="w-4 h-4 rounded border-black/20 dark:border-white/20 text-[#007AFF] focus:ring-[#007AFF] cursor-pointer transition-all"
+                                checked={selectedPageIds.length === filteredPages.length && filteredPages.length > 0}
+                                onChange={() => toggleSelectAll(filteredPages)}
+                              />
+                            </div>
+                          </th>
+                          <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Page Details</th>
+                          <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Live Path</th>
+                          <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
+                        {filteredPages.map(page => (
+                          <tr 
+                            key={page.id} 
+                            className={`group hover:bg-[#007AFF]/[0.04] dark:hover:bg-[#0A84FF]/[0.08] transition-all duration-200 cursor-pointer relative ${selectedPageIds.includes(page.id) ? 'bg-[#007AFF]/[0.06] dark:bg-[#0A84FF]/[0.12]' : ''}`}
+                            onClick={() => navigate(`/editor/${page.id}`)}
+                          >
+                            <td className="px-6 py-4 w-10" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center">
+                                <input 
+                                  type="checkbox" 
+                                  className="w-4 h-4 rounded border-black/20 dark:border-white/20 text-[#007AFF] focus:ring-[#007AFF] cursor-pointer transition-all"
+                                  checked={selectedPageIds.includes(page.id)}
+                                  onChange={() => toggleSelectPage(page.id)}
+                                />
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-4">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover:scale-105 ${
+                                  page.isCustomSite ? 'bg-[#AF52DE]/12 text-[#AF52DE]' :
+                                  page.status === 'published' ? 'bg-[#34C759]/12 text-[#34C759]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B] dark:text-[#98989D] group-hover:bg-[#007AFF]/12 group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF]'
+                                }`}>
+                                  {page.isCustomSite ? <Globe size={19} /> : <FileText size={19} />}
+                                </div>
+                                <div>
+                                  <span className="block font-semibold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-colors">{page.title}</span>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[11px] text-[#86868B] dark:text-[#98989D] font-medium">
+                                      By {page.author} • {page.isCustomSite ? 'Custom Code' : `${page.layoutJSON.sections.length} Sections`} • {page.versions?.length || 1} {(page.versions?.length || 1) === 1 ? 'Version' : 'Versions'}
+                                    </span>
+                                    {globalActivity[page.id]?.length > 0 && (
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
+                                        <span className="text-[10px] text-[#34C759] font-semibold uppercase tracking-wider">
+                                          {globalActivity[page.id].length} Editing Now
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <code className="text-xs font-mono bg-[#F5F5F7] dark:bg-[#1C1C1E] px-2.5 py-1 rounded-lg text-[#1D1D1F] dark:text-[#F5F5F7] border border-black/[0.05] dark:border-white/[0.06]">/{page.slug}</code>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
+                                page.status === 'published' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#FF9500]/12 text-[#C93400] dark:text-[#FF9F0A]'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${page.status === 'published' ? 'bg-[#34C759]' : 'bg-[#FF9500]'}`} />
+                                {page.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                <ActionButton
+                                  onClick={() => setVersionHistoryPageId(page.id)}
+                                  icon={<History size={16} />}
+                                  label="Version History"
+                                  color="blue"
+                                />
+                                <ActionButton
+                                  onClick={() => {
+                                    setExperiencePageId(page.id);
+                                    setActiveView('experience');
+                                  }}
+                                  icon={<FolderTree size={16} />}
+                                  label="Experience & Sitemap"
+                                  color="blue"
+                                />
+                                <ActionButton onClick={() => navigate(`/editor/${page.id}`)} icon={<Edit3 size={16} />} label="Edit" color="blue" />
+                                <ActionButton onClick={() => window.open(`/#/p/${page.slug}`, '_blank')} icon={<Eye size={16} />} label="View" color="blue" />
+                                <ActionButton onClick={() => duplicatePage(page)} icon={<Copy size={16} />} label="Copy" color="slate" />
+                                <ActionButton onClick={() => downloadPage(page)} icon={<Download size={16} />} label="Download" color="slate" />
+                                <ActionButton onClick={() => deletePage(page.id)} icon={<Trash2 size={16} />} label="Delete" color="red" />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : activeView === 'templates' ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {templates.map(template => (
+                  <div key={template.id} className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden group hover:shadow-xl transition-all hover:-translate-y-0.5">
+                    <div className="aspect-video bg-[#F5F5F7] dark:bg-[#1C1C1E] flex items-center justify-center relative overflow-hidden">
+                      <Layout size={44} className="text-[#86868B]/50 dark:text-[#98989D]/50 group-hover:scale-110 transition-transform" />
+                      <div className="absolute inset-0 bg-[#007AFF]/0 group-hover:bg-[#007AFF]/[0.05] transition-colors" />
+                    </div>
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-semibold text-[#007AFF] dark:text-[#0A84FF] uppercase tracking-wider">{template.type}</span>
+                        <span className="text-[11px] text-[#86868B] dark:text-[#98989D] font-medium">By {template.createdBy}</span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">{template.name}</h3>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => createPage(template)}
+                          className="flex-1 bg-[#F5F5F7] dark:bg-[#3A3A3C] text-[#1D1D1F] dark:text-[#F5F5F7] py-2.5 rounded-xl text-xs font-semibold hover:bg-black/[0.08] dark:hover:bg-white/[0.12] transition-all cursor-pointer"
+                        >
+                          Use Template
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/editor/${template.id}`)}
+                          className="flex-1 bg-[#007AFF] dark:bg-[#0A84FF] text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-[#0071E3] transition-all cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => deleteTemplate(template.id)}
+                          className="p-2.5 text-[#86868B] hover:text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-xl transition-all cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button 
+                  onClick={() => setShowCreateTemplateModal(true)}
+                  className="border-2 border-dashed border-black/[0.12] dark:border-white/[0.14] rounded-[24px] flex flex-col items-center justify-center gap-4 p-8 hover:bg-white/60 dark:hover:bg-[#2C2C2E]/60 hover:border-[#007AFF] dark:hover:border-[#0A84FF] transition-all group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#2C2C2E] shadow-xs flex items-center justify-center text-[#86868B] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-all">
+                    <Plus size={24} />
+                  </div>
+                  <div className="text-center">
+                    <span className="block font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Create New Template</span>
+                    <span className="text-xs text-[#86868B] dark:text-[#98989D]">Save your custom designs</span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Create Template Modal */}
+              {showCreateTemplateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
+                  <div className="bg-white dark:bg-[#2C2C2E] rounded-[28px] shadow-2xl border border-black/[0.08] dark:border-white/[0.1] w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] dark:border-white/[0.08]">
+                      <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Create New Template</h3>
+                      <button onClick={() => setShowCreateTemplateModal(false)} className="text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white cursor-pointer"><X size={20} /></button>
+                    </div>
+                    <div className="p-6 space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Template Name</label>
+                        <input 
+                          type="text" 
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#1C1C1E] focus:ring-2 focus:ring-[#007AFF] outline-none transition-all"
+                          placeholder="e.g. My Custom Section"
+                          value={newTemplateData.name}
+                          onChange={(e) => setNewTemplateData(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Template Type</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button 
+                            onClick={() => setNewTemplateData(prev => ({ ...prev, type: 'section' }))}
+                            className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all cursor-pointer ${newTemplateData.type === 'section' ? 'border-[#007AFF] bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'border-black/[0.08] dark:border-white/[0.1] text-[#86868B] hover:border-black/20'}`}
+                          >
+                            Section
+                          </button>
+                          <button 
+                            onClick={() => setNewTemplateData(prev => ({ ...prev, type: 'page' }))}
+                            className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all cursor-pointer ${newTemplateData.type === 'page' ? 'border-[#007AFF] bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'border-black/[0.08] dark:border-white/[0.1] text-[#86868B] hover:border-black/20'}`}
+                          >
+                            Full Page
+                          </button>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={handleCreateTemplate}
+                        className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-3.5 rounded-xl font-semibold hover:bg-[#0071E3] transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
+                      >
+                        Create Template
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-[#2C2C2E] rounded-[20px] border border-black/[0.06] dark:border-white/[0.08] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Media Library Access</span>
+                  <AccessLevelPill level={activePermissions.media.level} />
+                </div>
+                <div className="flex items-center gap-2 text-[11px] font-semibold">
+                  <span className="text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">RBAC Policy:</span>
+                  <span className={`px-2.5 py-0.5 rounded-md ${canUploadMedia ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'}`}>
+                    Upload: {canUploadMedia ? 'Allowed' : 'Restricted'}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-md ${canDeleteMedia ? 'bg-[#FF3B30]/12 text-[#D70015] dark:text-[#FF453A]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'}`}>
+                    Delete: {canDeleteMedia ? 'Allowed' : 'Restricted'}
+                  </span>
+                </div>
+              </div>
+
+              {filteredMedia.length === 0 ? (
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border-2 border-dashed border-black/[0.1] dark:border-white/[0.12] p-12 text-center">
+                  <div className="w-16 h-16 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FolderOpen size={30} className="text-[#86868B]" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">No media found</h3>
+                  <p className="text-sm text-[#86868B] dark:text-[#98989D] mb-6">Upload your first image to get started</p>
+                  {canUploadMedia && (
+                    <button 
+                      onClick={() => mediaInputRef.current?.click()}
+                      className="text-[#007AFF] dark:text-[#0A84FF] font-semibold text-sm hover:underline cursor-pointer"
+                    >
+                      Click here to upload
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-5">
+                  {filteredMedia.map(item => (
+                    <div
+                      id={`media-card-${item.id}`}
+                      key={item.id}
+                      className={`group relative bg-white dark:bg-[#2C2C2E] rounded-[20px] border overflow-hidden hover:shadow-xl transition-all hover:-translate-y-0.5 ${
+                        highlightedMediaId === item.id
+                          ? 'border-[#007AFF] ring-4 ring-[#007AFF]/25 shadow-xl'
+                          : 'border-black/[0.06] dark:border-white/[0.08]'
+                      }`}
+                    >
+                      <div className="aspect-square bg-[#F5F5F7] dark:bg-[#1C1C1E] flex items-center justify-center relative overflow-hidden">
+                        <img 
+                          src={item.url} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(item.url);
+                              toast.success('Media URL copied to clipboard!');
+                            }}
+                            className="p-2.5 bg-white/95 rounded-xl text-[#1D1D1F] hover:text-[#007AFF] transition-all cursor-pointer"
+                            title="Copy URL"
+                          >
+                            <Copy size={15} />
+                          </button>
+                          {canDeleteMedia && (
+                            <button 
+                              onClick={() => deleteMedia(item.id)}
+                              className="p-2.5 bg-white/95 rounded-xl text-[#1D1D1F] hover:text-[#FF3B30] transition-all cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-3.5 border-t border-black/[0.05] dark:border-white/[0.06]">
+                        <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate" title={item.name}>{item.name}</p>
+                        <p className="text-[10px] text-[#86868B] dark:text-[#98989D] mt-0.5 font-mono">{(Number(item.size || 0) / 1024).toFixed(1)} KB</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     switch (activeView) {
       case 'dashboard':
         return (
-          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Welcome & Quick Start Flow */}
-            <section className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
-              <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-blue-600/20 to-transparent pointer-events-none" />
-              <div className="absolute top-0 right-0 p-8 opacity-20 rotate-12 pointer-events-none">
-                <Sparkles size={120} />
-              </div>
-              
-              <div className="relative z-10 max-w-3xl">
-                <h1 className="text-4xl font-black mb-4 tracking-tighter leading-none">
-                  Ready to build something <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">amazing</span>, {user.name.split(' ')[0]}?
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-3 duration-500">
+            {/* Apple Studio Hero Banner */}
+            <section className="bg-white dark:bg-[#2C2C2E] rounded-[32px] p-8 sm:p-10 border border-black/[0.06] dark:border-white/[0.08] relative overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.04)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.3)]">
+              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#007AFF]/[0.08] dark:bg-[#0A84FF]/[0.15] blur-3xl pointer-events-none" />
+              <div className="relative z-10 max-w-4xl">
+                <span className="text-[11px] font-mono uppercase tracking-[0.18em] text-[#007AFF] dark:text-[#0A84FF] font-semibold block mb-2.5">
+                  Apple Studio Workspace
+                </span>
+                <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight">
+                  Ready to craft something extraordinary, {user.name.split(' ')[0]}?
                 </h1>
-                <p className="text-slate-400 text-lg mb-10 max-w-xl font-medium">
-                  Follow this simple path to launch your new website or app today. 
-                  Where would you like to start?
+                <p className="text-[#86868B] dark:text-[#98989D] text-base mb-8 max-w-xl leading-relaxed">
+                  Design visual pages, manage structured content collections, or orchestrate your site hierarchy with precision.
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div 
                     id="tour-create-page"
                     onClick={() => createPage()}
-                    className="bg-white/5 backdrop-blur-sm border border-white/10 p-6 rounded-3xl hover:bg-white/10 hover:border-blue-500/50 transition-all cursor-pointer group"
+                    className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.08] p-6 rounded-[24px] hover:border-[#007AFF]/50 dark:hover:border-[#0A84FF]/50 hover:shadow-md transition-all cursor-pointer group"
                   >
-                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/40">
-                      <Zap size={24} />
+                    <div className="w-11 h-11 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
+                      <Zap size={22} />
                     </div>
-                    <h3 className="font-bold text-lg mb-1">Instant Page</h3>
-                    <p className="text-xs text-slate-400">Launch a blank canvas or use a pro template.</p>
+                    <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Instant Page</h3>
+                    <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">Launch a blank canvas or start from a curated layout.</p>
                   </div>
 
                   <div 
                     onClick={() => setActiveView('templates')}
-                    className="bg-white/5 backdrop-blur-sm border border-white/10 p-6 rounded-3xl hover:bg-white/10 hover:border-indigo-500/50 transition-all cursor-pointer group"
+                    className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.08] p-6 rounded-[24px] hover:border-[#5856D6]/50 hover:shadow-md transition-all cursor-pointer group"
                   >
-                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-indigo-500/40">
-                      <Layout size={24} />
+                    <div className="w-11 h-11 bg-[#5856D6] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
+                      <Layout size={22} />
                     </div>
-                    <h3 className="font-bold text-lg mb-1">Browse Templates</h3>
-                    <p className="text-xs text-slate-400">Pick from over 50 professional designs.</p>
+                    <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Browse Templates</h3>
+                    <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">Explore reusable sections and page blueprints.</p>
                   </div>
 
                   <div 
                     onClick={() => setActiveView('collections')}
-                    className="bg-white/5 backdrop-blur-sm border border-white/10 p-6 rounded-3xl hover:bg-white/10 hover:border-cyan-500/50 transition-all cursor-pointer group"
+                    className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.08] p-6 rounded-[24px] hover:border-[#34C759]/50 hover:shadow-md transition-all cursor-pointer group"
                   >
-                    <div className="w-12 h-12 bg-cyan-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-cyan-500/40">
-                      <Layers size={24} />
+                    <div className="w-11 h-11 bg-[#34C759] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
+                      <Layers size={22} />
                     </div>
-                    <h3 className="font-bold text-lg mb-1">The AI Architect</h3>
-                    <p className="text-xs text-slate-400">Describe your site and let AI build the schema.</p>
+                    <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Content Collections</h3>
+                    <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">Architect structured schemas & headless endpoints.</p>
                   </div>
                 </div>
               </div>
             </section>
 
-            <div className="grid grid-cols-4 gap-6">
-              <StatCard label="Live Pages" value={stats.published} trend="+12%" icon={<Globe className="text-blue-500" size={20} />} />
-              <StatCard label="Monthly Visitors" value="4,290" trend="+5.4%" icon={<Users className="text-indigo-500" size={20} />} />
-              <StatCard label="Media Assets" value={media.length} trend="Active" icon={<Eye className="text-purple-500" size={20} />} />
-              <StatCard label="API Requests" value="1.2k" trend="Stable" icon={<Activity className="text-cyan-500" size={20} />} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <StatCard label="Live Pages" value={stats.published} trend="+12%" icon={<Globe className="text-[#007AFF] dark:text-[#0A84FF]" size={20} />} />
+              <StatCard label="Monthly Visitors" value="4,290" trend="+5.4%" icon={<Users className="text-[#5856D6]" size={20} />} />
+              <StatCard label="Media Assets" value={media.length} trend="Active" icon={<Eye className="text-[#AF52DE]" size={20} />} />
+              <StatCard label="API Requests" value="1.2k" trend="Stable" icon={<Activity className="text-[#34C759]" size={20} />} />
             </div>
 
             <SmartSuggestions 
@@ -1804,46 +2355,42 @@ const Dashboard: React.FC = () => {
 
       {/* AI Architect Modal for Collections */}
       {showAIArchitectModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
-              <div className="p-10 space-y-8">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-[#2C2C2E] rounded-[32px] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300 border border-black/[0.08] dark:border-white/[0.1]">
+              <div className="p-8 sm:p-10 space-y-6">
                  <div className="flex justify-between items-start">
-                    <div className="space-y-2">
-                       <div className="flex items-center gap-2 text-blue-600">
-                          <Sparkles size={24} className="animate-pulse" />
-                          <span className="text-xs font-black uppercase tracking-[0.2em]">AI Content Architect</span>
+                    <div className="space-y-1.5">
+                       <div className="flex items-center gap-2 text-[#007AFF] dark:text-[#0A84FF]">
+                          <Sparkles size={20} />
+                          <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.18em]">AI Content Architect</span>
                        </div>
-                       <h3 className="text-3xl font-black text-slate-900 tracking-tight">What are we building?</h3>
-                       <p className="text-sm text-slate-500 leading-relaxed">Describe the data you want to manage, and I'll architect the perfect collection schema for you.</p>
+                       <h3 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">What are we building?</h3>
+                       <p className="text-sm text-[#86868B] dark:text-[#98989D] leading-relaxed">Describe the data you want to manage, and we'll architect the collection schema for you.</p>
                     </div>
-                    <button onClick={() => setShowAIArchitectModal(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-all"><X size={24} /></button>
+                    <button onClick={() => setShowAIArchitectModal(false)} className="p-2 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-full text-[#86868B] transition-all cursor-pointer"><X size={20} /></button>
                  </div>
 
-                 <div className="space-y-6">
+                 <div className="space-y-4">
                     <div className="relative group">
                        <textarea 
                           rows={4}
                           placeholder="e.g., A blog with title, featured image, content, and categories..."
-                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 text-slate-700 placeholder:text-slate-300 focus:bg-white focus:border-blue-500 transition-all outline-none resize-none text-sm leading-relaxed"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-2xl p-5 text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#1C1C1E] focus:ring-2 focus:ring-[#007AFF] transition-all outline-none resize-none text-sm leading-relaxed"
                           value={collectionPrompt}
                           onChange={(e) => setCollectionPrompt(e.target.value)}
                        />
-                       <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
-                          <Terminal size={12} />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Natural Language Engine</span>
-                       </div>
                     </div>
 
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-2.5">
                        <button 
                           onClick={() => setCollectionPrompt("A restaurant menu with dish name, price, ingredients, and dietary tags.")}
-                          className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all"
+                          className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:border-[#007AFF] transition-all cursor-pointer"
                        >
                           Restaurant Menu
                        </button>
                        <button 
                           onClick={() => setCollectionPrompt("An e-commerce product catalog with name, price, stock level, and gallery.")}
-                          className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all"
+                          className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:border-[#007AFF] transition-all cursor-pointer"
                        >
                           Product Catalog
                        </button>
@@ -1853,579 +2400,108 @@ const Dashboard: React.FC = () => {
                  <button 
                     disabled={!collectionPrompt || isArchitecting}
                     onClick={handleGenerateCollectionAI}
-                    className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-blue-700 disabled:opacity-50 disabled:grayscale transition-all shadow-2xl shadow-blue-500/20 active:scale-95"
+                    className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-4 rounded-2xl font-semibold text-base flex items-center justify-center gap-2.5 hover:bg-[#0071E3] disabled:opacity-50 transition-all shadow-lg shadow-[#007AFF]/20 active:scale-[0.99] cursor-pointer"
                  >
                     {isArchitecting ? (
                        <>
-                          <Loader2 size={24} className="animate-spin" />
+                          <Loader2 size={20} className="animate-spin" />
                           Architecting Schema...
                        </>
                     ) : (
                        <>
-                          <Zap size={24} />
+                          <Zap size={20} />
                           Build Collection Schema
                        </>
                     )}
                  </button>
               </div>
-              <div className="px-10 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                 <span>Powered by Gemini 2.0 Flash</span>
-                 <div className="flex gap-1">
-                    <div className="w-1 h-1 rounded-full bg-blue-400" />
-                    <div className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" />
-                    <div className="w-1 h-1 rounded-full bg-blue-400" />
-                 </div>
-              </div>
            </div>
         </div>
       )}
 
-            <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Recent Projects</h2>
-                  <button onClick={() => setActiveView('pages')} className="text-xs font-bold text-blue-600 hover:underline">View All</button>
+                  <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Recent Pages</h2>
+                  <button onClick={() => setActiveView('pages')} className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline cursor-pointer">See All</button>
                 </div>
-                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                  <div className="divide-y divide-slate-100">
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+                  <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
                     {pages.slice(0, 4).map(page => (
                       <div 
                         key={page.id} 
                         onClick={() => navigate(`/editor/${page.id}`)}
-                        className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer group"
+                        className="p-4 flex items-center justify-between hover:bg-[#F5F5F7]/70 dark:hover:bg-white/[0.04] transition-colors cursor-pointer group"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
-                            <FileText size={20} />
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-xl flex items-center justify-center text-[#86868B] dark:text-[#98989D] group-hover:bg-[#007AFF]/12 group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-colors">
+                            <FileText size={18} />
                           </div>
                           <div>
-                            <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-700 transition-colors">{page.title}</h4>
-                            <p className="text-[10px] text-slate-400">Published /{page.slug}</p>
+                            <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] text-sm group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-colors">{page.title}</h4>
+                            <p className="text-[11px] font-mono text-[#86868B] dark:text-[#98989D]">/{page.slug}</p>
                           </div>
                         </div>
-                        <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+                        <ChevronRight size={16} className="text-[#86868B] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] group-hover:translate-x-0.5 transition-all" />
                       </div>
                     ))}
                     {pages.length === 0 && (
                       <div className="p-12 text-center">
-                        <p className="text-slate-400 text-sm italic">No pages created yet.</p>
+                        <p className="text-[#86868B] text-sm">No pages created yet.</p>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Ecosystem</h2>
+                  <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Studio Tools</h2>
                 </div>
                 <div className="space-y-4">
-                  <Link 
-                    to="/editor/ai" 
-                    className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl text-white shadow-xl shadow-blue-500/20 hover:scale-[1.02] transition-transform group"
+                  <div 
+                    onClick={() => setActiveView('experience')}
+                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#007AFF]/50 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white/20 rounded-2xl">
-                        <Sparkles size={24} />
+                      <div className="p-3 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 rounded-2xl text-[#007AFF] dark:text-[#0A84FF]">
+                        <FolderTree size={22} />
                       </div>
                       <div>
-                        <h3 className="font-bold">AI Page Generator</h3>
-                        <p className="text-xs text-white/70">Scaffold entire sites with one prompt</p>
+                        <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Experience Manager & Sitemap</h3>
+                        <p className="text-xs text-[#86868B] dark:text-[#98989D]">Visual inline page canvas & interactive hierarchy</p>
                       </div>
                     </div>
-                    <ChevronRight size={20} className="text-white/50 group-hover:translate-x-1 transition-transform" />
-                  </Link>
+                    <ChevronRight size={18} className="text-[#86868B] group-hover:text-[#007AFF] group-hover:translate-x-0.5 transition-all" />
+                  </div>
 
                   <div 
                     onClick={() => setActiveView('headless-api')}
-                    className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-3xl shadow-sm hover:border-slate-900 transition-colors cursor-pointer group"
+                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#007AFF]/50 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-slate-100 rounded-2xl text-slate-600">
-                        <Terminal size={24} />
+                      <div className="p-3 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl text-[#1D1D1F] dark:text-[#F5F5F7]">
+                        <Terminal size={22} />
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-900">Headless API</h3>
-                        <p className="text-xs text-slate-500">Documentation & Live Console</p>
+                        <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Headless Content API</h3>
+                        <p className="text-xs text-[#86868B] dark:text-[#98989D]">REST endpoints & interactive JSON console</p>
                       </div>
                     </div>
-                    <ExternalLink size={20} className="text-slate-300 group-hover:text-slate-900 transition-colors" />
+                    <ExternalLink size={18} className="text-[#86868B] group-hover:text-[#007AFF] transition-colors" />
                   </div>
                 </div>
               </div>
             </div>
           </div>
         );
-      case 'pages':
-        return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-             {/* Stats Overview */}
-            <div className="grid grid-cols-4 gap-6">
-              <StatCard label="Total Pages" value={stats.total} trend="+2 this week" icon={<FileText className="text-blue-500" size={20} />} />
-              <StatCard label="Published" value={stats.published} trend="Live" icon={<Globe className="text-green-500" size={20} />} />
-              <StatCard label="Drafts" value={stats.drafts} trend="In Progress" icon={<Edit3 className="text-amber-500" size={20} />} />
-              <StatCard label="Page Views" value={stats.views.toLocaleString()} trend="+12.5%" icon={<Eye className="text-purple-500" size={20} />} />
-            </div>
-
-            {/* Filters & View Controls */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-2 flex items-center gap-2">
-              <FilterTab active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} label="All Pages" count={stats.total} />
-              <FilterTab active={activeFilter === 'published'} onClick={() => setActiveFilter('published')} label="Published" count={stats.published} />
-              <FilterTab active={activeFilter === 'draft'} onClick={() => setActiveFilter('draft')} label="Drafts" count={stats.drafts} />
-              <div className="ml-auto flex items-center gap-2 px-4">
-                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2">Sort By</span>
-                 <select className="text-xs font-bold bg-transparent outline-none cursor-pointer text-slate-600">
-                   <option>Last Modified</option>
-                   <option>A-Z</option>
-                   <option>Creation Date</option>
-                 </select>
-              </div>
-            </div>
-
-            {/* Bulk Actions Bar */}
-            {selectedPageIds.length > 0 && (
-              <div className="bg-slate-900 text-white rounded-xl shadow-xl p-4 flex items-center justify-between mb-6 animate-in fade-in slide-in-from-top-2 duration-300 border border-slate-800">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-xs font-black">
-                      {selectedPageIds.length}
-                    </div>
-                    <span className="text-sm font-bold text-slate-200">Pages Selected</span>
-                  </div>
-                  <div className="h-6 w-px bg-slate-800 mx-2" />
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={handleBulkPublish}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-slate-800 transition-all text-xs font-bold text-green-400 border border-transparent hover:border-slate-700"
-                    >
-                      <Globe size={14} />
-                      Publish
-                    </button>
-                    <button 
-                      onClick={handleBulkUnpublish}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-slate-800 transition-all text-xs font-bold text-amber-400 border border-transparent hover:border-slate-700"
-                    >
-                      <Edit3 size={14} />
-                      Unpublish
-                    </button>
-                    <button 
-                      onClick={handleBulkDownload}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-slate-800 transition-all text-xs font-bold text-blue-400 border border-transparent hover:border-slate-700"
-                    >
-                      <Download size={14} />
-                      Export
-                    </button>
-                    <button 
-                      onClick={handleBulkDelete}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-red-900/20 transition-all text-xs font-bold text-red-400 border border-transparent hover:border-red-900/30"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setSelectedPageIds([])}
-                  className="p-2 hover:bg-slate-800 rounded-xl transition-all text-slate-400 hover:text-white"
-                  title="Clear Selection"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            )}
-
-            {/* Page List */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              {filteredPages.length === 0 ? (
-                <div className="px-6 py-24 text-center">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <FileText size={40} className="text-slate-200" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-2">No pages found</h3>
-                  <p className="text-slate-500 text-sm max-w-xs mx-auto mb-8">
-                    {searchQuery ? "We couldn't find anything matching your search." : "Ready to launch your site? Create your first page to get started."}
-                  </p>
-                  {!searchQuery && (
-                    <button 
-                      onClick={() => createPage()}
-                      className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/10"
-                    >
-                      <Plus size={20} />
-                      Start Creating
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50/50 border-b">
-                    <tr>
-                      <th className="px-6 py-4 w-10">
-                        <div className="flex items-center justify-center">
-                          <input 
-                            type="checkbox" 
-                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
-                            checked={selectedPageIds.length === filteredPages.length && filteredPages.length > 0}
-                            onChange={() => toggleSelectAll(filteredPages)}
-                          />
-                        </div>
-                      </th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Page Details</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Live Path</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredPages.map(page => (
-                      <tr 
-                        key={page.id} 
-                        className={`group hover:bg-blue-50/30 transition-all duration-200 cursor-pointer relative ${selectedPageIds.includes(page.id) ? 'bg-blue-50/50' : ''}`}
-                        onClick={() => navigate(`/editor/${page.id}`)}
-                      >
-                        <td className="px-6 py-5 w-10" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center">
-                            <input 
-                              type="checkbox" 
-                              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
-                              checked={selectedPageIds.includes(page.id)}
-                              onChange={() => toggleSelectPage(page.id)}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group-hover:scale-110 group-hover:shadow-md ${
-                              page.isCustomSite ? 'bg-purple-50 text-purple-600' :
-                              page.status === 'published' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600'
-                            }`}>
-                              {page.isCustomSite ? <Globe size={20} /> : <FileText size={20} />}
-                            </div>
-                              <div>
-                                <span className="block font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{page.title}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-slate-400 font-medium">
-                                    By {page.author} • {page.isCustomSite ? 'Custom Code' : `${page.layoutJSON.sections.length} Sections`}
-                                  </span>
-                                  {globalActivity[page.id]?.length > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                      <span className="text-[10px] text-green-600 font-bold uppercase tracking-wider">
-                                        {globalActivity[page.id].length} Editing Now
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <code className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 font-medium group-hover:bg-white group-hover:shadow-sm transition-all italic">/{page.slug}</code>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                            page.status === 'published' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                            {page.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <ActionButton onClick={() => navigate(`/editor/${page.id}`)} icon={<Edit3 size={16} />} label="Edit" color="blue" />
-                            <ActionButton onClick={() => window.open(`/#/p/${page.slug}`, '_blank')} icon={<Eye size={16} />} label="View" color="blue" />
-                            <ActionButton onClick={() => duplicatePage(page)} icon={<Copy size={16} />} label="Copy" color="slate" />
-                            <ActionButton onClick={() => downloadPage(page)} icon={<Download size={16} />} label="Download" color="slate" />
-                            <ActionButton onClick={() => deletePage(page.id)} icon={<Trash2 size={16} />} label="Delete" color="red" />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        );
-      case 'templates':
-        return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-slate-800">Template Library</h2>
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={() => templateInputRef.current?.click()}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                >
-                  <Upload size={14} />
-                  Import Template
-                </button>
-                <input 
-                  type="file" 
-                  ref={templateInputRef} 
-                  onChange={handleImportTemplate} 
-                  accept=".json,.html" 
-                  className="hidden" 
-                />
-                <button 
-                  onClick={restoreSampleTemplates}
-                  className="text-xs font-bold text-slate-500 hover:text-slate-600 flex items-center gap-1"
-                >
-                  <Repeat size={14} />
-                  Restore Samples
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-6">
-              {templates.map(template => (
-                <div key={template.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden group hover:shadow-xl transition-all hover:-translate-y-1">
-                  <div className="aspect-video bg-slate-100 flex items-center justify-center relative overflow-hidden">
-                    <Layout size={48} className="text-slate-300 group-hover:scale-110 transition-transform" />
-                    <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/10 transition-colors" />
-                  </div>
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{template.type}</span>
-                      <span className="text-[10px] text-slate-400 font-medium">By {template.createdBy}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-4">{template.name}</h3>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => createPage(template)}
-                        className="flex-1 bg-slate-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-all"
-                      >
-                        Use
-                      </button>
-                      <button 
-                        onClick={() => navigate(`/editor/${template.id}`)}
-                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all"
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => deleteTemplate(template.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <button 
-                onClick={() => setShowCreateTemplateModal(true)}
-                className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-4 p-8 hover:bg-slate-50 hover:border-blue-300 transition-all group"
-              >
-                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-all">
-                  <Plus size={24} />
-                </div>
-                <div className="text-center">
-                  <span className="block font-bold text-slate-800">Create New Template</span>
-                  <span className="text-xs text-slate-400">Save your custom designs</span>
-                </div>
-              </button>
-            </div>
-
-            {/* Create Template Modal */}
-            {showCreateTemplateModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                  <div className="flex items-center justify-between px-6 py-4 border-b">
-                    <h3 className="text-lg font-bold text-slate-800">Create New Template</h3>
-                    <button onClick={() => setShowCreateTemplateModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
-                  </div>
-                  <div className="p-6 space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Template Name</label>
-                      <input 
-                        type="text" 
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                        placeholder="e.g. My Custom Section"
-                        value={newTemplateData.name}
-                        onChange={(e) => setNewTemplateData(prev => ({ ...prev, name: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Template Type</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button 
-                          onClick={() => setNewTemplateData(prev => ({ ...prev, type: 'section' }))}
-                          className={`py-3 rounded-xl border-2 font-bold text-sm transition-all ${newTemplateData.type === 'section' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}
-                        >
-                          Section
-                        </button>
-                        <button 
-                          onClick={() => setNewTemplateData(prev => ({ ...prev, type: 'page' }))}
-                          className={`py-3 rounded-xl border-2 font-bold text-sm transition-all ${newTemplateData.type === 'page' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}
-                        >
-                          Full Page
-                        </button>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={handleCreateTemplate}
-                      className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
-                    >
-                      Create Template
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      case 'media': {
-        if (activePermissions.media.level === 'none') {
-          return (
-            <SectionAccessDenied
-              sectionTitle="Media Library"
-              requiredCapability="Media Library: View or Manage"
-              activeRoleName={activeRoleLabel}
-              isSimulating={Boolean(simulatedUser)}
-              onExitSimulation={() => setSimulatedUser(null)}
-              onBackToDashboard={() => setActiveView('dashboard')}
-            />
-          );
-        }
-
-        const canUploadMedia =
-          activePermissions.media.level === 'manage' && activePermissions.media.canUpload;
-        const canDeleteMedia =
-          activePermissions.media.level === 'manage' && activePermissions.media.canDelete;
-
-        const filteredMedia = media.filter(m => {
-          const q = searchQuery.toLowerCase().trim();
-          if (!q) return true;
-          return (
-            (m.name || '').toLowerCase().includes(q) ||
-            (m.category || '').toLowerCase().includes(q) ||
-            (m.type || '').toLowerCase().includes(q) ||
-            (m.dimensions || '').toLowerCase().includes(q) ||
-            (m.url && !m.url.startsWith('data:') && m.url.toLowerCase().includes(q))
-          );
-        });
-
-        return (
-          <div className="animate-in fade-in duration-500">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-xl font-bold text-slate-800">Media Library</h2>
-                  <AccessLevelPill level={activePermissions.media.level} />
-                </div>
-                <p className="text-sm text-slate-500">Manage your images and assets</p>
-                <div className="flex items-center gap-2 mt-2 text-[11px] font-bold">
-                  <span className="text-slate-400 uppercase tracking-wider">RBAC Policy:</span>
-                  <span className={`px-2 py-0.5 rounded ${canUploadMedia ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                    Upload: {canUploadMedia ? 'Allowed' : 'Restricted'}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded ${canDeleteMedia ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-400'}`}>
-                    Delete: {canDeleteMedia ? 'Allowed' : 'Restricted'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <input 
-                  type="file" 
-                  ref={mediaInputRef} 
-                  className="hidden" 
-                  multiple 
-                  accept="image/*" 
-                  onChange={handleMediaUpload} 
-                />
-                <button 
-                  onClick={() => {
-                    if (!canUploadMedia) {
-                      toast.error('Uploading media assets is restricted by your role permissions.');
-                      return;
-                    }
-                    mediaInputRef.current?.click();
-                  }}
-                  className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${
-                    canUploadMedia
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  {canUploadMedia ? <Upload size={18} /> : <Lock size={16} />}
-                  Upload Media
-                </button>
-              </div>
-            </div>
-
-            {filteredMedia.length === 0 ? (
-              <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FolderOpen size={32} className="text-slate-300" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">No media found</h3>
-                <p className="text-sm text-slate-500 mb-6">Upload your first image to get started</p>
-                {canUploadMedia && (
-                  <button 
-                    onClick={() => mediaInputRef.current?.click()}
-                    className="text-blue-600 font-bold text-sm hover:underline"
-                  >
-                    Click here to upload
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-                {filteredMedia.map(item => (
-                  <div
-                    id={`media-card-${item.id}`}
-                    key={item.id}
-                    className={`group relative bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1 ${
-                      highlightedMediaId === item.id
-                        ? 'border-blue-600 ring-4 ring-blue-500/25 shadow-xl'
-                        : 'border-slate-200'
-                    }`}
-                  >
-                    <div className="aspect-square bg-slate-50 flex items-center justify-center relative overflow-hidden">
-                      <img 
-                        src={item.url} 
-                        alt={item.name} 
-                        className="w-full h-full object-cover transition-transform group-hover:scale-110" 
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText(item.url);
-                            toast.success('Media URL copied to clipboard!');
-                          }}
-                          className="p-2 bg-white rounded-lg text-slate-900 hover:bg-blue-50 hover:text-blue-600 transition-all"
-                          title="Copy URL"
-                        >
-                          <Copy size={16} />
-                        </button>
-                        {canDeleteMedia && (
-                          <button 
-                            onClick={() => deleteMedia(item.id)}
-                            className="p-2 bg-white rounded-lg text-slate-900 hover:bg-red-50 hover:text-red-600 transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="p-3 border-t border-slate-50">
-                      <p className="text-xs font-bold text-slate-700 truncate" title={item.name}>{item.name}</p>
-                      <p className="text-[10px] text-slate-400 mt-1">{(Number(item.size || 0) / 1024).toFixed(1)} KB</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      }
       case 'rewrites':
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">URL Rewrites & Redirects</h2>
-                <p className="text-sm text-slate-500">Manage how your URLs are handled and redirected.</p>
+                <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">URL Rewrites & Redirects</h2>
+                <p className="text-sm text-[#86868B] dark:text-[#98989D]">Manage how your URLs are handled and redirected.</p>
               </div>
               <button 
                 onClick={() => {
@@ -2440,38 +2516,38 @@ const Dashboard: React.FC = () => {
                   setRewrites(prev => [newRewrite, ...prev]);
                   // We'll sync when they edit it
                 }}
-                className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full font-semibold text-xs flex items-center gap-2 shadow-sm shadow-[#007AFF]/20 hover:bg-[#0071E3] transition-all cursor-pointer"
               >
-                <Plus size={18} />
+                <Plus size={16} />
                 Add Rewrite Rule
               </button>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
               <table className="w-full text-left">
-                <thead className="bg-slate-50/50 border-b">
+                <thead className="bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60 border-b border-black/[0.06] dark:border-white/[0.08]">
                   <tr>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Source URL</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Target URL / Slug</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Type</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                    <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Source URL</th>
+                    <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Target URL / Slug</th>
+                    <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
                   {rewrites.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic text-sm">
+                      <td colSpan={5} className="px-6 py-12 text-center text-[#86868B] italic text-sm">
                         No rewrite rules defined yet.
                       </td>
                     </tr>
                   ) : (
                     rewrites.map(rewrite => (
-                      <tr key={rewrite.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={rewrite.id} className="hover:bg-[#F5F5F7]/50 dark:hover:bg-white/[0.03] transition-colors">
                         <td className="px-6 py-4">
                           <input 
                             type="text" 
-                            className="bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none text-sm font-medium text-slate-700 w-full"
+                            className="bg-transparent border-b border-transparent hover:border-black/15 dark:hover:border-white/20 focus:border-[#007AFF] outline-none text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] w-full"
                             placeholder="/old-path"
                             value={rewrite.source}
                             onChange={(e) => {
@@ -2484,7 +2560,7 @@ const Dashboard: React.FC = () => {
                         <td className="px-6 py-4">
                           <input 
                             type="text" 
-                            className="bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none text-sm font-medium text-slate-700 w-full"
+                            className="bg-transparent border-b border-transparent hover:border-black/15 dark:hover:border-white/20 focus:border-[#007AFF] outline-none text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] w-full"
                             placeholder="new-slug or /new-path"
                             value={rewrite.target}
                             onChange={(e) => {
@@ -2496,7 +2572,7 @@ const Dashboard: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <select 
-                            className="bg-transparent text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                            className="bg-transparent text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] outline-none cursor-pointer"
                             value={rewrite.type}
                             onChange={(e) => {
                               const updated = { ...rewrite, type: e.target.value as any };
@@ -2520,7 +2596,7 @@ const Dashboard: React.FC = () => {
                               setRewrites(prev => prev.map(r => r.id === rewrite.id ? updated : r));
                               syncRewrite(updated);
                             }}
-                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${rewrite.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider cursor-pointer ${rewrite.isActive ? 'bg-[#34C759]/15 text-[#34C759]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'}`}
                           >
                             {rewrite.isActive ? 'Active' : 'Inactive'}
                           </button>
@@ -2531,7 +2607,7 @@ const Dashboard: React.FC = () => {
                               setRewrites(prev => prev.filter(r => r.id !== rewrite.id));
                               deleteRewriteOnServer(rewrite.id);
                             }}
-                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            className="p-2 text-[#86868B] hover:text-[#FF3B30] transition-colors cursor-pointer"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -2547,20 +2623,20 @@ const Dashboard: React.FC = () => {
       case 'headless-api':
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+            <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
               <div className="flex items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                  <div className="p-3 bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF] rounded-2xl">
                     <Terminal size={24} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">Headless API Documentation</h2>
-                    <p className="text-sm text-slate-500">Expose your content to any frontend or application via our high-performance REST API.</p>
+                    <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Headless API Documentation</h2>
+                    <p className="text-sm text-[#86868B] dark:text-[#98989D]">Expose your content to any frontend or application via our high-performance REST API.</p>
                   </div>
                 </div>
                 <Link 
                   to="/headless-demo" 
-                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                  className="px-5 py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-full font-semibold text-xs flex items-center gap-2 hover:bg-[#0071E3] transition-all shadow-sm shadow-[#007AFF]/20"
                 >
                   <Globe size={16} />
                   View Live Demo
@@ -2570,8 +2646,8 @@ const Dashboard: React.FC = () => {
               <div className="space-y-8">
                 <section>
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                    <h3 className="text-lg font-bold text-slate-800">Content Endpoints</h3>
+                    <div className="w-1.5 h-6 bg-[#007AFF] dark:bg-[#0A84FF] rounded-full" />
+                    <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Content Endpoints</h3>
                   </div>
                   
                   <div className="space-y-4">
@@ -2603,12 +2679,12 @@ const Dashboard: React.FC = () => {
                   </div>
                 </section>
 
-                <section className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                <section className="bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl p-6 border border-black/[0.06] dark:border-white/[0.08]">
                   <div className="flex items-center gap-2 mb-4">
-                    <Code size={18} className="text-slate-600" />
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Example Usage (JavaScript)</h3>
+                    <Code size={18} className="text-[#86868B]" />
+                    <h3 className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] uppercase tracking-wider">Example Usage (JavaScript)</h3>
                   </div>
-                  <pre className="bg-slate-900 text-slate-300 p-4 rounded-xl text-xs font-mono overflow-x-auto">
+                  <pre className="bg-[#1D1D1F] text-[#F5F5F7] p-4 rounded-xl text-xs font-mono overflow-x-auto">
 {`// 1. Fetch Page Layout
 const pageRes = await fetch('/api/v1/content/pages/home');
 const { data: homePage } = await pageRes.json();
@@ -2621,9 +2697,9 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </pre>
                 </section>
 
-                <div className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                  <Activity size={20} className="text-amber-600" />
-                  <p className="text-xs text-amber-800 font-medium">
+                <div className="flex items-center gap-4 p-4 bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-2xl">
+                  <Activity size={20} className="text-[#FF9500]" />
+                  <p className="text-xs text-[#1D1D1F] dark:text-[#F5F5F7] font-medium">
                     The API is currently <strong>Public</strong>. All published content is accessible without an API key. 
                     Production builds will require the X-API-Key header in future updates.
                   </p>
@@ -2637,68 +2713,138 @@ console.log('Posts:', posts.map(p => p.title));`}
       case 'settings':
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Site Settings</h2>
-                <p className="text-sm text-slate-500">Configure your global site preferences, styles, and page SEO.</p>
+                <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Site Settings</h2>
+                <p className="text-sm text-[#86868B] dark:text-[#98989D]">Configure your global site preferences, styles, page SEO, team user management, and UTF-8 CSV page automation.</p>
               </div>
+              {activeSettingsTab === 'users' && activePermissions.users === 'manage' && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white rounded-full text-xs font-semibold shadow-sm shadow-[#007AFF]/20 transition-all cursor-pointer"
+                >
+                  <Plus size={15} />
+                  <span>Quick Add Member</span>
+                </button>
+              )}
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+            <div className="flex flex-wrap items-center gap-1 bg-black/[0.05] dark:bg-white/[0.08] p-1 rounded-2xl w-fit">
               <button 
                 onClick={() => setActiveSettingsTab('site')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSettingsTab === 'site' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeSettingsTab === 'site' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
               >
                 Site Config
               </button>
               <button 
                 onClick={() => setActiveSettingsTab('styles')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSettingsTab === 'styles' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeSettingsTab === 'styles' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
               >
                 Global Styles
               </button>
               <button 
                 onClick={() => setActiveSettingsTab('pages')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSettingsTab === 'pages' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeSettingsTab === 'pages' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
               >
                 Page SEO
               </button>
               <button 
                 onClick={() => setActiveSettingsTab('hosting')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSettingsTab === 'hosting' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeSettingsTab === 'hosting' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
               >
                 Domain & Hosting
               </button>
+              <button 
+                id="tab-settings-users"
+                onClick={() => setActiveSettingsTab('users')}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeSettingsTab === 'users' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
+              >
+                <Users size={14} />
+                <span>User Management</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-semibold ${activeSettingsTab === 'users' ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'bg-black/[0.06] dark:bg-white/[0.08] text-[#86868B]'}`}>
+                  {users.length}
+                </span>
+              </button>
+              <button 
+                id="tab-settings-automation"
+                onClick={() => setActiveSettingsTab('automation')}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeSettingsTab === 'automation' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
+              >
+                <Zap size={14} />
+                <span>CSV Page Automation</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono font-semibold ${activeSettingsTab === 'automation' ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'bg-black/[0.06] dark:bg-white/[0.08] text-[#86868B]'}`}>
+                  UTF-8
+                </span>
+              </button>
             </div>
 
-            {activeSettingsTab === 'site' && (
-              <div className="max-w-2xl bg-white rounded-2xl border border-slate-200 p-8 animate-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-xl font-bold text-slate-800 mb-6">General Configuration</h2>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Site Name</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
-                      value={siteConfig.siteName}
-                      onChange={(e) => setSiteConfig(prev => ({ ...prev, siteName: e.target.value }))}
-                    />
+            {activeSettingsTab !== 'users' && activePermissions.settings === 'none' ? (
+              <SectionAccessDenied
+                sectionTitle="Site Settings & Global Styles"
+                requiredCapability="Site Settings: View or Manage"
+                activeRoleName={activeRoleLabel}
+                isSimulating={Boolean(simulatedUser)}
+                onExitSimulation={() => setSimulatedUser(null)}
+                onBackToDashboard={() => setActiveView('dashboard')}
+              />
+            ) : (
+              <>
+                {activeSettingsTab === 'site' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="lg:col-span-7 bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
+                  <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-6">General Configuration</h2>
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Site Name</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all" 
+                        value={siteConfig.siteName}
+                        onChange={(e) => setSiteConfig(prev => ({ ...prev, siteName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Base URL</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all" 
+                        value={siteConfig.baseUrl}
+                        onChange={(e) => setSiteConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
+                      />
+                    </div>
+                    <button 
+                      onClick={handleSaveSettings}
+                      disabled={isSaving}
+                      className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-3.5 rounded-full font-semibold text-sm hover:bg-[#0071E3] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm shadow-[#007AFF]/20 cursor-pointer"
+                    >
+                      {isSaving ? <Loader2 className="animate-spin" size={18} /> : 'Save Changes'}
+                    </button>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Base URL</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
-                      value={siteConfig.baseUrl}
-                      onChange={(e) => setSiteConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
-                    />
+                </div>
+
+                <div className="lg:col-span-5 bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 flex flex-col justify-between space-y-6 shadow-xs">
+                  <div className="space-y-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center">
+                      <Zap size={20} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">UTF-8 CSV Page Automation</h3>
+                      <span className="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]">
+                        Bulk Builder
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#86868B] dark:text-[#98989D] leading-relaxed">
+                      Automate page creation from a UTF-8 CSV file. Define page hierarchy, assemble component sections (Hero, Features, Pricing, FAQ, Forms, Sitemap), and auto-link pages together in one click.
+                    </p>
                   </div>
-                  <button 
-                    onClick={handleSaveSettings}
-                    disabled={isSaving}
-                    className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  <button
+                    type="button"
+                    onClick={() => setActiveSettingsTab('automation')}
+                    className="w-full py-3.5 px-4 rounded-full bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-[#007AFF]/20 cursor-pointer"
                   >
-                    {isSaving ? <Loader2 className="animate-spin" size={20} /> : 'Save Changes'}
+                    <Zap size={15} />
+                    <span>Open CSV Page Automation</span>
                   </button>
                 </div>
               </div>
@@ -2706,10 +2852,10 @@ console.log('Posts:', posts.map(p => p.title));`}
 
             {activeSettingsTab === 'styles' && (
               <div className="max-w-4xl space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-8 space-y-6">
-                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                      <Palette size={20} className="text-blue-500" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6 shadow-xs">
+                    <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center gap-2">
+                      <Palette size={20} className="text-[#007AFF] dark:text-[#0A84FF]" />
                       Color Palette
                     </h2>
                     <div className="grid grid-cols-2 gap-6">
@@ -2741,16 +2887,16 @@ console.log('Posts:', posts.map(p => p.title));`}
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 p-8 space-y-6">
-                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                      <Type size={20} className="text-blue-500" />
+                  <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6 shadow-xs">
+                    <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center gap-2">
+                      <Type size={20} className="text-[#007AFF] dark:text-[#0A84FF]" />
                       Typography
                     </h2>
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Primary Font (Headings)</label>
+                        <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Primary Font (Headings)</label>
                         <select 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
                           value={globalStyles.headingFont}
                           onChange={(e) => setGlobalStyles(prev => ({ ...prev, headingFont: e.target.value }))}
                         >
@@ -2761,9 +2907,9 @@ console.log('Posts:', posts.map(p => p.title));`}
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Secondary Font (Body)</label>
+                        <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Secondary Font (Body)</label>
                         <select 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
                           value={globalStyles.bodyFont}
                           onChange={(e) => setGlobalStyles(prev => ({ ...prev, bodyFont: e.target.value }))}
                         >
@@ -2777,23 +2923,23 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200 p-8 space-y-6">
-                  <h2 className="text-lg font-bold text-slate-900">Layout & Spacing</h2>
-                  <div className="grid grid-cols-3 gap-6">
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6 shadow-xs">
+                  <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Layout & Spacing</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Max Container Width</label>
+                      <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Max Container Width</label>
                       <input 
                         type="text" 
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
                         value={globalStyles.containerWidth}
                         onChange={(e) => setGlobalStyles(prev => ({ ...prev, containerWidth: e.target.value }))}
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Global Border Radius</label>
+                      <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Global Border Radius</label>
                       <input 
                         type="text" 
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
                         value={globalStyles.borderRadius}
                         onChange={(e) => setGlobalStyles(prev => ({ ...prev, borderRadius: e.target.value }))}
                       />
@@ -2803,10 +2949,10 @@ console.log('Posts:', posts.map(p => p.title));`}
                 
                 <div className="flex justify-end">
                   <button 
-                    className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+                    className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#0071E3] transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
                     onClick={() => {
                       syncGlobalStyles(globalStyles);
-                      alert('Global styles saved successfully!');
+                      toast.success('Global styles saved successfully!');
                     }}
                   >
                     Save Global Styles
@@ -2817,27 +2963,27 @@ console.log('Posts:', posts.map(p => p.title));`}
 
             {activeSettingsTab === 'pages' && (
               <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                  <div className="px-6 py-4 border-b bg-slate-50/50">
-                    <h2 className="text-lg font-bold text-slate-800">SEO Configuration</h2>
-                    <p className="text-xs text-slate-500">Manage meta titles and descriptions for all your pages.</p>
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
+                  <div className="px-6 py-4 border-b border-black/[0.06] dark:border-white/[0.08] bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60">
+                    <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">SEO Configuration</h2>
+                    <p className="text-xs text-[#86868B] dark:text-[#98989D]">Manage meta titles and descriptions for all your pages.</p>
                   </div>
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
                     {pages.map(page => (
-                      <div key={page.id} className="p-6 hover:bg-slate-50/50 transition-colors group">
-                        <div className="grid grid-cols-12 gap-8">
-                          <div className="col-span-3">
+                      <div key={page.id} className="p-6 hover:bg-[#F5F5F7]/40 dark:hover:bg-white/[0.02] transition-colors group">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                          <div className="lg:col-span-3">
                             <div className="flex items-center gap-3 mb-2">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${page.status === 'published' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${page.status === 'published' ? 'bg-[#34C759]/15 text-[#34C759]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'}`}>
                                 {page.isCustomSite ? <Globe size={16} /> : <FileText size={16} />}
                               </div>
-                              <span className="font-bold text-slate-800 truncate">{page.title}</span>
+                              <span className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">{page.title}</span>
                             </div>
-                            <code className="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-medium italic">/{page.slug}</code>
+                            <code className="text-[11px] bg-[#F5F5F7] dark:bg-[#1C1C1E] px-2 py-0.5 rounded-md text-[#86868B] font-mono">/{page.slug}</code>
                             <div className="mt-4">
                               <button 
                                 onClick={() => navigate(`/editor/${page.id}`)}
-                                className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-widest flex items-center gap-1"
+                                className="text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                               >
                                 <Edit3 size={12} />
                                 Open in Editor
@@ -2845,15 +2991,15 @@ console.log('Posts:', posts.map(p => p.title));`}
                             </div>
                           </div>
                           
-                          <div className="col-span-9 space-y-4">
-                            <div className="grid grid-cols-3 gap-6">
+                          <div className="lg:col-span-9 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                               <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">URL Slug</label>
+                                <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">URL Slug</label>
                                 <div className="flex items-center">
-                                  <span className="text-xs text-slate-400 mr-1">/</span>
+                                  <span className="text-xs text-[#86868B] mr-1">/</span>
                                   <input 
                                     type="text" 
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                                     placeholder="page-url-slug"
                                     value={page.slug}
                                     onChange={(e) => {
@@ -2869,10 +3015,10 @@ console.log('Posts:', posts.map(p => p.title));`}
                                 </div>
                               </div>
                               <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Meta Title</label>
+                                <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">Meta Title</label>
                                 <input 
                                   type="text" 
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                  className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                                   placeholder="Enter meta title..."
                                   value={page.seo?.metaTitle || ''}
                                   onChange={(e) => {
@@ -2887,10 +3033,10 @@ console.log('Posts:', posts.map(p => p.title));`}
                                 />
                               </div>
                               <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Keywords</label>
+                                <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">Keywords</label>
                                 <input 
                                   type="text" 
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                  className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                                   placeholder="e.g. design, portfolio, cms"
                                   value={page.seo?.keywords || ''}
                                   onChange={(e) => {
@@ -2907,9 +3053,9 @@ console.log('Posts:', posts.map(p => p.title));`}
                             </div>
                             
                             <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Meta Description</label>
+                              <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">Meta Description</label>
                               <textarea 
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[80px] resize-none"
+                                className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all min-h-[80px] resize-none"
                                 placeholder="Enter meta description..."
                                 value={page.seo?.metaDescription || ''}
                                 onChange={(e) => {
@@ -2934,52 +3080,52 @@ console.log('Posts:', posts.map(p => p.title));`}
 
             {activeSettingsTab === 'hosting' && (
               <div className="max-w-4xl space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
-                  <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[28px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
+                  <div className="p-8 sm:p-10 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60">
                     <div className="space-y-1">
-                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">Custom Domain Control</h2>
-                      <p className="text-sm text-slate-500">Point your own domain name to this CMS project.</p>
+                      <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Custom Domain Control</h2>
+                      <p className="text-sm text-[#86868B] dark:text-[#98989D]">Point your own domain name to this CMS project.</p>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-xl border border-green-100">
-                       <Globe size={18} />
-                       <span className="text-xs font-bold uppercase tracking-widest leading-none mt-0.5">SSL Active</span>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-[#34C759]/15 text-[#34C759] rounded-full">
+                       <Globe size={16} />
+                       <span className="text-xs font-semibold uppercase tracking-wider leading-none">SSL Active</span>
                     </div>
                   </div>
                   
-                  <div className="p-10 space-y-10">
+                  <div className="p-8 sm:p-10 space-y-10">
                     <div className="space-y-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Enter Custom Domain</label>
-                        <div className="flex gap-4">
+                        <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Enter Custom Domain</label>
+                        <div className="flex flex-col sm:flex-row gap-4">
                           <input 
                             type="text" 
-                            className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold text-slate-800 placeholder:text-slate-300 focus:bg-white focus:border-blue-500 outline-none transition-all"
+                            className="flex-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl px-6 py-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                             placeholder="e.g., www.mycoolsite.com"
                             value={siteConfig.customDomain || ''}
                             onChange={(e) => setSiteConfig(prev => ({ ...prev, customDomain: e.target.value.toLowerCase() }))}
                           />
                           <button 
                             onClick={handleSaveSettings}
-                            className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black hover:bg-slate-800 transition-all active:scale-95 shadow-xl shadow-slate-900/10"
+                            className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-8 py-4 rounded-2xl font-semibold hover:bg-[#0071E3] transition-all active:scale-95 shadow-md shadow-[#007AFF]/20 cursor-pointer"
                           >
                             Verify & Connect
                           </button>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-medium">Domain verification may take up to 24-48 hours to propagate globally.</p>
+                        <p className="text-[11px] text-[#86868B] font-medium">Domain verification may take up to 24-48 hours to propagate globally.</p>
                       </div>
 
                       {siteConfig.customDomain && (
-                        <div className="bg-slate-50 rounded-[2rem] border border-slate-100 p-8 space-y-6">
+                        <div className="bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center">
+                            <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-xl flex items-center justify-center">
                                <Settings size={18} />
                             </div>
-                            <h3 className="font-bold text-slate-900 text-lg">Required DNS Records</h3>
+                            <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] text-lg">Required DNS Records</h3>
                           </div>
-                           <p className="text-sm text-slate-500">Update your domain's DNS settings at your registrar (e.g., Namecheap, GoDaddy) with the following values:</p>
+                           <p className="text-sm text-[#86868B] dark:text-[#98989D]">Update your domain's DNS settings at your registrar (e.g., Namecheap, GoDaddy) with the following values:</p>
                            
                            <div className="space-y-3">
-                              <div className="grid grid-cols-12 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
+                              <div className="grid grid-cols-12 gap-4 text-[10px] font-semibold text-[#86868B] uppercase tracking-wider px-4">
                                  <div className="col-span-2">Type</div>
                                  <div className="col-span-3">Host</div>
                                  <div className="col-span-5">Value / Target</div>
@@ -2992,51 +3138,100 @@ console.log('Posts:', posts.map(p => p.title));`}
                       )}
                     </div>
 
-                    <div className="pt-10 border-t border-slate-100">
-                       <div className="grid grid-cols-2 gap-10">
+                    <div className="pt-10 border-t border-black/[0.06] dark:border-white/[0.08]">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                           <div className="space-y-4">
-                             <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl w-fit">
+                             <div className="p-3 bg-[#FF9500]/15 text-[#FF9500] rounded-2xl w-fit">
                                 <Zap size={24} />
                              </div>
-                             <h4 className="font-bold text-slate-900">Headless Edge Delivery</h4>
-                             <p className="text-sm text-slate-500 leading-relaxed">Your content is globally distributed via our CDN. Accessing your custom domain automatically routes requests to the nearest edge node for sub-100ms latency.</p>
+                             <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Headless Edge Delivery</h4>
+                             <p className="text-sm text-[#86868B] dark:text-[#98989D] leading-relaxed">Your content is globally distributed via our CDN. Accessing your custom domain automatically routes requests to the nearest edge node for sub-100ms latency.</p>
                           </div>
                           <div className="space-y-4">
-                             <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl w-fit">
+                             <div className="p-3 bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] rounded-2xl w-fit">
                                 <Activity size={24} />
                              </div>
-                             <h4 className="font-bold text-slate-900">Automatic SSL/TLS</h4>
-                             <p className="text-sm text-slate-500 leading-relaxed">We automatically provision and renew Let's Encrypt certificates for every custom domain connected to our platform at no extra cost.</p>
+                             <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Automatic SSL/TLS</h4>
+                             <p className="text-sm text-[#86868B] dark:text-[#98989D] leading-relaxed">We automatically provision and renew Let's Encrypt certificates for every custom domain connected to our platform at no extra cost.</p>
                           </div>
                        </div>
                     </div>
                   </div>
                 </div>
               </div>
+                )}
+                {activeSettingsTab === 'users' && (
+                  activePermissions.users === 'none' && !simulatedUser ? (
+                    <SectionAccessDenied
+                      sectionTitle="User Management & RBAC"
+                      requiredCapability="User Management: View or Manage"
+                      activeRoleName={activeRoleLabel}
+                      isSimulating={Boolean(simulatedUser)}
+                      onExitSimulation={() => setSimulatedUser(null)}
+                      onBackToDashboard={() => setActiveView('dashboard')}
+                    />
+                  ) : (
+                    <div className="animate-in slide-in-from-bottom-4 duration-500">
+                      <UserManagementView
+                        users={users}
+                        setUsers={setUsers}
+                        syncUserManagement={syncUserManagement}
+                        deleteUserOnServer={deleteUserOnServer}
+                        simulatedUser={simulatedUser}
+                        onSimulateUser={setSimulatedUser}
+                        openAddModalTrigger={showAddUserModal}
+                        onCloseAddModalTrigger={() => setShowAddUserModal(false)}
+                      />
+                    </div>
+                  )
+                )}
+                {activeSettingsTab === 'automation' && (
+                  <CsvPageAutomation
+                    pages={pages}
+                    setPages={setPages}
+                    syncPage={syncPage}
+                    rewrites={rewrites}
+                    setRewrites={setRewrites}
+                    syncRewrite={syncRewrite}
+                    globalStyles={globalStyles}
+                    authorName={user?.name || 'Administrator'}
+                    siteName={siteConfig?.siteName || 'DevInquire'}
+                    canManage={
+                      activePermissions.settings === 'manage' ||
+                      activePermissions.pages.level === 'manage'
+                    }
+                    onOpenEditor={(pageId) => navigate(`/editor/${pageId}`)}
+                    onOpenExperienceManager={(pageId) => {
+                      setExperiencePageId(pageId);
+                      setActiveView('experience');
+                    }}
+                  />
+                )}
+              </>
             )}
           </div>
         );
       case 'seo':
         return (
-          <div className="grid grid-cols-2 gap-8 animate-in fade-in duration-500">
-             <div className="bg-white rounded-2xl border border-slate-200 p-8">
-                <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity size={20} className="text-blue-500" /> SEO Health</h2>
-                <div className="flex items-center gap-4 py-6 border-b">
-                   <div className="text-4xl font-black text-green-500">88</div>
-                   <div className="text-sm font-medium text-slate-500">Site-wide SEO score based on content analysis and metadata completeness.</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
+             <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
+                <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 flex items-center gap-2"><Activity size={20} className="text-[#007AFF] dark:text-[#0A84FF]" /> SEO Health</h2>
+                <div className="flex items-center gap-4 py-6 border-b border-black/[0.06] dark:border-white/[0.08]">
+                   <div className="text-4xl font-semibold text-[#34C759]">88</div>
+                   <div className="text-sm font-medium text-[#86868B] dark:text-[#98989D]">Site-wide SEO score based on content analysis and metadata completeness.</div>
                 </div>
                 <ul className="mt-6 space-y-4">
-                  <li className="flex items-center gap-3 text-sm font-medium text-slate-600"><CheckCircle size={16} className="text-green-500" /> Meta titles optimized</li>
-                  <li className="flex items-center gap-3 text-sm font-medium text-slate-600"><CheckCircle size={16} className="text-green-500" /> Alt texts present on all images</li>
-                  <li className="flex items-center gap-3 text-sm font-medium text-slate-600"><AlertCircle size={16} className="text-amber-500" /> 2 pages missing meta descriptions</li>
+                  <li className="flex items-center gap-3 text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]"><CheckCircle size={16} className="text-[#34C759]" /> Meta titles optimized</li>
+                  <li className="flex items-center gap-3 text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]"><CheckCircle size={16} className="text-[#34C759]" /> Alt texts present on all images</li>
+                  <li className="flex items-center gap-3 text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]"><AlertCircle size={16} className="text-[#FF9500]" /> 2 pages missing meta descriptions</li>
                 </ul>
              </div>
-             <div className="bg-slate-900 rounded-2xl p-8 text-white">
-                <h2 className="text-xl font-bold mb-4">Google Search Console</h2>
-                <p className="text-slate-400 text-sm mb-8">Connect your site to track impressions and search ranking data directly in your CMS.</p>
+             <div className="bg-[#1D1D1F] dark:bg-[#2C2C2E] rounded-[24px] p-8 text-white border border-black/[0.06] dark:border-white/[0.08] shadow-xs">
+                <h2 className="text-xl font-semibold mb-4">Google Search Console</h2>
+                <p className="text-[#86868B] dark:text-[#98989D] text-sm mb-8">Connect your site to track impressions and search ranking data directly in your CMS.</p>
                 <button 
                   onClick={() => setShowConnectModal(true)}
-                  className="bg-white text-slate-900 px-6 py-2 rounded-lg font-bold hover:bg-slate-100 transition-all"
+                  className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-6 py-2.5 rounded-full font-semibold text-sm hover:bg-[#0071E3] transition-all cursor-pointer"
                 >
                   Connect Site
                 </button>
@@ -3059,19 +3254,19 @@ console.log('Posts:', posts.map(p => p.title));`}
       case 'profile':
         return (
           <div className="max-w-4xl animate-in fade-in duration-500">
-            <div className="grid grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="col-span-1 space-y-6">
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 mx-auto flex items-center justify-center text-white text-3xl font-bold shadow-xl mb-4 overflow-hidden">
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 text-center shadow-xs">
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-[#007AFF] to-[#5856D6] mx-auto flex items-center justify-center text-white text-3xl font-semibold shadow-lg mb-4 overflow-hidden">
                     {user.avatarUrl ? (
                       <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       user.avatar
                     )}
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900">{user.name}</h3>
-                  <p className="text-sm text-slate-500 mb-6">{user.role}</p>
-                  <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{user.name}</h3>
+                  <p className="text-sm text-[#86868B] dark:text-[#98989D] mb-6">{user.role}</p>
+                  <div className="space-y-2.5">
                     <input 
                       type="file" 
                       ref={avatarInputRef} 
@@ -3080,13 +3275,13 @@ console.log('Posts:', posts.map(p => p.title));`}
                       onChange={handleAvatarUpload} 
                     />
                     <button 
-                      className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-200"
+                      className="w-full py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm shadow-[#007AFF]/20 cursor-pointer"
                       onClick={() => avatarInputRef.current?.click()}
                     >
                       Upload Image
                     </button>
                     <button 
-                      className="w-full py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                      className="w-full py-2.5 border border-black/[0.08] dark:border-white/[0.1] rounded-full text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] transition-all cursor-pointer"
                       onClick={() => {
                         const newAvatar = prompt('Enter new avatar initials (max 2 chars):', user.avatar);
                         if (newAvatar) {
@@ -3100,7 +3295,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       Set Initials
                     </button>
                     <button 
-                      className="w-full py-2 text-[10px] font-bold text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest"
+                      className="w-full py-2 text-[10px] font-semibold text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-all uppercase tracking-widest cursor-pointer"
                       onClick={() => {
                         const initials = profileData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
                         const updatedUser = { ...user, avatar: initials, avatarUrl: undefined };
@@ -3114,31 +3309,31 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Account Status</h4>
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 shadow-xs">
+                  <h4 className="text-xs font-semibold text-[#86868B] uppercase tracking-wider mb-4">Account Status</h4>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-600">Plan</span>
-                      <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">Professional</span>
+                      <span className="text-sm text-[#86868B] dark:text-[#98989D]">Plan</span>
+                      <span className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] bg-[#007AFF]/10 px-2.5 py-1 rounded-full">Professional</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-600">Member Since</span>
-                      <span className="text-sm font-medium text-slate-900">Oct 2023</span>
+                      <span className="text-sm text-[#86868B] dark:text-[#98989D]">Member Since</span>
+                      <span className="text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">Oct 2023</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-2xl border border-blue-100 p-6">
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 shadow-xs">
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles size={16} className="text-blue-600" />
-                    <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider">CMS Tour Guide</h4>
+                    <Sparkles size={16} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                    <h4 className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] uppercase tracking-wider">CMS Tour Guide</h4>
                   </div>
-                  <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+                  <p className="text-xs text-[#86868B] dark:text-[#98989D] mb-4 leading-relaxed">
                     New here or want a quick interactive walkthrough of all DevInquire CMS capabilities?
                   </p>
                   <button 
                     onClick={startTourGuide}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white rounded-full text-xs font-semibold transition-all shadow-sm shadow-[#007AFF]/20 cursor-pointer"
                   >
                     <Sparkles size={14} />
                     Restart Tour Guide
@@ -3146,25 +3341,25 @@ console.log('Posts:', posts.map(p => p.title));`}
                 </div>
               </div>
 
-              <div className="col-span-2 space-y-6">
-                <div className="bg-white rounded-2xl border border-slate-200 p-8">
-                  <h2 className="text-xl font-bold text-slate-900 mb-8">Profile Details</h2>
+              <div className="col-span-1 md:col-span-2 space-y-6">
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
+                  <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-8">Profile Details</h2>
                   <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Full Name</label>
+                        <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Full Name</label>
                         <input 
                           type="text" 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                           value={profileData.name}
                           onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email Address</label>
+                        <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Email Address</label>
                         <input 
                           type="email" 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                           value={profileData.email}
                           onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
                         />
@@ -3172,19 +3367,19 @@ console.log('Posts:', posts.map(p => p.title));`}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Location</label>
+                      <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Location</label>
                       <input 
                         type="text" 
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
                         value={profileData.location}
                         onChange={(e) => setProfileData(prev => ({ ...prev, location: e.target.value }))}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bio</label>
+                      <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Bio</label>
                       <textarea 
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[120px]"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all min-h-[120px]"
                         value={profileData.bio}
                         onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
                       />
@@ -3192,11 +3387,11 @@ console.log('Posts:', posts.map(p => p.title));`}
 
                     <div className="pt-4">
                       <button 
-                        className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
+                        className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#0071E3] transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
                         onClick={() => {
                           setUser(profileData);
                           syncUser(profileData);
-                          alert('Profile updated successfully!');
+                          toast.success('Profile updated successfully!');
                         }}
                       >
                         Save Changes
@@ -3205,49 +3400,49 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200 p-8">
-                  <h2 className="text-xl font-bold text-slate-900 mb-6">Security</h2>
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8">
+                  <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-6">Security</h2>
                   <div className="space-y-4">
                     <button 
-                      className="flex items-center justify-between w-full p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-all group"
+                      className="flex items-center justify-between w-full p-4 border border-black/[0.06] dark:border-white/[0.08] rounded-2xl hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] transition-all group cursor-pointer"
                       onClick={() => {
                         const newPass = prompt('Enter new password:');
-                        if (newPass) alert('Password updated successfully!');
+                        if (newPass) toast.success('Password updated successfully!');
                       }}
                     >
                       <div className="flex items-center gap-4 text-left">
-                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-all">
+                        <div className="w-10 h-10 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] dark:text-[#0A84FF]">
                           <Lock size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-900">Change Password</p>
-                          <p className="text-xs text-slate-500">Update your account password regularly</p>
+                          <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Change Password</p>
+                          <p className="text-xs text-[#86868B] dark:text-[#98989D]">Update your account password regularly</p>
                         </div>
                       </div>
-                      <ChevronRight size={18} className="text-slate-400" />
+                      <ChevronRight size={18} className="text-[#86868B]" />
                     </button>
                     <button 
-                      className="flex items-center justify-between w-full p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-all group"
+                      className="flex items-center justify-between w-full p-4 border border-black/[0.06] dark:border-white/[0.08] rounded-2xl hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] transition-all group cursor-pointer"
                       onClick={() => {
                         setRunTour(true);
                         setActiveView('dashboard');
                       }}
                     >
                       <div className="flex items-center gap-4 text-left">
-                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-all">
+                        <div className="w-10 h-10 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] dark:text-[#0A84FF]">
                           <Repeat size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-900">Restart Onboarding Tour</p>
-                          <p className="text-xs text-slate-500">Re-watch the guided tour of key features</p>
+                          <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Restart Onboarding Tour</p>
+                          <p className="text-xs text-[#86868B] dark:text-[#98989D]">Re-watch the guided tour of key features</p>
                         </div>
                       </div>
-                      <ChevronRight size={18} className="text-slate-400" />
+                      <ChevronRight size={18} className="text-[#86868B]" />
                     </button>
                     <button 
-                      className="flex items-center justify-between w-full p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-all group"
+                      className="flex items-center justify-between w-full p-4 border border-black/[0.06] dark:border-white/[0.08] rounded-2xl hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] transition-all group cursor-pointer"
                       onClick={() => {
-                        alert('Two-Factor Authentication has been enabled for your account.');
+                        toast.success('Two-Factor Authentication has been enabled for your account.');
                       }}
                     >
                       <div className="flex items-center gap-4 text-left">
@@ -3275,7 +3470,7 @@ console.log('Posts:', posts.map(p => p.title));`}
   const JoyrideAny = Joyride as any;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex">
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-[#F5F5F7] flex transition-colors duration-300">
       <JoyrideAny
         steps={tourSteps}
         run={runTour}
@@ -3287,17 +3482,17 @@ console.log('Posts:', posts.map(p => p.title));`}
         callback={handleTourCallback}
         styles={{
           options: {
-            primaryColor: '#2563eb',
-            textColor: '#0f172a',
-            backgroundColor: '#ffffff',
-            arrowColor: '#ffffff',
-            overlayColor: 'rgba(15, 23, 42, 0.65)',
+            primaryColor: '#007AFF',
+            textColor: theme === 'dark' ? '#F5F5F7' : '#1D1D1F',
+            backgroundColor: theme === 'dark' ? '#2C2C2E' : '#FFFFFF',
+            arrowColor: theme === 'dark' ? '#2C2C2E' : '#FFFFFF',
+            overlayColor: 'rgba(0, 0, 0, 0.55)',
             zIndex: 10000,
           },
           tooltip: {
-            borderRadius: '16px',
-            padding: '16px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
+            borderRadius: '22px',
+            padding: '18px',
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.25)',
           },
           tooltipContainer: {
             textAlign: 'left',
@@ -3306,113 +3501,187 @@ console.log('Posts:', posts.map(p => p.title));`}
           },
           tooltipTitle: {
             fontSize: '16px',
-            fontWeight: '800',
-            color: '#0f172a',
+            fontWeight: '700',
+            color: theme === 'dark' ? '#F5F5F7' : '#1D1D1F',
             marginBottom: '6px',
           },
           buttonNext: {
-            borderRadius: '10px',
-            fontWeight: '700',
+            borderRadius: '999px',
+            fontWeight: '600',
             fontSize: '13px',
-            padding: '8px 16px',
-            backgroundColor: '#2563eb',
+            padding: '8px 18px',
+            backgroundColor: '#007AFF',
           },
           buttonBack: {
-            fontWeight: '700',
+            fontWeight: '600',
             fontSize: '13px',
             marginRight: '8px',
-            color: '#64748b',
+            color: '#86868B',
           },
           buttonSkip: {
-            fontWeight: '700',
+            fontWeight: '600',
             fontSize: '13px',
-            color: '#94a3b8',
+            color: '#86868B',
           }
         } as any}
       />
-      {/* Sidebar Navigation */}
+
+      {/* Mobile Backdrop */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* macOS Vibrancy Sidebar Navigation */}
       <aside 
-        className={`bg-slate-900 text-slate-300 flex flex-col fixed h-full z-20 transition-all duration-300 ease-in-out border-r border-slate-800 shadow-2xl ${
+        className={`bg-white/85 dark:bg-[#2C2C2E]/90 backdrop-blur-2xl text-[#1D1D1F] dark:text-[#F5F5F7] flex flex-col fixed h-full z-40 transition-all duration-300 ease-in-out border-r border-black/[0.06] dark:border-white/[0.08] ${
           isSidebarCollapsed ? 'w-20' : 'w-64'
-        }`}
+        } ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Sidebar Header with Branding & Collapse Button */}
-        <div className={`p-4 flex items-center border-b border-slate-800/80 ${
-          isSidebarCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between'
+        {/* Sidebar Header with macOS Branding & Collapse Button */}
+        <div className={`px-4 h-16 flex items-center border-b border-black/[0.06] dark:border-white/[0.08] ${
+          isSidebarCollapsed ? 'justify-center' : 'justify-between'
         }`}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="bg-blue-500 p-2 rounded-xl shadow-lg shadow-blue-500/20 shrink-0">
-              <Globe className="text-white" size={20} />
+            <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-[#007AFF] to-[#0051D5] flex items-center justify-center shadow-sm shadow-[#007AFF]/25 shrink-0">
+              <Globe className="text-white" size={18} />
             </div>
             {!isSidebarCollapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="text-lg font-bold text-white tracking-tight leading-none truncate">DevInquire</span>
-                <span className="text-[10px] text-slate-400 font-medium tracking-wider uppercase mt-1">CMS Studio</span>
+                <span className="text-[15px] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight leading-none truncate">DevInquire</span>
+                <span className="text-[10px] text-[#86868B] dark:text-[#98989D] font-medium tracking-wider uppercase mt-1">Apple Studio CMS</span>
               </div>
             )}
           </div>
           
-          <button
-            id="btn-collapse-sidebar-toggle"
-            onClick={toggleSidebar}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all shrink-0"
-            title={isSidebarCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
-          >
-            {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
+          {!isSidebarCollapsed && (
+            <button
+              id="btn-collapse-sidebar-toggle"
+              onClick={toggleSidebar}
+              className="p-1.5 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-lg transition-all shrink-0 cursor-pointer"
+              title="Collapse sidebar (Ctrl+B)"
+            >
+              <PanelLeftClose size={17} />
+            </button>
+          )}
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar overflow-x-hidden">
           <div id="tour-dashboard">
             <NavItem 
               id="nav-dashboard"
               icon={<BarChart3 size={18} />} 
               label="Dashboard" 
               active={activeView === 'dashboard'} 
-              onClick={() => setActiveView('dashboard')}
+              onClick={() => {
+                setActiveView('dashboard');
+                setIsMobileSidebarOpen(false);
+              }}
               collapsed={isSidebarCollapsed}
             />
           </div>
-          <div id="tour-pages">
+          <div className="space-y-1.5">
             <NavItem 
-              id="nav-pages"
+              id="nav-content-hub"
               icon={<FileText size={18} />} 
-              label="Pages" 
-              active={activeView === 'pages'} 
-              onClick={() => setActiveView('pages')}
+              label="Pages & Media" 
+              active={
+                activeView === 'pages' ||
+                activeView === 'templates' ||
+                activeView === 'media'
+              } 
+              onClick={() => {
+                if (
+                  activeView !== 'pages' &&
+                  activeView !== 'templates' &&
+                  activeView !== 'media'
+                ) {
+                  setActiveView('pages');
+                }
+                setIsMobileSidebarOpen(false);
+              }}
               collapsed={isSidebarCollapsed}
-              accessLevel={activePermissions.pages}
             />
+            {!isSidebarCollapsed && (
+              <div className="grid grid-cols-3 gap-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] p-1 rounded-xl border border-black/[0.05] dark:border-white/[0.06] mx-1">
+                <button
+                  id="tour-pages"
+                  type="button"
+                  onClick={() => {
+                    setActiveView('pages');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                    activeView === 'pages'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] shadow-xs'
+                      : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
+                  }`}
+                  title="Pages"
+                >
+                  <FileText size={11} />
+                  <span className="truncate">Pages</span>
+                </button>
+                <button
+                  id="tour-templates"
+                  type="button"
+                  onClick={() => {
+                    setActiveView('templates');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                    activeView === 'templates'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] shadow-xs'
+                      : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
+                  }`}
+                  title="Templates"
+                >
+                  <Layout size={11} />
+                  <span className="truncate">Templates</span>
+                </button>
+                <button
+                  id="tour-media"
+                  type="button"
+                  onClick={() => {
+                    setActiveView('media');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                    activeView === 'media'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] shadow-xs'
+                      : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
+                  }`}
+                  title="Media Library"
+                >
+                  <FolderOpen size={11} />
+                  <span className="truncate">Media</span>
+                </button>
+              </div>
+            )}
           </div>
-          <div id="tour-templates">
-            <NavItem 
-              id="nav-templates"
-              icon={<Layout size={18} />} 
-              label="Templates" 
-              active={activeView === 'templates'} 
-              onClick={() => setActiveView('templates')}
-              collapsed={isSidebarCollapsed}
-              accessLevel={activePermissions.templates}
-            />
-          </div>
-          <div id="tour-media">
-            <NavItem 
-              id="nav-media"
-              icon={<FolderOpen size={18} />} 
-              label="Media Library" 
-              active={activeView === 'media'} 
-              onClick={() => setActiveView('media')}
-              collapsed={isSidebarCollapsed}
-              accessLevel={activePermissions.media.level}
-            />
-          </div>
+          <NavItem 
+            id="nav-experience"
+            icon={<FolderTree size={18} />} 
+            label="Experience Manager" 
+            active={activeView === 'experience'} 
+            onClick={() => {
+              setActiveView('experience');
+              setIsMobileSidebarOpen(false);
+            }}
+            collapsed={isSidebarCollapsed}
+            accessLevel={activePermissions.pages}
+          />
           <NavItem 
             id="nav-rewrites"
             icon={<Repeat size={18} />} 
             label="URL Rewrites" 
             active={activeView === 'rewrites'} 
-            onClick={() => setActiveView('rewrites')}
+            onClick={() => {
+              setActiveView('rewrites');
+              setIsMobileSidebarOpen(false);
+            }}
             collapsed={isSidebarCollapsed}
             accessLevel={activePermissions.rewrites}
           />
@@ -3421,7 +3690,10 @@ console.log('Posts:', posts.map(p => p.title));`}
             icon={<Database size={18} />} 
             label="Headless API" 
             active={activeView === 'headless-api'} 
-            onClick={() => setActiveView('headless-api')}
+            onClick={() => {
+              setActiveView('headless-api');
+              setIsMobileSidebarOpen(false);
+            }}
             collapsed={isSidebarCollapsed}
             accessLevel={activePermissions.headlessApi}
           />
@@ -3431,86 +3703,84 @@ console.log('Posts:', posts.map(p => p.title));`}
               icon={<Layers size={18} />} 
               label="Collections" 
               active={activeView === 'collections'} 
-              onClick={() => setActiveView('collections')}
+              onClick={() => {
+                setActiveView('collections');
+                setIsMobileSidebarOpen(false);
+              }}
               collapsed={isSidebarCollapsed}
               accessLevel={activePermissions.collections.level}
             />
           </div>
           
           {/* Configuration Section */}
-          <div className="pt-3 pb-1">
+          <div className="pt-4 pb-1">
             {isSidebarCollapsed ? (
-              <div className="w-8 h-[1px] bg-slate-800 mx-auto my-2" />
+              <div className="w-8 h-[1px] bg-black/[0.06] dark:bg-white/[0.08] mx-auto my-2" />
             ) : (
               <button 
                 onClick={() => setIsConfigExpanded(!isConfigExpanded)}
-                className="w-full px-3 flex items-center justify-between group py-1"
+                className="w-full px-3 flex items-center justify-between group py-1 cursor-pointer"
               >
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest group-hover:text-slate-400 transition-colors">Configuration</span>
-                {isConfigExpanded ? <ChevronUp size={12} className="text-slate-500" /> : <ChevronDown size={12} className="text-slate-500" />}
+                <span className="text-[10px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider group-hover:text-[#1D1D1F] dark:group-hover:text-white transition-colors">System</span>
+                {isConfigExpanded ? <ChevronUp size={12} className="text-[#86868B]" /> : <ChevronDown size={12} className="text-[#86868B]" />}
               </button>
             )}
           </div>
           
           {(isConfigExpanded || isSidebarCollapsed) && (
-            <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+            <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
               <NavItem 
                 id="nav-site-settings"
                 icon={<Settings size={18} />} 
                 label="Site Settings" 
                 active={activeView === 'settings'} 
-                onClick={() => setActiveView('settings')}
+                onClick={() => {
+                  setActiveView('settings');
+                  setIsMobileSidebarOpen(false);
+                }}
                 collapsed={isSidebarCollapsed}
-                accessLevel={activePermissions.settings}
+                accessLevel={activePermissions.settings === 'none' && activePermissions.users !== 'none' ? activePermissions.users : activePermissions.settings}
               />
               <NavItem 
                 id="nav-seo"
                 icon={<Activity size={18} />} 
                 label="SEO & Analytics" 
                 active={activeView === 'seo'} 
-                onClick={() => setActiveView('seo')}
+                onClick={() => {
+                  setActiveView('seo');
+                  setIsMobileSidebarOpen(false);
+                }}
                 collapsed={isSidebarCollapsed}
                 accessLevel={activePermissions.seo}
               />
             </div>
           )}
-          {(user?.role === 'Administrator' || user?.role === 'admin' || activePermissions.users !== 'none' || simulatedUser !== null) && (
-            <NavItem 
-              id="nav-users"
-              icon={<Users size={18} />} 
-              label="User Management" 
-              active={activeView === 'users'} 
-              onClick={() => setActiveView('users')}
-              collapsed={isSidebarCollapsed}
-              accessLevel={activePermissions.users}
-            />
-          )}
         </nav>
 
         {/* User Control Panel */}
-        <div className="px-3 py-3 border-t border-slate-800/80">
-          <div className={`bg-slate-800/40 rounded-2xl p-2.5 border border-slate-700/40 group hover:bg-slate-800/70 transition-all ${
+        <div className="px-3 py-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+          <div className={`bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl p-2.5 border border-black/[0.05] dark:border-white/[0.06] transition-all ${
             isSidebarCollapsed ? 'flex flex-col items-center' : ''
           }`}>
-            <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center mb-2' : 'mb-3'}`}>
+            <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center mb-2' : 'mb-2.5'}`}>
               <div 
                 className="relative cursor-pointer" 
                 onClick={() => setActiveView('profile')} 
                 title={isSidebarCollapsed ? `${user.name} (${user.role})` : undefined}
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg overflow-hidden shrink-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-b from-[#007AFF] to-[#0051D5] flex items-center justify-center text-white text-xs font-semibold shadow-sm overflow-hidden shrink-0">
                   {user.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     user.avatar
                   )}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#34C759] border-2 border-white dark:border-[#1C1C1E] rounded-full"></div>
               </div>
               {!isSidebarCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{user.name}</p>
-                  <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                  <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">{user.name}</p>
+                  <p className="text-[10px] text-[#86868B] dark:text-[#98989D] truncate">{user.email}</p>
                 </div>
               )}
             </div>
@@ -3519,14 +3789,14 @@ console.log('Posts:', posts.map(p => p.title));`}
               <div className="flex flex-col gap-1 w-full items-center">
                 <button 
                   onClick={() => setActiveView('profile')}
-                  className={`p-2 rounded-lg transition-all ${activeView === 'profile' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}
+                  className={`p-2 rounded-xl transition-all cursor-pointer ${activeView === 'profile' ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'}`}
                   title="Profile Settings"
                 >
                   <Users size={14} />
                 </button>
                 <button 
                   onClick={handleLogout}
-                  className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-all"
+                  className="p-2 rounded-xl text-[#86868B] hover:bg-[#FF3B30]/15 hover:text-[#FF3B30] transition-all cursor-pointer"
                   title="Logout"
                 >
                   <LogOut size={14} />
@@ -3536,60 +3806,69 @@ console.log('Posts:', posts.map(p => p.title));`}
               <div className="grid grid-cols-3 gap-1">
                 <button 
                   onClick={() => setActiveView('profile')}
-                  className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${activeView === 'profile' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}
+                  className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${activeView === 'profile' ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'}`}
                   title="Profile Settings"
                 >
-                  <Users size={14} />
-                  <span className="text-[8px] mt-1 font-bold">Profile</span>
+                  <Users size={13} />
+                  <span className="text-[9px] mt-1 font-semibold">Profile</span>
                 </button>
                 <button 
                   onClick={() => setActiveView('settings')}
-                  className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all ${activeView === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}
+                  className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${activeView === 'settings' ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'}`}
                   title="Site Settings"
                 >
-                  <Settings size={14} />
-                  <span className="text-[8px] mt-1 font-bold">Settings</span>
+                  <Settings size={13} />
+                  <span className="text-[9px] mt-1 font-semibold">Settings</span>
                 </button>
                 <button 
                   onClick={handleLogout}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                  className="flex flex-col items-center justify-center p-2 rounded-xl text-[#86868B] hover:bg-[#FF3B30]/12 hover:text-[#FF3B30] transition-all cursor-pointer"
                   title="Logout"
                 >
-                  <LogOut size={14} />
-                  <span className="text-[8px] mt-1 font-bold">Logout</span>
+                  <LogOut size={13} />
+                  <span className="text-[9px] mt-1 font-semibold">Sign Out</span>
                 </button>
               </div>
             )}
           </div>
         </div>
-
       </aside>
 
       {/* Main Content Area */}
       <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
-        isSidebarCollapsed ? 'ml-20' : 'ml-64'
+        isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
       }`}>
-        {/* Top Header / Search */}
-        <header className="h-16 bg-white border-b px-6 sm:px-8 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        {/* macOS Frosted Top Header / Spotlight Search */}
+        <header className="h-16 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.08] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3 flex-1 max-w-xl">
-            {/* Header sidebar toggle button */}
+            {/* Mobile Drawer Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 -ml-1 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-xl lg:hidden transition-all cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu size={19} />
+            </button>
+
+            {/* Desktop Header sidebar toggle button */}
             <button
               id="header-toggle-sidebar-btn"
               onClick={toggleSidebar}
-              className="p-2 -ml-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all flex items-center justify-center shrink-0"
+              className="hidden lg:flex p-2 -ml-2 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-xl transition-all items-center justify-center shrink-0 cursor-pointer"
               title={isSidebarCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
               aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {isSidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+              {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
 
             <div ref={headerSearchContainerRef} className="relative w-full flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B]" size={15} />
                 <input 
                   type="text" 
-                  placeholder="Search pages, media assets, or collection entries..." 
-                  className="w-full pl-10 pr-20 py-2 bg-slate-100 border border-transparent rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+                  placeholder="Spotlight search pages, media, or entries..." 
+                  className="w-full pl-9 pr-20 py-2 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.05] dark:border-white/[0.08] rounded-full text-xs sm:text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF] transition-all outline-none"
                   value={searchQuery}
                   onFocus={() => setIsHeaderSearchDropdownOpen(true)}
                   onChange={(e) => {
@@ -3612,10 +3891,10 @@ console.log('Posts:', posts.map(p => p.title));`}
                         setSearchQuery('');
                         setSmartSearchResults(null);
                       }}
-                      className="p-1 text-slate-400 hover:text-slate-600 rounded-md"
+                      className="p-1 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white rounded-md cursor-pointer"
                       title="Clear search"
                     >
-                      <X size={14} />
+                      <X size={13} />
                     </button>
                   )}
                   <button
@@ -3624,7 +3903,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       setIsHeaderSearchDropdownOpen(false);
                       setIsGlobalSearchOpen(true);
                     }}
-                    className="px-1.5 py-0.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-[10px] font-bold text-slate-500 hover:text-slate-800 shadow-2xs transition-colors"
+                    className="px-2 py-0.5 bg-white dark:bg-[#1C1C1E] hover:bg-black/[0.04] border border-black/[0.08] dark:border-white/[0.1] rounded-full text-[10px] font-semibold text-[#86868B] dark:text-[#98989D] transition-colors cursor-pointer"
                     title="Open Global Search Command Palette (Ctrl+K / Cmd+K)"
                   >
                     ⌘K
@@ -3633,9 +3912,9 @@ console.log('Posts:', posts.map(p => p.title));`}
 
                 {/* Instant Global Search Results Popover */}
                 {isHeaderSearchDropdownOpen && searchQuery.trim().length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute left-0 right-0 top-full mt-2 bg-white/95 dark:bg-[#2C2C2E]/95 backdrop-blur-2xl rounded-[22px] shadow-2xl border border-black/[0.08] dark:border-white/[0.1] overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                     {/* Popover Category Filter Bar */}
-                    <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <div className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1 overflow-x-auto">
                         {(
                           [
@@ -3661,18 +3940,18 @@ console.log('Posts:', posts.map(p => p.title));`}
                             key={tab.id}
                             type="button"
                             onClick={() => setHeaderSearchCategory(tab.id)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 ${
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
                               headerSearchCategory === tab.id
-                                ? 'bg-slate-900 text-white'
-                                : 'text-slate-600 hover:bg-slate-200/70'
+                                ? 'bg-[#007AFF] text-white'
+                                : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'
                             }`}
                           >
                             <span>{tab.label}</span>
                             <span
                               className={
                                 headerSearchCategory === tab.id
-                                  ? 'text-slate-300'
-                                  : 'text-slate-400'
+                                  ? 'text-white/80'
+                                  : 'text-[#86868B]'
                               }
                             >
                               ({tab.count})
@@ -3686,20 +3965,20 @@ console.log('Posts:', posts.map(p => p.title));`}
                           setIsHeaderSearchDropdownOpen(false);
                           setIsGlobalSearchOpen(true);
                         }}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 shrink-0"
+                        className="text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] shrink-0 cursor-pointer"
                       >
                         Expand ⌘K
                       </button>
                     </div>
 
                     {/* Popover Results List */}
-                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    <div className="max-h-80 overflow-y-auto divide-y divide-black/[0.05] dark:divide-white/[0.06]">
                       {filteredHeaderSearchResults.length === 0 ? (
                         <div className="p-6 text-center">
-                          <p className="text-xs font-bold text-slate-700">
+                          <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                             No matches for "{searchQuery}"
                           </p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-[11px] text-[#86868B] mt-0.5">
                             No pages, media assets, or collection entries matched that title or content snippet.
                           </p>
                         </div>
@@ -3708,23 +3987,23 @@ console.log('Posts:', posts.map(p => p.title));`}
                           <div
                             key={result.id}
                             onClick={() => handleSelectGlobalSearchResult(result, 'primary')}
-                            className="px-4 py-3 hover:bg-blue-50/60 cursor-pointer transition-colors flex items-start gap-3 group"
+                            className="px-4 py-3 hover:bg-[#007AFF]/[0.06] dark:hover:bg-[#0A84FF]/[0.12] cursor-pointer transition-colors flex items-start gap-3 group"
                           >
                             {result.category === 'media' && result.thumbnailUrl ? (
                               <img
                                 src={result.thumbnailUrl}
                                 alt={result.title}
-                                className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0 mt-0.5"
+                                className="w-9 h-9 rounded-lg object-cover border border-black/[0.08] shrink-0 mt-0.5"
                                 referrerPolicy="no-referrer"
                               />
                             ) : (
                               <div
                                 className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                                   result.category === 'pages'
-                                    ? 'bg-blue-50 text-blue-600'
+                                    ? 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]'
                                     : result.category === 'media'
-                                    ? 'bg-purple-50 text-purple-600'
-                                    : 'bg-cyan-50 text-cyan-600'
+                                    ? 'bg-[#AF52DE]/12 text-[#AF52DE]'
+                                    : 'bg-[#34C759]/12 text-[#34C759]'
                                 }`}
                               >
                                 {result.category === 'pages' && <FileText size={16} />}
@@ -3735,35 +4014,24 @@ console.log('Posts:', posts.map(p => p.title));`}
 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700">
+                                <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF]">
                                   <HighlightMatch text={result.title} query={searchQuery} />
                                 </span>
-                                <span className="text-[10px] text-slate-300">·</span>
-                                <span className="text-[11px] font-mono text-slate-500 truncate">
+                                <span className="text-[10px] text-[#86868B]">·</span>
+                                <span className="text-[11px] font-mono text-[#86868B] truncate">
                                   <HighlightMatch text={result.subtitle} query={searchQuery} />
                                 </span>
                               </div>
                               {result.snippet && (
-                                <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                                <p className="text-[11px] text-[#86868B] line-clamp-1 mt-0.5">
                                   <HighlightMatch text={result.snippet} query={searchQuery} />
                                 </p>
                               )}
-                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-medium">
-                                <span className="uppercase tracking-wider font-bold text-slate-500">
-                                  {result.category === 'pages'
-                                    ? 'Page'
-                                    : result.category === 'media'
-                                    ? 'Media'
-                                    : 'Entry'}
-                                </span>
-                                <span>·</span>
-                                <span>{result.matchLocation}</span>
-                              </div>
                             </div>
 
                             <ChevronRight
                               size={15}
-                              className="text-slate-300 group-hover:text-blue-600 self-center shrink-0 transition-colors"
+                              className="text-[#86868B] group-hover:text-[#007AFF] self-center shrink-0 transition-colors"
                             />
                           </div>
                         ))
@@ -3771,7 +4039,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                     </div>
 
                     {/* Popover Footer */}
-                    <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="px-4 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-[#86868B]">
                       <span>
                         Showing {Math.min(filteredHeaderSearchResults.length, 8)} of{' '}
                         {filteredHeaderSearchResults.length} matches
@@ -3782,9 +4050,9 @@ console.log('Posts:', posts.map(p => p.title));`}
                           setIsHeaderSearchDropdownOpen(false);
                           setIsGlobalSearchOpen(true);
                         }}
-                        className="font-bold text-blue-600 hover:underline"
+                        className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline cursor-pointer"
                       >
-                        View all in Global Search →
+                        View all in Spotlight →
                       </button>
                     </div>
                   </div>
@@ -3794,17 +4062,17 @@ console.log('Posts:', posts.map(p => p.title));`}
                 <button 
                   onClick={handleSmartSearch}
                   disabled={isSmartSearching || !searchQuery.trim()}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all shadow-sm shrink-0 ${
+                  className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-xs transition-all shrink-0 cursor-pointer ${
                     smartSearchResults 
-                      ? 'bg-green-600 text-white shadow-green-500/20' 
-                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                      ? 'bg-[#34C759] text-white' 
+                      : 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] border border-black/[0.08] dark:border-white/[0.1] hover:bg-black/[0.03]'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="AI Smart Search with Grounding"
+                  title="AI Smart Search"
                 >
                   {isSmartSearching ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Sparkles size={14} className={smartSearchResults ? 'text-white' : 'text-blue-500'} />
+                    <Sparkles size={14} className={smartSearchResults ? 'text-white' : 'text-[#007AFF] dark:text-[#0A84FF]'} />
                   )}
                   <span>{smartSearchResults ? 'Smart Results' : 'Smart Search'}</span>
                 </button>
@@ -3812,53 +4080,45 @@ console.log('Posts:', posts.map(p => p.title));`}
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Apple Light / Dark Theme Switcher */}
+            <AppleThemeSwitcher variant="segmented" />
+
             <button 
               id="btn-header-tour"
               onClick={startTourGuide}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200/70 transition-all shadow-xs"
+              className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 bg-[#007AFF]/10 hover:bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] text-xs font-semibold rounded-full transition-all cursor-pointer"
               title="Start Interactive Tour Guide"
             >
-              <Sparkles size={14} className="text-blue-600" />
-              <span className="hidden sm:inline">Tour Guide</span>
+              <Sparkles size={13} />
+              <span>Tour</span>
             </button>
-            <button className="p-2 text-slate-400 hover:text-slate-600 transition-colors" title="Recent Activity">
-              <Clock size={18} />
-            </button>
-            <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
-            <div id="tour-profile" className="flex items-center gap-3 pl-2 cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-all" onClick={() => setActiveView('profile')}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-md overflow-hidden">
+
+            <div className="h-5 w-[1px] bg-black/[0.08] dark:bg-white/[0.1] mx-0.5 hidden sm:block"></div>
+
+            <div id="tour-profile" className="flex items-center gap-2.5 pl-1 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/[0.06] p-1 rounded-full transition-all" onClick={() => setActiveView('profile')}>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#007AFF] to-[#0051D5] flex items-center justify-center text-white text-xs font-semibold shadow-xs overflow-hidden">
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   user.avatar
                 )}
               </div>
-              <span className="text-sm font-semibold text-slate-700">{user.name}</span>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLogout();
-                }}
-                className="ml-2 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                title="Logout"
-              >
-                <LogOut size={18} />
-              </button>
+              <span className="hidden xl:inline text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] pr-1">{user.name}</span>
             </div>
           </div>
         </header>
 
         {/* Active RBAC Simulation Banner */}
         {simulatedUser && (
-          <div className="bg-amber-500 text-slate-950 px-6 sm:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-sm z-10">
-            <div className="flex items-center gap-2.5 text-xs font-bold">
+          <div className="bg-[#FF9500] text-black px-6 sm:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xs z-10">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
               <Shield size={16} className="shrink-0" />
               <span>
                 RBAC Role Preview Active: Viewing CMS as{' '}
                 <strong className="underline">{simulatedUser.name}</strong> ({simulatedUser.role})
               </span>
-              <span className="hidden md:inline text-amber-950/80">
+              <span className="hidden md:inline text-black/75">
                 · Media Library: {activePermissions.media.level.toUpperCase()} · Collections:{' '}
                 {activePermissions.collections.level.toUpperCase()}
               </span>
@@ -3866,8 +4126,11 @@ console.log('Posts:', posts.map(p => p.title));`}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setActiveView('users')}
-                className="px-3 py-1 bg-slate-900/15 hover:bg-slate-900/25 rounded-lg text-[11px] font-bold transition-colors"
+                onClick={() => {
+                  setActiveView('settings');
+                  setActiveSettingsTab('users');
+                }}
+                className="px-3 py-1 bg-black/15 hover:bg-black/25 rounded-full text-[11px] font-semibold transition-colors cursor-pointer"
               >
                 Edit Permissions
               </button>
@@ -3877,7 +4140,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                   setSimulatedUser(null);
                   toast.success('Restored Administrator permissions');
                 }}
-                className="px-3 py-1 bg-slate-950 text-white hover:bg-slate-800 rounded-lg text-[11px] font-bold transition-colors"
+                className="px-3 py-1 bg-[#1D1D1F] text-white hover:bg-black rounded-full text-[11px] font-semibold transition-colors cursor-pointer"
               >
                 Exit Role Preview
               </button>
@@ -3885,15 +4148,64 @@ console.log('Posts:', posts.map(p => p.title));`}
           </div>
         )}
 
-        <div className="p-8 space-y-8 flex-1">
+        <div className="p-6 sm:p-8 space-y-8 flex-1 max-w-[1440px] w-full mx-auto">
           {/* Page Title & Main Action */}
-          <div className="flex justify-between items-end">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
             <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight capitalize">{activeView.replace('-', ' ')}</h1>
-              <p className="text-slate-500 text-sm mt-1">Manage your site's {activeView} and core functionality.</p>
+              {activeView === 'pages' ||
+              activeView === 'templates' ||
+              activeView === 'media' ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                      Pages, Templates & Media
+                    </h1>
+                    <span className="px-3 py-1 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] text-[11px] font-semibold">
+                      {activeView === 'pages'
+                        ? 'Pages'
+                        : activeView === 'templates'
+                          ? 'Templates'
+                          : 'Media Library'}
+                    </span>
+                  </div>
+                  <p className="text-[#86868B] dark:text-[#98989D] text-sm mt-1">
+                    Unified workspace to manage your site pages, reusable templates, and media library in one place.
+                  </p>
+                </>
+              ) : activeView === 'experience' ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                      Experience Manager
+                    </h1>
+                    <span className="px-3 py-1 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] text-[11px] font-semibold">
+                      Visual Editor & Sitemap
+                    </span>
+                  </div>
+                  <p className="text-[#86868B] dark:text-[#98989D] text-sm mt-1">
+                    Visually preview and edit pages inline or navigate your interactive site hierarchy.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight capitalize">{activeView.replace('-', ' ')}</h1>
+                  <p className="text-[#86868B] dark:text-[#98989D] text-sm mt-1">Manage your site's {activeView.replace('-', ' ')} and studio preferences.</p>
+                </>
+              )}
             </div>
+            {activeView === 'experience' && (
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => createPage()}
+                  className="flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Create Page</span>
+                </button>
+              </div>
+            )}
             {activeView === 'pages' && (
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2.5">
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -3903,25 +4215,92 @@ console.log('Posts:', posts.map(p => p.title));`}
                 />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2 text-slate-600 font-bold bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded-full hover:bg-black/[0.03] dark:hover:bg-white/[0.06] transition-colors shadow-2xs cursor-pointer"
                 >
-                  <Upload size={18} />
+                  <Upload size={15} />
                   <span>Import Page</span>
                 </button>
                 <button 
                   onClick={downloadFullSite}
-                  className="flex items-center gap-2 px-4 py-2 text-slate-600 font-bold bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded-full hover:bg-black/[0.03] dark:hover:bg-white/[0.06] transition-colors shadow-2xs cursor-pointer"
                 >
-                  <Download size={18} />
+                  <Download size={15} />
                   <span>Export Site</span>
                 </button>
                 <button 
                   id="tour-create-page"
                   onClick={() => createPage()}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                  className="flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
-                  <Plus size={18} />
+                  <Plus size={16} />
                   <span>Create Page</span>
+                </button>
+              </div>
+            )}
+            {activeView === 'templates' && (
+              <div className="flex flex-wrap gap-2.5">
+                <input 
+                  type="file" 
+                  ref={templateInputRef} 
+                  onChange={handleImportTemplate} 
+                  accept=".json,.html" 
+                  className="hidden" 
+                />
+                <button 
+                  onClick={() => templateInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded-full hover:bg-black/[0.03] dark:hover:bg-white/[0.06] transition-colors shadow-2xs cursor-pointer"
+                >
+                  <Upload size={15} />
+                  <span>Import Template</span>
+                </button>
+                <button 
+                  onClick={restoreSampleTemplates}
+                  className="flex items-center gap-2 px-4 py-2.5 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded-full hover:bg-black/[0.03] dark:hover:bg-white/[0.06] transition-colors shadow-2xs cursor-pointer"
+                >
+                  <Repeat size={15} />
+                  <span>Restore Samples</span>
+                </button>
+                <button 
+                  onClick={() => setShowCreateTemplateModal(true)}
+                  className="flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Create Template</span>
+                </button>
+              </div>
+            )}
+            {activeView === 'media' && (
+              <div className="flex flex-wrap gap-2.5">
+                <input 
+                  type="file" 
+                  ref={mediaInputRef} 
+                  className="hidden" 
+                  multiple 
+                  accept="image/*" 
+                  onChange={handleMediaUpload} 
+                />
+                <button 
+                  onClick={() => {
+                    const canUploadMedia =
+                      activePermissions.media.level === 'manage' && activePermissions.media.canUpload;
+                    if (!canUploadMedia) {
+                      toast.error('Uploading media assets is restricted by your role permissions.');
+                      return;
+                    }
+                    mediaInputRef.current?.click();
+                  }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                    activePermissions.media.level === 'manage' && activePermissions.media.canUpload
+                      ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-sm hover:bg-[#0071E3] active:scale-95'
+                      : 'bg-black/[0.05] dark:bg-white/[0.08] text-[#86868B] cursor-not-allowed'
+                  }`}
+                >
+                  {activePermissions.media.level === 'manage' && activePermissions.media.canUpload ? (
+                    <Upload size={16} />
+                  ) : (
+                    <Lock size={15} />
+                  )}
+                  <span>Upload Media</span>
                 </button>
               </div>
             )}
@@ -4056,6 +4435,22 @@ console.log('Posts:', posts.map(p => p.title));`}
         entries={entries}
         onSelectResult={handleSelectGlobalSearchResult}
       />
+
+      {/* Page Version History Modal */}
+      {versionHistoryPageId && pages.some(p => p.id === versionHistoryPageId) && (
+        <VersionHistoryModal
+          isOpen={Boolean(versionHistoryPageId)}
+          onClose={() => setVersionHistoryPageId(null)}
+          page={pages.find(p => p.id === versionHistoryPageId)!}
+          globalStyles={globalStyles}
+          currentUser={user?.name || 'Admin'}
+          canEdit={activePermissions.pages.level === 'manage'}
+          onUpdatePage={async updatedPage => {
+            setPages(prev => prev.map(p => (p.id === updatedPage.id ? updatedPage : p)));
+            await syncPage(updatedPage);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -4075,58 +4470,58 @@ const NavItem: React.FC<{
     id={id}
     onClick={onClick}
     title={collapsed ? label : undefined}
-    className={`w-full flex items-center ${
+    className={`w-full flex items-center cursor-pointer ${
       collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5'
-    } rounded-xl text-sm font-semibold transition-all relative group ${
+    } rounded-[14px] text-[13px] font-semibold transition-all relative group ${
       active
-        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+        ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-sm shadow-[#007AFF]/25'
         : accessLevel === 'none'
-        ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
-        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+        ? 'text-[#86868B]/60 hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
+        : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] hover:bg-black/[0.05] dark:hover:bg-white/[0.06]'
     }`}
   >
     <div className="shrink-0 flex items-center justify-center">{icon}</div>
     {!collapsed && <span className="truncate">{label}</span>}
     {!collapsed && accessLevel === 'none' && (
-      <Lock size={13} className="ml-auto text-amber-400/80 shrink-0" />
+      <Lock size={12} className="ml-auto text-[#FF9500] shrink-0" />
     )}
     {!collapsed && accessLevel === 'view' && !active && (
-      <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
+      <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-black/[0.05] dark:bg-white/[0.08] text-[#86868B] shrink-0">
         View
       </span>
     )}
     {!collapsed && active && accessLevel !== 'none' && (
-      <ChevronRight size={14} className="ml-auto opacity-50 shrink-0" />
+      <ChevronRight size={14} className="ml-auto opacity-70 shrink-0" />
     )}
 
     {/* Floating Tooltip in Collapsed Mode */}
     {collapsed && (
-      <div className="fixed left-[74px] px-2.5 py-1.5 bg-slate-950 text-white text-xs font-semibold rounded-lg shadow-2xl border border-slate-700/80 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:translate-x-1 -translate-x-1 transition-all duration-150 z-50 whitespace-nowrap flex items-center gap-2">
+      <div className="fixed left-[74px] px-3 py-1.5 bg-[#1D1D1F] dark:bg-[#2C2C2E] text-white text-xs font-semibold rounded-xl shadow-xl border border-white/10 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:translate-x-1 -translate-x-1 transition-all duration-150 z-50 whitespace-nowrap flex items-center gap-2">
         <span>{label}</span>
-        {accessLevel === 'none' && <Lock size={11} className="text-amber-400" />}
-        {active && <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>}
+        {accessLevel === 'none' && <Lock size={11} className="text-[#FF9500]" />}
+        {active && <span className="w-1.5 h-1.5 rounded-full bg-[#0A84FF]"></span>}
       </div>
     )}
   </button>
 );
 
 const ApiEndpoint: React.FC<{ method: string; path: string; description: string }> = ({ method, path, description }) => (
-  <div className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-6 group hover:border-blue-200 hover:shadow-sm transition-all">
-    <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-      method === 'GET' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
+  <div className="bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-4 flex items-center gap-6 group hover:border-[#007AFF]/40 hover:shadow-xs transition-all">
+    <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+      method === 'GET' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]'
     }`}>
       {method}
     </div>
     <div className="flex-1">
-      <code className="text-sm font-bold text-slate-800">{path}</code>
-      <p className="text-xs text-slate-500 mt-1">{description}</p>
+      <code className="text-sm font-mono font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{path}</code>
+      <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-1">{description}</p>
     </div>
     <button 
       onClick={() => {
         navigator.clipboard.writeText(`${window.location.origin}${path}`);
-        alert('Endpoint URL copied!');
+        toast.success('Endpoint URL copied!');
       }}
-      className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
+      className="p-2 text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors cursor-pointer"
       title="Copy Endpoint"
     >
       <LinkIcon size={16} />
@@ -4135,73 +4530,73 @@ const ApiEndpoint: React.FC<{ method: string; path: string; description: string 
 );
 
 const StatCard: React.FC<{ label: string; value: string | number; trend: string; icon: React.ReactNode }> = ({ label, value, trend, icon }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all hover:-translate-y-1 group">
+  <div className="bg-white dark:bg-[#2C2C2E] p-6 rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-black/[0.06] dark:border-white/[0.08] hover:shadow-md transition-all hover:-translate-y-0.5 group">
     <div className="flex items-center justify-between mb-4">
-      <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 group-hover:bg-white group-hover:shadow-sm transition-all">{icon}</div>
-      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-        trend.startsWith('+') || trend === 'Live' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+      <div className="p-2.5 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl group-hover:scale-105 transition-all">{icon}</div>
+      <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+        trend.startsWith('+') || trend === 'Live' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]'
       }`}>
         {trend}
       </span>
     </div>
-    <h3 className="text-2xl font-black text-slate-900 leading-none">{value}</h3>
-    <p className="text-xs font-medium text-slate-400 mt-2">{label}</p>
+    <h3 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] leading-none tabular-nums tracking-tight">{value}</h3>
+    <p className="text-xs font-medium text-[#86868B] dark:text-[#98989D] mt-2">{label}</p>
   </div>
 );
 
 const FilterTab: React.FC<{ active: boolean; onClick: () => void; label: string; count: number }> = ({ active, onClick, label, count }) => (
   <button 
     onClick={onClick}
-    className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-      active ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'
+    className={`px-4 py-2 text-xs font-semibold rounded-[12px] transition-all flex items-center gap-2 cursor-pointer ${
+      active ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs' : 'text-[#86868B] dark:text-[#98989D] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
     }`}
   >
     {label}
-    <span className={`px-1.5 py-0.5 rounded text-[10px] ${active ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-500'}`}>
+    <span className={`px-1.5 py-0.5 rounded-md text-[10px] tabular-nums ${active ? 'bg-white/20 text-white' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'}`}>
       {count}
     </span>
   </button>
 );
 
 const DnsRecordRow: React.FC<{ type: string; host: string; value: string }> = ({ type, host, value }) => (
-  <div className="grid grid-cols-12 gap-4 p-4 bg-white border border-slate-200 rounded-2xl items-center group">
+  <div className="grid grid-cols-12 gap-4 p-4 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl items-center group">
     <div className="col-span-2">
-      <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-black text-slate-600">{type}</span>
+      <span className="px-2 py-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded text-[10px] font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{type}</span>
     </div>
     <div className="col-span-3">
-      <span className="font-mono text-xs text-slate-900">{host}</span>
+      <span className="font-mono text-xs text-[#1D1D1F] dark:text-[#F5F5F7]">{host}</span>
     </div>
     <div className="col-span-5 relative">
-       <span className="font-mono text-xs text-slate-500 truncate block">{value}</span>
+       <span className="font-mono text-xs text-[#86868B] truncate block">{value}</span>
        <button 
         onClick={() => {
           navigator.clipboard.writeText(value);
           toast.success(`${type} value copied!`);
         }}
-        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all bg-white"
+        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-[#86868B] hover:text-[#007AFF] opacity-0 group-hover:opacity-100 transition-all bg-white dark:bg-[#2C2C2E] cursor-pointer"
        >
           <Copy size={14} />
        </button>
     </div>
     <div className="col-span-2 text-right">
-       <span className="text-[10px] font-bold text-slate-400">3600</span>
+       <span className="text-[10px] font-semibold text-[#86868B]">3600</span>
     </div>
   </div>
 );
 
 const ColorInput: React.FC<{ label: string; value: string; onChange: (val: string) => void }> = ({ label, value, onChange }) => (
   <div className="space-y-2">
-    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}</label>
+    <label className="text-[10px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">{label}</label>
     <div className="flex items-center gap-3">
       <input 
         type="color" 
-        className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer overflow-hidden"
+        className="w-10 h-10 rounded-xl border border-black/[0.08] dark:border-white/[0.1] cursor-pointer overflow-hidden"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       <input 
         type="text" 
-        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500"
+        className="flex-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-3 py-2 text-xs font-mono text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -4211,9 +4606,9 @@ const ColorInput: React.FC<{ label: string; value: string; onChange: (val: strin
 
 const ActionButton: React.FC<{ icon: React.ReactNode; label: string; color: 'blue' | 'red' | 'slate', onClick: (e: React.MouseEvent) => void }> = ({ icon, label, color, onClick }) => {
   const colors = {
-    blue: 'hover:bg-blue-50 hover:text-blue-600',
-    red: 'hover:bg-red-50 hover:text-red-600',
-    slate: 'hover:bg-slate-100 hover:text-slate-600'
+    blue: 'hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#0A84FF]',
+    red: 'hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]',
+    slate: 'hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'
   };
   
   return (
@@ -4222,10 +4617,10 @@ const ActionButton: React.FC<{ icon: React.ReactNode; label: string; color: 'blu
         e.stopPropagation();
         onClick(e);
       }}
-      className={`p-2 rounded-lg text-slate-400 transition-all flex items-center gap-2 ${colors[color]} relative group/btn`}
+      className={`p-2 rounded-xl text-[#86868B] dark:text-[#98989D] transition-all flex items-center gap-2 cursor-pointer ${colors[color]} relative group/btn`}
     >
       {icon}
-      <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+      <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-[#1D1D1F] dark:bg-[#2C2C2E] text-white text-[10px] font-medium rounded-lg shadow-lg opacity-0 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-20">
         {label}
       </span>
     </button>

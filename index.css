@@ -1,43 +1,126 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-apple-light-bg: #F5F5F7;
+  --color-apple-light-card: #FFFFFF;
+  --color-apple-light-text: #1D1D1F;
+  --color-apple-light-muted: #86868B;
+  --color-apple-blue: #007AFF;
+
+  --color-apple-dark-bg: #1C1C1E;
+  --color-apple-dark-card: #2C2C2E;
+  --color-apple-dark-elevated: #3A3A3C;
+  --color-apple-dark-text: #F5F5F7;
+  --color-apple-dark-muted: #98989D;
+  --color-apple-dark-blue: #0A84FF;
+}
+
+:root {
+  --apple-bg: #F5F5F7;
+  --apple-surface: #FFFFFF;
+  --apple-surface-secondary: #F5F5F7;
+  --apple-surface-tertiary: #E5E5EA;
+  --apple-text: #1D1D1F;
+  --apple-text-secondary: #86868B;
+  --apple-accent: #007AFF;
+  --apple-accent-hover: #0066D6;
+  --apple-border: rgba(0, 0, 0, 0.08);
+  --apple-glass: rgba(255, 255, 255, 0.78);
+  --apple-shadow: 0 2px 14px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --apple-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  color-scheme: light;
+}
+
+.dark {
+  --apple-bg: #1C1C1E;
+  --apple-surface: #2C2C2E;
+  --apple-surface-secondary: #1C1C1E;
+  --apple-surface-tertiary: #3A3A3C;
+  --apple-text: #F5F5F7;
+  --apple-text-secondary: #98989D;
+  --apple-accent: #0A84FF;
+  --apple-accent-hover: #409CFF;
+  --apple-border: rgba(255, 255, 255, 0.10);
+  --apple-glass: rgba(28, 28, 30, 0.80);
+  --apple-shadow: 0 4px 20px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --apple-shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
 }
 
 body {
   font-family: var(--font-sans);
+  background-color: var(--apple-bg);
+  color: var(--apple-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
 }
 
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.022em;
+}
+
+/* Builder canvas dot matrix in Apple Light & Dark */
 .builder-canvas {
-  background-color: #f8fafc;
-  background-image: radial-gradient(#cbd5e1 1px, transparent 0);
+  background-color: #F5F5F7;
+  background-image: radial-gradient(rgba(29, 29, 31, 0.12) 1px, transparent 0);
   background-size: 24px 24px;
   background-position: 12px 12px;
 }
 
-/* Custom scrollbar for a cleaner look */
+.dark .builder-canvas {
+  background-color: #141416;
+  background-image: radial-gradient(rgba(245, 245, 247, 0.10) 1px, transparent 0);
+}
+
+/* Apple Vibrancy / Glass utilities */
+.apple-glass {
+  background-color: var(--apple-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.apple-card {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--apple-shadow);
+  border-radius: 18px;
+}
+
+/* Refined macOS-style scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
+  background: rgba(134, 134, 139, 0.35);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: rgba(134, 134, 139, 0.55);
 }
 
-/* Animation utility */
+/* Smooth Apple settling micro-interactions */
 .animate-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: appleFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes appleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

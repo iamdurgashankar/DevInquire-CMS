@@ -11,7 +11,7 @@ import {
   deleteDoc, 
   getDocFromServer
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, handleFirestoreError, OperationType, disableFirestoreNetwork, isFirestoreConfigured } from './firebase';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
 import LandingPage from './pages/LandingPage';
@@ -21,8 +21,11 @@ import PublicPage from './pages/PublicPage';
 import HeadlessClientDemo from './pages/HeadlessClientDemo';
 import { Page, Template, GlobalStyles, User, MediaItem, URLRewrite, UserManagementItem, SiteConfig, Collection, CollectionEntry, getPermissionsForRole } from './types';
 import { SAMPLE_PAGES, SAMPLE_TEMPLATES, SAMPLE_MEDIA } from './sampleData';
+import { ensurePageBaselineVersion } from './components/VersionHistoryModal';
 
 const socket = io();
+
+export type AppleThemeMode = 'light' | 'dark';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -41,22 +44,22 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] dark:bg-[#1C1C1E] p-4">
+          <div className="max-w-md w-full bg-white dark:bg-[#2C2C2E] rounded-3xl border border-black/[0.08] dark:border-white/[0.10] shadow-2xl p-8 text-center">
+            <div className="w-16 h-16 bg-[#FF3B30]/10 text-[#FF3B30] rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">Something went wrong</h1>
-            <p className="text-slate-600 mb-6">
+            <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2">Something went wrong</h1>
+            <p className="text-[#86868B] dark:text-[#98989D] mb-6 text-sm leading-relaxed">
               {this.state.error?.message?.startsWith('{') 
                 ? "A database error occurred. Please check your permissions." 
                 : "An unexpected error occurred. Please try refreshing the page."}
             </p>
             <button 
               onClick={() => window.location.reload()}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+              className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-all active:scale-[0.98]"
             >
               Refresh Page
             </button>
@@ -77,16 +80,16 @@ const ProtectedRoute = ({ children, firebaseUser, isDemo }: { children: React.Re
 };
 
 const DEFAULT_GLOBAL_STYLES: GlobalStyles = {
-  primaryColor: '#4f46e5',
-  secondaryColor: '#6366f1',
-  accentColor: '#8b5cf6',
-  backgroundColor: '#ffffff',
+  primaryColor: '#007AFF',
+  secondaryColor: '#5856D6',
+  accentColor: '#0A84FF',
+  backgroundColor: '#FFFFFF',
   backgroundGradient: '',
-  textColor: '#1e293b',
+  textColor: '#1D1D1F',
   headingFont: 'Plus Jakarta Sans',
-  bodyFont: 'Inter',
+  bodyFont: 'Plus Jakarta Sans',
   containerWidth: '1200px',
-  borderRadius: '12px',
+  borderRadius: '14px',
 };
 
 const DEFAULT_USER: User = {
@@ -96,7 +99,7 @@ const DEFAULT_USER: User = {
   avatar: 'AD',
   avatarUrl: undefined,
   bio: 'Lead developer and site administrator for DevInquire CMS.',
-  location: 'San Francisco, CA',
+  location: 'Cupertino, CA',
   permissions: getPermissionsForRole('Administrator'),
 };
 
@@ -208,6 +211,9 @@ interface CMSContextType {
   deleteCollectionOnServer: (id: string) => Promise<void>;
   syncEntry: (entry: CollectionEntry) => Promise<void>;
   deleteEntryOnServer: (id: string) => Promise<void>;
+  theme: AppleThemeMode;
+  setTheme: (theme: AppleThemeMode) => void;
+  toggleTheme: () => void;
 }
 
 const CMSContext = createContext<CMSContextType | undefined>(undefined);
@@ -219,7 +225,34 @@ export const useCMS = () => {
 };
 
 const App: React.FC = () => {
-  const [pages, setPages] = useState<Page[]>(() => loadFromStorage('devinquire_pages', SAMPLE_PAGES));
+  const [theme, setThemeState] = useState<AppleThemeMode>(() => {
+    const saved = localStorage.getItem('devinquire_apple_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    root.style.colorScheme = theme;
+    localStorage.setItem('devinquire_apple_theme', theme);
+  }, [theme]);
+
+  const setTheme = (nextTheme: AppleThemeMode) => {
+    setThemeState(nextTheme);
+  };
+
+  const toggleTheme = () => {
+    setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const [pages, setPages] = useState<Page[]>(() =>
+    loadFromStorage('devinquire_pages', SAMPLE_PAGES).map(ensurePageBaselineVersion)
+  );
   const [templates, setTemplates] = useState<Template[]>(() => loadFromStorage('devinquire_templates', SAMPLE_TEMPLATES));
   const [globalStyles, setGlobalStyles] = useState<GlobalStyles>(() => loadFromStorage('devinquire_styles', DEFAULT_GLOBAL_STYLES));
   const [user, setUser] = useState<User>(() => loadFromStorage('devinquire_demo_user', DEFAULT_USER));
@@ -250,9 +283,9 @@ const App: React.FC = () => {
       name: resolvedName,
       email: resolvedEmail,
       role: 'Administrator',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=faces',
+      avatar: 'AD',
       bio: 'Lead developer and site administrator for DevInquire CMS.',
-      location: 'San Francisco, CA'
+      location: 'Cupertino, CA'
     };
     setIsDemoMode(true);
     setUser(demoProfile);
@@ -273,38 +306,49 @@ const App: React.FC = () => {
 
     const initFirebase = async () => {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-        firestoreAvailableRef.current = true;
-      } catch (_error) {
-        firestoreAvailableRef.current = false;
-      }
-
-      try {
         unsubscribeAuth = onAuthStateChanged(
           auth,
-          (fUser) => {
-            setFirebaseUser(fUser);
+          async (fUser) => {
             if (fUser) {
+              if (isFirestoreConfigured) {
+                try {
+                  await getDocFromServer(doc(db, 'test', 'connection'));
+                  firestoreAvailableRef.current = true;
+                } catch (_error) {
+                  firestoreAvailableRef.current = false;
+                  await disableFirestoreNetwork();
+                }
+              } else {
+                firestoreAvailableRef.current = false;
+              }
+              setFirebaseUser(fUser);
               setIsDemoMode(false);
               localStorage.removeItem('devinquire_is_demo');
               setUser({
                 name: fUser.displayName || 'User',
                 email: fUser.email || '',
-                avatar: fUser.photoURL || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=faces',
-                role: 'admin',
+                avatar: (fUser.displayName || 'U').substring(0, 2).toUpperCase(),
+                avatarUrl: fUser.photoURL || undefined,
+                role: 'Administrator',
                 bio: '',
                 location: ''
               });
-            } else if (!localStorage.getItem('devinquire_is_demo')) {
-              setUser(DEFAULT_USER);
+            } else {
+              firestoreAvailableRef.current = false;
+              setFirebaseUser(null);
+              if (!localStorage.getItem('devinquire_is_demo')) {
+                setUser(DEFAULT_USER);
+              }
             }
             setLoading(false);
           },
           () => {
+            firestoreAvailableRef.current = false;
             setLoading(false);
           }
         );
       } catch (_authErr) {
+        firestoreAvailableRef.current = false;
         setLoading(false);
       }
     };
@@ -356,10 +400,11 @@ const App: React.FC = () => {
     }
 
     const unsubPages = onSnapshot(collection(db, 'pages'), (snapshot) => {
-      const pagesData = snapshot.docs.map(doc => doc.data() as Page);
+      const pagesData = snapshot.docs.map(doc => ensurePageBaselineVersion(doc.data() as Page));
       if (pagesData.length === 0) {
-        SAMPLE_PAGES.forEach(p => setDoc(doc(db, 'pages', p.id), cleanFirestoreData(p)).catch(() => {}));
-        setPages(SAMPLE_PAGES);
+        const seeded = SAMPLE_PAGES.map(ensurePageBaselineVersion);
+        seeded.forEach(p => setDoc(doc(db, 'pages', p.id), cleanFirestoreData(p)).catch(() => {}));
+        setPages(seeded);
       } else {
         setPages(pagesData);
       }
@@ -449,7 +494,8 @@ const App: React.FC = () => {
   const canSyncFirestore = () => Boolean(firebaseUser && firestoreAvailableRef.current);
 
   // Sync functions (used by components)
-  const syncPage = async (page: Page) => {
+  const syncPage = async (rawPage: Page) => {
+    const page = rawPage.versions === undefined ? ensurePageBaselineVersion(rawPage) : rawPage;
     setPages(prev => {
       const exists = prev.some(p => p.id === page.id);
       return exists ? prev.map(p => p.id === page.id ? page : p) : [page, ...prev];
@@ -639,10 +685,10 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 font-medium">Loading DevInquire CMS...</p>
+          <div className="w-10 h-10 border-[3px] border-[#007AFF] dark:border-[#0A84FF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#86868B] dark:text-[#98989D] text-sm font-medium">Loading DevInquire CMS...</p>
         </div>
       </div>
     );
@@ -674,9 +720,12 @@ const App: React.FC = () => {
         collections, setCollections,
         entries, setEntries,
         syncCollection, deleteCollectionOnServer,
-        syncEntry, deleteEntryOnServer
+        syncEntry, deleteEntryOnServer,
+        theme,
+        setTheme,
+        toggleTheme
       }}>
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-right" theme={theme} richColors />
         <HashRouter>
           <Routes>
             <Route path="/landing" element={<LandingPage />} />

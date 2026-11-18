@@ -67,6 +67,33 @@ export interface URLRewrite {
   createdAt: string;
 }
 
+export type PageVersionTrigger = 'manual' | 'save' | 'publish' | 'restore-backup';
+
+export interface PageVersionSnapshot {
+  title: string;
+  slug: string;
+  status: 'draft' | 'published';
+  seo: PageSEO;
+  layoutJSON: LayoutJSON;
+  isCustomSite?: boolean;
+  customSiteUrl?: string;
+  customHTML?: string;
+  customCSS?: string;
+  customJS?: string;
+}
+
+export interface PageVersion {
+  id: string;
+  pageId: string;
+  versionNumber: number;
+  label: string;
+  notes?: string;
+  trigger: PageVersionTrigger;
+  createdAt: string;
+  author: string;
+  snapshot: PageVersionSnapshot;
+}
+
 export interface Page {
   id: string;
   title: string;
@@ -82,6 +109,7 @@ export interface Page {
   customHTML?: string;
   customCSS?: string;
   customJS?: string;
+  versions?: PageVersion[];
 }
 
 export interface GlobalStyles {

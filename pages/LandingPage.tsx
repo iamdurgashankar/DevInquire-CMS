@@ -1,19 +1,13 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  Layout, 
-  Zap, 
   Users, 
   Shield, 
   Smartphone, 
-  Globe, 
   ArrowRight, 
   CheckCircle2,
   Layers,
   MousePointer2,
-  Code2,
-  Facebook,
   Twitter,
   Instagram,
   Linkedin,
@@ -23,129 +17,145 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { AppleThemeSwitcher } from '../components/AppleThemeSwitcher';
 
 const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-white/70 backdrop-blur-xl border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-20 items-center">
-            <motion.div 
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-2"
-            >
-              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                <Command size={20} />
-              </div>
-              <span className="text-xl font-bold tracking-tight text-slate-900">InquireCMS</span>
-            </motion.div>
-            <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-500">
-              <a href="#features" className="hover:text-indigo-600 transition-colors uppercase tracking-widest text-[10px]">Features</a>
-              <a href="#solutions" className="hover:text-indigo-600 transition-colors uppercase tracking-widest text-[10px]">Solutions</a>
-              <a href="#pricing" className="hover:text-indigo-600 transition-colors uppercase tracking-widest text-[10px]">Pricing</a>
+    <div className="min-h-screen bg-[#FFFFFF] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-[#F5F5F7] font-sans transition-colors duration-200">
+      {/* Apple Frosted Glass Navigation Bar */}
+      <header className="fixed top-0 w-full z-50 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.08]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-8">
+          {/* Zone 1: Brand Wordmark */}
+          <Link to="/landing" className="flex items-center gap-2.5 whitespace-nowrap shrink-0">
+            <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] rounded-xl flex items-center justify-center text-white shadow-sm">
+              <Command size={17} />
             </div>
-            <motion.div 
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-6"
+            <span className="text-base font-bold tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7]">
+              InquireCMS
+            </span>
+          </Link>
+
+          {/* Zone 2: Concise Single-Line Navigation Links */}
+          <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-[#86868B] dark:text-[#98989D]">
+            <a href="#features" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors whitespace-nowrap shrink-0">Features</a>
+            <a href="#workspace" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors whitespace-nowrap shrink-0">Workspace</a>
+            <a href="#pricing" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors whitespace-nowrap shrink-0">Pricing</a>
+            <Link to="/login" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors whitespace-nowrap shrink-0">Sign In</Link>
+          </nav>
+
+          {/* Zone 3: Theme Switcher & Primary Action */}
+          <div className="flex items-center gap-3 shrink-0">
+            <AppleThemeSwitcher variant="segmented" />
+            <Link
+              to="/signup"
+              className="bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white px-4 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 whitespace-nowrap shrink-0 flex items-center gap-1"
             >
-              <Link to="/login" className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors">Log in</Link>
-              <Link to="/signup" className="group bg-slate-900 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center gap-2 active:scale-95">
-                Get Started
-                <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-            </motion.div>
+              <span>Get Started</span>
+              <ChevronRight size={14} />
+            </Link>
           </div>
         </div>
-      </nav>
+      </header>
 
       {/* Hero Section */}
-      <section className="pt-48 pb-20 overflow-hidden relative">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] bg-[radial-gradient(circle_at_50%_0%,#4f46e50a_0%,transparent_70%)] -z-10" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-4xl mx-auto mb-24">
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
+      <section className="pt-32 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden relative bg-gradient-to-b from-[#F5F5F7]/70 to-[#FFFFFF] dark:from-[#1C1C1E] dark:to-[#1C1C1E]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-[0.2em] mb-8"
+              className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] tracking-tight mb-4"
             >
-              <Sparkles size={14} className="animate-pulse" />
-              <span>Next-Gen Visual Intelligence</span>
-            </motion.div>
+              Visual Content Studio · Headless Architecture · Real-Time Sync
+            </motion.p>
             
             <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.8 }}
-              className="text-6xl md:text-8xl font-black tracking-tighter text-slate-900 mb-8 leading-[0.85]"
+              transition={{ delay: 0.05, duration: 0.5 }}
+              className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7] mb-6 leading-[1.05] text-balance"
             >
-              The CMS that <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-blue-600">works with you.</span>
+              Designed for clarity. <br />
+              Built for creators.
             </motion.h1>
 
             <motion.p 
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.8 }}
-              className="text-xl text-slate-500 mb-12 leading-relaxed max-w-2xl mx-auto font-medium"
+              transition={{ delay: 0.12, duration: 0.5 }}
+              className="text-lg md:text-xl text-[#86868B] dark:text-[#98989D] mb-10 leading-relaxed max-w-2xl mx-auto font-normal"
             >
-              Experience the power of real-time multi-user editing combined with integrated Gemini AI for content generation and design suggestions.
+              Craft responsive pages, orchestrate structured collections, and collaborate in real time with an interface that feels effortless from the very first click.
             </motion.p>
             
             <motion.div 
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-6"
+              transition={{ delay: 0.18, duration: 0.5 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4"
             >
-              <Link to="/signup" className="w-full sm:w-auto bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-bold text-lg hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 flex items-center justify-center gap-3 group active:scale-95">
-                Build My Site
-                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              <Link
+                to="/signup"
+                className="w-full sm:w-auto bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white px-7 py-3.5 rounded-full font-semibold text-sm transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.98] whitespace-nowrap"
+              >
+                <span>Build Your Site</span>
+                <ArrowRight size={16} />
               </Link>
-              <button className="w-full sm:w-auto px-10 py-5 rounded-[2rem] font-bold text-lg text-slate-600 hover:bg-slate-50 transition-all border border-slate-200">
-                Explore Features
-              </button>
+              <Link
+                to="/login"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-full font-semibold text-sm text-[#007AFF] dark:text-[#0A84FF] bg-[#F5F5F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA]/70 dark:hover:bg-[#3A3A3C] transition-all border border-black/[0.06] dark:border-white/[0.08] whitespace-nowrap text-center"
+              >
+                Explore Demo Workspace
+              </Link>
             </motion.div>
           </div>
 
-          {/* App Preview */}
+          {/* macOS Window Preview Frame */}
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5, duration: 1 }}
-            className="relative max-w-6xl mx-auto"
+            id="workspace"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25, duration: 0.6 }}
+            className="relative max-w-5xl mx-auto"
           >
-            <div className="absolute -inset-10 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-[5rem] blur-[120px] opacity-10"></div>
-            <div className="relative bg-slate-900 rounded-[3rem] p-4 shadow-2xl shadow-indigo-100/50 border border-slate-200 overflow-hidden group">
-              <div className="flex gap-1.5 mb-4 px-4">
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
+            <div className="bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-[28px] p-3 sm:p-4 shadow-[0_24px_60px_rgba(0,0,0,0.10)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.55)] border border-black/[0.08] dark:border-white/[0.10] overflow-hidden">
+              {/* macOS Window Traffic Lights */}
+              <div className="flex items-center justify-between mb-3 px-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#FF5F57] border border-black/10" />
+                  <div className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-black/10" />
+                  <div className="w-3 h-3 rounded-full bg-[#28C840] border border-black/10" />
+                </div>
+                <div className="px-4 py-1 rounded-md bg-white/80 dark:bg-[#1C1C1E]/80 border border-black/[0.05] dark:border-white/[0.06] text-[11px] font-medium text-[#86868B] dark:text-[#98989D]">
+                  devinquire.com — Visual Experience Studio
+                </div>
+                <div className="w-12" />
               </div>
-              <div className="bg-white rounded-[2rem] overflow-hidden aspect-video relative">
+
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-[20px] overflow-hidden aspect-video relative border border-black/[0.06] dark:border-white/[0.08]">
                 <img 
                   src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426" 
-                  alt="Editor Interface" 
-                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
+                  alt="InquireCMS Visual Studio Interface" 
+                  className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent flex flex-col justify-end p-12">
-                   <div className="flex items-center gap-6">
-                      <div className="flex -space-x-4">
-                        {[1,2,3,4].map(i => (
-                          <div key={i} className="w-12 h-12 rounded-full border-4 border-slate-900 bg-slate-800 overflow-hidden ring-4 ring-indigo-500/20">
-                            <img src={`https://i.pravatar.cc/150?u=${i+10}`} alt="User" referrerPolicy="no-referrer" />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="bg-indigo-600/90 backdrop-blur px-6 py-2.5 rounded-2xl shadow-xl border border-white/20 flex items-center gap-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></div>
-                        <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Live Collective Editing</span>
-                      </div>
-                   </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent flex flex-col justify-end p-6 sm:p-10">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-white/75 mb-1">
+                        Multi-User Studio · Sub-50ms State Sync
+                      </p>
+                      <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                        Visual Hierarchy, Sitemap & Version Snapshots in One Place
+                      </h3>
+                    </div>
+                    <Link
+                      to="/login"
+                      className="px-5 py-2.5 rounded-full bg-white/95 text-[#1D1D1F] text-xs font-semibold hover:bg-white transition-all shadow-md whitespace-nowrap"
+                    >
+                      Open Studio →
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -153,148 +163,181 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section id="features" className="py-32 bg-white relative">
+      {/* Bento Features Grid */}
+      <section id="features" className="py-24 bg-[#F5F5F7] dark:bg-[#141416] border-y border-black/[0.06] dark:border-white/[0.06]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-24">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-16">
             <div className="max-w-2xl">
-              <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight leading-none mb-6">Built for the next generation of teams.</h2>
-              <p className="text-xl text-slate-500 font-medium">Sophisticated tools shouldn't be complicated. InquireCMS brings clarity to the creative process.</p>
+              <p className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] mb-2">
+                Engineered for Precision
+              </p>
+              <h2 className="text-3xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight text-balance">
+                Everything your team needs. Nothing in your way.
+              </h2>
             </div>
-            <Link to="/signup" className="group flex items-center gap-2 text-indigo-600 font-bold text-lg mb-2">
-              Get Started
-              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+            <Link
+              to="/signup"
+              className="inline-flex items-center gap-1.5 text-[#007AFF] dark:text-[#0A84FF] font-semibold text-sm hover:underline whitespace-nowrap"
+            >
+              <span>Start creating</span>
+              <ArrowRight size={16} />
             </Link>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-12">
+          <div className="grid md:grid-cols-3 gap-6">
             <FeatureCard 
-              icon={<MousePointer2 size={24} />}
-              title="Intuitive Canvas"
-              description="A blank slate for your imagination. Drag, drop, and refine with a level of precision usually reserved for code."
+              icon={<MousePointer2 size={22} />}
+              title="Intuitive Visual Canvas"
+              description="Drag, reorder, and refine blocks across columns and sections with tactile precision and real-time layout feedback."
             />
             <FeatureCard 
-              icon={<Users size={24} />}
-              title="Global Collab"
-              description="Edit together as if you're in the same room. Our low-latency sync engine keeps everyone in perfect harmony."
+              icon={<Users size={22} />}
+              title="Live Collaboration"
+              description="Edit together seamlessly. Low-latency synchronization keeps your entire team aligned on every revision."
             />
             <FeatureCard 
-              icon={<Sparkles size={24} />}
-              title="AI Assistant"
-              description="Gemini-powered insights suggest layout improvements, content refinements, and SEO optimizations in real-time."
+              icon={<Sparkles size={22} />}
+              title="Intelligent Assistance"
+              description="Generate page blueprints, collection schemas, and layout refinements directly inside your workflow."
             />
             <FeatureCard 
-              icon={<Layers size={24} />}
-              title="Atomic Design"
-              description="Build reusable component libraries that scale. Change once, update everywhere instantly."
+              icon={<Layers size={22} />}
+              title="Structured Collections"
+              description="Define custom schemas once and deliver content anywhere through instant REST API endpoints."
             />
             <FeatureCard 
-              icon={<Smartphone size={24} />}
-              title="Responsive Lab"
-              description="Design for every viewport simultaneously. Peek at how your site looks on mobile while you edit on desktop."
+              icon={<Smartphone size={22} />}
+              title="Responsive Viewport Lab"
+              description="Preview and fine-tune desktop, tablet, and mobile breakpoints side by side without leaving the editor."
             />
             <FeatureCard 
-              icon={<Shield size={24} />}
-              title="Safe Sync"
-              description="Never lose a pixel. Automated versioning and incremental backups ensure your work is always recoverable."
+              icon={<Shield size={22} />}
+              title="Version History & RBAC"
+              description="Save point-in-time snapshots, compare diffs, and govern team access with granular role permissions."
             />
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-32 bg-slate-50">
+      <section id="pricing" className="py-24 bg-[#FFFFFF] dark:bg-[#1C1C1E]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-24">
-             <div className="text-indigo-600 font-bold uppercase tracking-[0.3em] text-[10px] mb-4">Pricing Plans</div>
-             <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight mb-6">Simple and Scalable.</h2>
-             <p className="text-slate-500 text-xl font-medium">Start building today, scale as you grow.</p>
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <p className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] mb-2">
+              Transparent Plans
+            </p>
+            <h2 className="text-3xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight mb-4 text-balance">
+              Simple, predictable pricing.
+            </h2>
+            <p className="text-[#86868B] dark:text-[#98989D] text-base">
+              Start free with full visual editing, then scale as your team and content grow.
+            </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto items-stretch">
             <PricingCard 
-              name="Free"
+              name="For individual creators"
+              tier="Starter"
               price="0"
-              description="Experiment and build your first masterpiece."
-              features={["3 CMS Pages", "Community Patterns", "Real-time Sync", "Standard Support"]}
+              description="Everything you need to design and launch your first project."
+              features={[
+                "Up to 3 published pages",
+                "Visual block & section editor",
+                "Real-time preview & export",
+                "Standard community templates"
+              ]}
             />
             <PricingCard 
-              name="Professional"
+              name="For growing product teams"
+              tier="Professional"
               price="29"
-              description="The standard for growing teams and creators."
+              description="Full studio capabilities with version history and custom domains."
               highlighted={true}
-              features={["Unlimited Pages", "AI Suggestions", "Custom Domain", "Priority Support", "Version History"]}
+              features={[
+                "Unlimited published pages",
+                "40-point Page Version History",
+                "UTF-8 CSV Page Automation",
+                "Custom domain with auto SSL",
+                "Headless REST API access"
+              ]}
             />
             <PricingCard 
-              name="Team"
+              name="For scaling organizations"
+              tier="Enterprise"
               price="79"
-              description="Advanced collaboration for larger orgs."
-              features={["Shared Patterns", "RBAC Permissions", "Advanced Analytics", "Dedicated Channel", "99.9% SLF"]}
+              description="Granular role-based access control and multi-team governance."
+              features={[
+                "Granular RBAC permission matrix",
+                "Role simulation & audit controls",
+                "Unlimited collections & entries",
+                "Dedicated edge delivery SLA",
+                "Priority engineering support"
+              ]}
             />
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-slate-950 text-white py-32 overflow-hidden relative">
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] -mr-24 -mb-24" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid md:grid-cols-12 gap-16 mb-24">
-            <div className="md:col-span-4">
-              <div className="flex items-center gap-2 mb-8">
-                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-                  <Command size={22} />
+      {/* Minimalist Apple Footer */}
+      <footer className="bg-[#F5F5F7] dark:bg-[#141416] text-[#1D1D1F] dark:text-[#F5F5F7] py-16 border-t border-black/[0.06] dark:border-white/[0.08]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-12 gap-10 pb-12 border-b border-black/[0.06] dark:border-white/[0.08]">
+            <div className="md:col-span-5">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] rounded-xl flex items-center justify-center text-white">
+                  <Command size={17} />
                 </div>
-                <span className="text-2xl font-bold tracking-tight">InquireCMS</span>
+                <span className="text-lg font-bold tracking-tight">InquireCMS</span>
               </div>
-              <p className="text-slate-500 text-lg leading-relaxed mb-10 max-w-sm">
-                Empowering the next generation of builders to create a faster, more beautiful web together.
+              <p className="text-[#86868B] dark:text-[#98989D] text-sm leading-relaxed mb-6 max-w-sm">
+                A modern visual content management system and headless experience studio designed with clarity and precision.
               </p>
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3">
                 {[Twitter, Linkedin, Instagram, Github].map((Icon, i) => (
-                  <a key={i} href="#" className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:bg-white/10 hover:text-white transition-all transform hover:-translate-y-1">
-                    <Icon size={20} />
+                  <a
+                    key={i}
+                    href="#features"
+                    className="w-9 h-9 rounded-full bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-center text-[#86868B] dark:text-[#98989D] hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
+                  >
+                    <Icon size={16} />
                   </a>
                 ))}
               </div>
             </div>
             
-            <div className="md:col-span-2 md:col-start-7 text-sm">
-              <h4 className="font-bold text-white uppercase tracking-[0.2em] mb-8 text-xs text-indigo-400">Product</h4>
-              <ul className="space-y-5 text-slate-500 font-medium">
-                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">AI Studio</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Templates</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+            <div className="md:col-span-2 md:col-start-7 text-xs">
+              <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">Platform</h4>
+              <ul className="space-y-3 text-[#86868B] dark:text-[#98989D]">
+                <li><a href="#features" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Visual Editor</a></li>
+                <li><a href="#workspace" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Experience Manager</a></li>
+                <li><Link to="/headless-demo" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Headless API</Link></li>
+                <li><a href="#pricing" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Pricing</a></li>
               </ul>
             </div>
             
-            <div className="md:col-span-2 text-sm">
-              <h4 className="font-bold text-white uppercase tracking-[0.2em] mb-8 text-xs text-indigo-400">Resources</h4>
-              <ul className="space-y-5 text-slate-500 font-medium">
-                <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">API Reference</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">CMS Guides</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Community</a></li>
+            <div className="md:col-span-2 text-xs">
+              <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">Resources</h4>
+              <ul className="space-y-3 text-[#86868B] dark:text-[#98989D]">
+                <li><Link to="/headless-demo" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">API Explorer</Link></li>
+                <li><Link to="/login" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Template Library</Link></li>
+                <li><Link to="/login" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">CSV Automation</Link></li>
               </ul>
             </div>
 
-            <div className="md:col-span-2 text-sm">
-              <h4 className="font-bold text-white uppercase tracking-[0.2em] mb-8 text-xs text-indigo-400">Company</h4>
-              <ul className="space-y-5 text-slate-500 font-medium">
-                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Customers</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
+            <div className="md:col-span-2 text-xs">
+              <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">Account</h4>
+              <ul className="space-y-3 text-[#86868B] dark:text-[#98989D]">
+                <li><Link to="/login" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Sign In</Link></li>
+                <li><Link to="/signup" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Create Account</Link></li>
               </ul>
             </div>
           </div>
           
-          <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-slate-600 text-xs font-bold uppercase tracking-widest">
-            <p>© 2026 InquireCMS. Built with Antigravity.</p>
-            <div className="flex gap-10">
-               <a href="#" className="hover:text-white transition-colors">Legal</a>
-               <a href="#" className="hover:text-white transition-colors">System Status</a>
+          <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-[#86868B] dark:text-[#98989D] text-xs">
+            <p>Copyright © 2026 InquireCMS. All rights reserved.</p>
+            <div className="flex gap-6">
+              <a href="#features" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Privacy Policy</a>
+              <a href="#pricing" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">Terms of Use</a>
             </div>
           </div>
         </div>
@@ -304,49 +347,74 @@ const LandingPage: React.FC = () => {
 };
 
 const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) => (
-  <motion.div 
-    whileHover={{ y: -8 }}
-    className="bg-white p-10 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 hover:shadow-2xl hover:shadow-indigo-100/30 transition-all duration-300 group"
-  >
-    <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-50/50 text-indigo-600 flex items-center justify-center mb-8 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+  <div className="bg-white dark:bg-[#2C2C2E] p-8 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.06)] transition-all duration-200">
+    <div className="w-12 h-12 rounded-2xl bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center mb-6">
       {icon}
     </div>
-    <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight leading-none">{title}</h3>
-    <p className="text-slate-500 text-lg leading-relaxed font-medium">{description}</p>
-  </motion.div>
+    <h3 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2.5 tracking-tight">{title}</h3>
+    <p className="text-[#86868B] dark:text-[#98989D] text-sm leading-relaxed">{description}</p>
+  </div>
 );
 
-const PricingCard = ({ name, price, description, features, highlighted = false }: { name: string, price: string, description: string, features: string[], highlighted?: boolean }) => (
-  <motion.div 
-    whileHover={{ y: highlighted ? 0 : -8 }}
-    className={`p-10 rounded-[3rem] border flex flex-col transition-all duration-500 ${highlighted ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xl scale-105 z-10' : 'bg-white text-slate-900 border-slate-100'}`}
+const PricingCard = ({
+  name,
+  tier,
+  price,
+  description,
+  features,
+  highlighted = false,
+}: {
+  name: string;
+  tier: string;
+  price: string;
+  description: string;
+  features: string[];
+  highlighted?: boolean;
+}) => (
+  <div
+    className={`p-8 rounded-3xl border flex flex-col transition-all duration-200 ${
+      highlighted
+        ? 'bg-[#1D1D1F] dark:bg-[#2C2C2E] text-white border-[#007AFF] dark:border-[#0A84FF] ring-2 ring-[#007AFF]/20 dark:ring-[#0A84FF]/30 shadow-xl'
+        : 'bg-[#F5F5F7] dark:bg-[#2C2C2E]/60 text-[#1D1D1F] dark:text-[#F5F5F7] border-black/[0.06] dark:border-white/[0.08]'
+    }`}
   >
-    <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-6 ${highlighted ? 'text-indigo-200' : 'text-indigo-600'}`}>
-      {name}
+    <div className="mb-5">
+      <p className={`text-xs font-medium mb-1 ${highlighted ? 'text-[#0A84FF]' : 'text-[#86868B] dark:text-[#98989D]'}`}>
+        {name}
+      </p>
+      <h3 className="text-2xl font-bold tracking-tight">{tier}</h3>
     </div>
-    <div className="flex items-baseline gap-2 mb-6">
-      <span className="text-6xl font-black tracking-tighter">${price}</span>
-      <span className={`text-sm font-bold uppercase tracking-widest opacity-60`}>/mo</span>
+    <div className="flex items-baseline gap-1.5 mb-4 tabular-nums">
+      <span className="text-5xl font-bold tracking-tight">${price}</span>
+      <span className={`text-xs font-medium ${highlighted ? 'text-white/60' : 'text-[#86868B] dark:text-[#98989D]'}`}>
+        / month
+      </span>
     </div>
-    <p className={`text-lg mb-10 leading-relaxed font-medium opacity-80`}>{description}</p>
-    <ul className="space-y-5 mb-12 flex-1">
+    <p className={`text-sm mb-8 leading-relaxed ${highlighted ? 'text-white/80' : 'text-[#86868B] dark:text-[#98989D]'}`}>
+      {description}
+    </p>
+    <ul className="space-y-3.5 mb-8 flex-1">
       {features.map((f, i) => (
-        <li key={i} className="flex items-center gap-4 text-sm font-bold">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${highlighted ? 'bg-indigo-500/50 text-white' : 'bg-indigo-50 text-indigo-600'}`}>
-            <CheckCircle2 size={14} />
-          </div>
-          <span className="opacity-90">{f}</span>
+        <li key={i} className="flex items-center gap-3 text-sm font-medium">
+          <CheckCircle2
+            size={16}
+            className={highlighted ? 'text-[#0A84FF] shrink-0' : 'text-[#007AFF] dark:text-[#0A84FF] shrink-0'}
+          />
+          <span>{f}</span>
         </li>
       ))}
     </ul>
-    <Link 
-      to="/signup" 
-      className={`block w-full py-5 rounded-[2rem] font-black text-center transition-all active:scale-95 shadow-xl ${highlighted ? 'bg-white text-indigo-600 hover:bg-slate-50 shadow-indigo-900/20' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'}`}
+    <Link
+      to="/signup"
+      className={`block w-full py-3.5 rounded-full font-semibold text-sm text-center transition-all active:scale-[0.98] ${
+        highlighted
+          ? 'bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white shadow-sm'
+          : 'bg-white dark:bg-[#3A3A3C] text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-black/[0.04] dark:hover:bg-white/[0.1] border border-black/[0.08] dark:border-white/[0.08]'
+      }`}
     >
-      Start for free
+      Get Started
     </Link>
-  </motion.div>
+  </div>
 );
 
 export default LandingPage;
-

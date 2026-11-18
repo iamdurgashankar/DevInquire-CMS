@@ -13,7 +13,10 @@ import {
   where, 
   getDocs,
   doc,
-  getDoc 
+  getDoc,
+  setLogLevel,
+  disableNetwork,
+  terminate
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import firebaseConfig from "./firebase-applet-config.json";
@@ -40,13 +43,43 @@ const __dirname = path.dirname(__filename);
 console.log("[Server] Starting with Node version:", process.version);
 console.log("[Server] Current Directory:", process.cwd());
 
+try {
+  setLogLevel("silent");
+} catch {
+  // ignore
+}
+
 // Initialize Firebase for the server
 let db: any;
+let firestoreServerAvailable = Boolean(
+  firebaseConfig?.projectId && firebaseConfig.projectId !== "devinquire-cms"
+);
+
+const disableServerFirestore = async () => {
+  if (!firestoreServerAvailable && !db) return;
+  firestoreServerAvailable = false;
+  if (db) {
+    try {
+      await disableNetwork(db);
+    } catch {
+      // ignore
+    }
+    try {
+      await terminate(db);
+    } catch {
+      // ignore
+    }
+  }
+};
+
 try {
-  const firebaseApp = initializeApp(firebaseConfig);
-  db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-  console.log("[Firebase] Server SDK Initialized successfully");
+  if (firestoreServerAvailable) {
+    const firebaseApp = initializeApp(firebaseConfig);
+    db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+    console.log("[Firebase] Server SDK Initialized successfully");
+  }
 } catch (err) {
+  firestoreServerAvailable = false;
   console.warn("[Firebase] Server SDK Initialization warning:", err);
 }
 
@@ -211,8 +244,12 @@ async function startServer() {
   
   // GET /api/v1/content/pages - List all published pages
   app.get("/api/v1/content/pages", async (req, res) => {
+    const { includeDrafts } = req.query;
+    if (!firestoreServerAvailable || !db) {
+      const fallbackPages = SAMPLE_PAGES.filter(p => includeDrafts === 'true' || p.status === 'published');
+      return res.json({ success: true, data: fallbackPages });
+    }
     try {
-      const { includeDrafts } = req.query;
       const pagesRef = collection(db, "pages");
       
       let q;
@@ -241,7 +278,7 @@ async function startServer() {
         data: resultPages
       });
     } catch (error: any) {
-      const { includeDrafts } = req.query;
+      await disableServerFirestore();
       const fallbackPages = SAMPLE_PAGES.filter(p => includeDrafts === 'true' || p.status === 'published');
       res.json({
         success: true,
@@ -253,6 +290,13 @@ async function startServer() {
   // GET /api/v1/content/pages/:slug - Get a page by its slug (or ID)
   app.get("/api/v1/content/pages/:slug", async (req, res) => {
     const { slug } = req.params;
+    if (!firestoreServerAvailable || !db) {
+      const sampleMatch = SAMPLE_PAGES.find(p => p.slug === slug || p.id === slug);
+      if (sampleMatch) {
+        return res.json({ success: true, data: sampleMatch });
+      }
+      return res.status(404).json({ success: false, error: "Page not found" });
+    }
     try {
       const pagesRef = collection(db, "pages");
       
@@ -285,6 +329,7 @@ async function startServer() {
         data: pageData
       });
     } catch (error: any) {
+      await disableServerFirestore();
       const sampleMatch = SAMPLE_PAGES.find(p => p.slug === slug || p.id === slug);
       if (sampleMatch) {
         return res.json({ success: true, data: sampleMatch });
@@ -295,6 +340,15 @@ async function startServer() {
 
   // GET /api/v1/content/config - Get global config and styles
   app.get("/api/v1/content/config", async (req, res) => {
+    if (!firestoreServerAvailable || !db) {
+      return res.json({
+        success: true,
+        data: {
+          styles: null,
+          site: { siteName: "DevInquire Official", baseUrl: "https://devinquire.com" }
+        }
+      });
+    }
     try {
       const stylesDoc = await getDoc(doc(db, "config", "globalStyles"));
       const configDoc = await getDoc(doc(db, "config", "siteConfig"));
@@ -307,6 +361,7 @@ async function startServer() {
         }
       });
     } catch (error: any) {
+      await disableServerFirestore();
       res.json({
         success: true,
         data: {
@@ -319,18 +374,25 @@ async function startServer() {
 
   // GET /api/v1/content/collections - List all available collections
   app.get("/api/v1/content/collections", async (req, res) => {
+    if (!firestoreServerAvailable || !db) {
+      return res.json({ success: true, data: [] });
+    }
     try {
       const collectionsRef = collection(db, "collections");
       const snapshot = await getDocs(collectionsRef);
       const collections = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
       res.json({ success: true, data: collections });
     } catch (error: any) {
+      await disableServerFirestore();
       res.json({ success: true, data: [] });
     }
   });
 
   // GET /api/v1/content/collections/:collectionSlug/items - List items in a collection
   app.get("/api/v1/content/collections/:collectionSlug/items", async (req, res) => {
+    if (!firestoreServerAvailable || !db) {
+      return res.json({ success: true, data: [] });
+    }
     try {
       const { collectionSlug } = req.params;
       
@@ -356,12 +418,16 @@ async function startServer() {
       
       res.json({ success: true, data: items });
     } catch (error: any) {
+      await disableServerFirestore();
       res.json({ success: true, data: [] });
     }
   });
 
   // GET /api/v1/content/entries/:entryId - Get a single entry
   app.get("/api/v1/content/entries/:entryId", async (req, res) => {
+    if (!firestoreServerAvailable || !db) {
+      return res.status(404).json({ success: false, error: "Entry not found" });
+    }
     try {
       const { entryId } = req.params;
       const entryRef = doc(db, "entries", entryId);
@@ -373,6 +439,7 @@ async function startServer() {
       
       res.json({ success: true, data: { id: entrySnap.id, ...entrySnap.data() } });
     } catch (error: any) {
+      await disableServerFirestore();
       res.status(404).json({ success: false, error: "Entry not found" });
     }
   });

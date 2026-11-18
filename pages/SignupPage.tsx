@@ -1,16 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
-  Layout, Mail, Lock, User, ArrowRight, Github, 
-  Chrome, CheckCircle2, Check, AlertCircle, Sparkles, 
+  Mail, Lock, User, ArrowRight, 
+  Chrome, Check, AlertCircle, Sparkles, 
   Command, Zap, Globe, UserCheck 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { signInWithGoogle, signupWithEmail, updateProfile } from '../firebase';
 import { useCMS } from '../App';
-import firebaseConfig from '../firebase-applet-config.json';
 import { toast } from 'sonner';
+import { AppleThemeSwitcher } from '../components/AppleThemeSwitcher';
 
 const SignupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -85,10 +84,10 @@ const SignupPage: React.FC = () => {
   }, [password]);
 
   const getStrengthColor = () => {
-    if (passwordStrength <= 2) return 'bg-red-500';
-    if (passwordStrength <= 3) return 'bg-yellow-500';
-    if (passwordStrength <= 4) return 'bg-indigo-500';
-    return 'bg-emerald-500';
+    if (passwordStrength <= 2) return 'bg-[#FF3B30]';
+    if (passwordStrength <= 3) return 'bg-[#FF9F0A]';
+    if (passwordStrength <= 4) return 'bg-[#007AFF]';
+    return 'bg-[#34C759]';
   };
 
   const getStrengthText = () => {
@@ -149,85 +148,84 @@ const SignupPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col md:flex-row overflow-hidden font-sans">
-      {/* Left Side: Visual Side (Reversed from Login for variety) */}
-      <div className="hidden md:flex md:w-1/2 relative bg-indigo-950 overflow-hidden">
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [0.4, 0.6, 0.4]
-          }}
-          transition={{ duration: 15, repeat: Infinity }}
-          className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,#4338ca_0%,transparent_70%)]"
-        />
-        
-        <div className="relative z-10 w-full flex flex-col justify-center p-16 lg:p-24 text-white">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <Link to="/landing" className="inline-flex items-center gap-2 mb-16 group">
-              <div className="w-10 h-10 bg-white text-indigo-900 rounded-xl flex items-center justify-center shadow-xl group-hover:rotate-12 transition-transform">
-                <Command size={22} />
-              </div>
-              <span className="text-2xl font-bold tracking-tight text-white">InquireCMS</span>
-            </Link>
-
-            <h2 className="text-5xl lg:text-7xl font-bold tracking-tighter leading-[0.9] mb-8">
-              The future <br />of CMS is AI.
-            </h2>
-            <p className="text-xl text-indigo-200/80 max-w-md mb-12 font-medium leading-relaxed">
-              Experience the first visual builder with integrated Gemini intelligence.
-            </p>
-
-            <div className="space-y-8">
-              {[
-                { icon: <Zap size={20} />, title: "Instant Generation", desc: "Build whole pages from a single prompt." },
-                { icon: <Globe size={20} />, title: "Edge Performance", desc: "Your sites deploy globally in seconds." },
-                { icon: <Sparkles size={20} />, title: "Smart SEO", desc: "AI-optimized metadata and structure." }
-              ].map((feature, i) => (
-                <div key={i} className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                    {feature.icon}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-white">{feature.title}</h4>
-                    <p className="text-sm text-indigo-300/60 leading-snug">{feature.desc}</p>
-                  </div>
-                </div>
-              ))}
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-[#F5F5F7] flex flex-col md:flex-row overflow-hidden font-sans transition-colors duration-200">
+      {/* Left Side: Apple Studio Showcase */}
+      <div className="hidden md:flex md:w-1/2 relative bg-[#F5F5F7] dark:bg-[#141416] border-r border-black/[0.06] dark:border-white/[0.08] overflow-hidden items-center justify-center p-12 lg:p-20">
+        <div className="max-w-lg w-full space-y-10">
+          <Link to="/landing" className="inline-flex items-center gap-2.5 group">
+            <div className="w-9 h-9 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-xl flex items-center justify-center shadow-sm">
+              <Command size={19} />
             </div>
-          </motion.div>
+            <span className="text-lg font-bold tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7]">InquireCMS</span>
+          </Link>
+
+          <div className="space-y-4">
+            <h2 className="text-4xl lg:text-5xl font-bold tracking-tight leading-[1.08] text-[#1D1D1F] dark:text-[#F5F5F7] text-balance">
+              Your complete visual & headless studio.
+            </h2>
+            <p className="text-base text-[#86868B] dark:text-[#98989D] leading-relaxed">
+              Design pages visually, automate site hierarchies via CSV, and publish structured collections with zero friction.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { icon: <Zap size={18} />, title: "Instant Blueprints", desc: "Scaffold multi-section pages from a single prompt or CSV file." },
+              { icon: <Globe size={18} />, title: "Headless Delivery", desc: "Consume pages and collections via clean REST endpoints." },
+              { icon: <Sparkles size={18} />, title: "Version Snapshots", desc: "Compare and restore any point-in-time page revision." }
+            ].map((feature, i) => (
+              <div key={i} className="flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08]">
+                <div className="w-9 h-9 rounded-xl bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center shrink-0">
+                  {feature.icon}
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">{feature.title}</h4>
+                  <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-0.5 leading-relaxed">{feature.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Right Side: Form */}
       <motion.div 
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="w-full md:w-1/2 flex flex-col justify-center p-8 md:p-16 lg:p-24 bg-white"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="w-full md:w-1/2 flex flex-col justify-between p-6 sm:p-12 lg:p-16 bg-white dark:bg-[#1C1C1E]"
       >
-        <div className="max-w-md w-full mx-auto">
-          <div className="mb-10 text-center md:text-left">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-              Start building for free.
+        <div className="flex items-center justify-between">
+          <Link to="/landing" className="md:hidden inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] rounded-xl flex items-center justify-center text-white">
+              <Command size={17} />
+            </div>
+            <span className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">InquireCMS</span>
+          </Link>
+          <div className="ml-auto">
+            <AppleThemeSwitcher variant="segmented" />
+          </div>
+        </div>
+
+        <div className="max-w-md w-full mx-auto my-auto py-6">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight mb-2">
+              Create your account
             </h1>
-            <p className="text-slate-500 font-medium">
-              Join the community of 10,000+ builders.
+            <p className="text-[#86868B] dark:text-[#98989D] text-sm">
+              Start building and managing your digital experiences for free.
             </p>
           </div>
 
           <AnimatePresence mode="wait">
             {error && (
               <motion.div 
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-medium rounded-2xl flex items-start gap-3"
+                exit={{ opacity: 0, y: -6 }}
+                className="mb-6 p-4 bg-[#FF3B30]/10 border border-[#FF3B30]/25 text-[#FF3B30] dark:text-[#FF453A] text-xs font-medium rounded-2xl flex items-start gap-2.5"
               >
-                <AlertCircle className="shrink-0 mt-0.5" size={18} />
+                <AlertCircle className="shrink-0 mt-0.5" size={16} />
                 <span>{error}</span>
               </motion.div>
             )}
@@ -235,25 +233,25 @@ const SignupPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+              <label className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] ml-0.5">Full Name</label>
               <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#007AFF] dark:group-focus-within:text-[#0A84FF] transition-colors" size={17} />
                 <input 
                   id="signup-name"
                   type="text" 
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="Alex Rivera"
+                  className="w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#007AFF]/20 dark:focus:ring-[#0A84FF]/30 focus:border-[#007AFF] dark:focus:border-[#0A84FF] outline-none transition-all"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
+              <label className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] ml-0.5">Email Address</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#007AFF] dark:group-focus-within:text-[#0A84FF] transition-colors" size={17} />
                 <input 
                   id="signup-email"
                   type="email" 
@@ -261,20 +259,22 @@ const SignupPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className={`w-full bg-slate-50 border ${isEmailValid === false ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-200'} rounded-2xl pl-12 pr-12 py-3.5 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all`}
+                  className={`w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border ${
+                    isEmailValid === false ? 'border-[#FF3B30]' : 'border-black/[0.08] dark:border-white/[0.10]'
+                  } rounded-xl pl-10 pr-10 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#007AFF]/20 dark:focus:ring-[#0A84FF]/30 focus:border-[#007AFF] dark:focus:border-[#0A84FF] outline-none transition-all`}
                 />
                 {isEmailValid !== null && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                    {isEmailValid ? <Check className="text-emerald-500" size={18} /> : <AlertCircle className="text-red-500" size={18} />}
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                    {isEmailValid ? <Check className="text-[#34C759]" size={16} /> : <AlertCircle className="text-[#FF3B30]" size={16} />}
                   </div>
                 )}
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Password</label>
+              <label className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] ml-0.5">Password</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#007AFF] dark:group-focus-within:text-[#0A84FF] transition-colors" size={17} />
                 <input 
                   id="signup-password"
                   type="password" 
@@ -282,22 +282,20 @@ const SignupPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                  className="w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#007AFF]/20 dark:focus:ring-[#0A84FF]/30 focus:border-[#007AFF] dark:focus:border-[#0A84FF] outline-none transition-all"
                 />
               </div>
               {password && (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Strength</span>
-                    <span className={`text-[10px] font-bold uppercase tracking-widest ${getStrengthColor().replace('bg-', 'text-')}`}>
-                      {getStrengthText()}
-                    </span>
+                <div className="pt-1.5 space-y-1">
+                  <div className="flex justify-between items-center text-[11px] font-medium text-[#86868B] dark:text-[#98989D]">
+                    <span>Password strength</span>
+                    <span>{getStrengthText()}</span>
                   </div>
-                  <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden flex gap-1">
+                  <div className="h-1 w-full bg-[#E5E5EA] dark:bg-[#2C2C2E] rounded-full overflow-hidden flex gap-1">
                     {[1, 2, 3, 4, 5].map((level) => (
                       <div 
                         key={level}
-                        className={`h-full flex-1 transition-all duration-500 ${level <= passwordStrength ? getStrengthColor() : 'bg-slate-200'} rounded-full`}
+                        className={`h-full flex-1 transition-all duration-300 ${level <= passwordStrength ? getStrengthColor() : 'bg-transparent'} rounded-full`}
                       />
                     ))}
                   </div>
@@ -305,75 +303,79 @@ const SignupPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-start gap-3 py-3">
+            <div className="flex items-start gap-2.5 py-2">
               <input 
                 id="signup-terms" 
                 type="checkbox" 
                 required 
-                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                className="mt-0.5 w-4 h-4 rounded border-black/20 text-[#007AFF] focus:ring-[#007AFF]" 
               />
-              <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                I agree to the <a href="#" className="font-bold text-indigo-600 hover:underline">Terms</a> and <a href="#" className="font-bold text-indigo-600 hover:underline">Privacy Policy</a>.
+              <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">
+                I agree to the <a href="#terms" className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline">Terms</a> and <a href="#privacy" className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline">Privacy Policy</a>.
               </p>
             </div>
 
-            <motion.button 
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
+            <button 
               id="signup-submit"
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-70"
+              className="w-full bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white py-3.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Create Account
-                  <ArrowRight size={18} />
+                  <span>Create Account</span>
+                  <ArrowRight size={16} />
                 </>
               )}
-            </motion.button>
+            </button>
 
-            <div className="relative my-8">
+            <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-100"></div>
+                <div className="w-full border-t border-black/[0.08] dark:border-white/[0.08]"></div>
               </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-[0.2em]">
-                <span className="bg-white px-6 text-slate-300">Social Sign Up</span>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white dark:bg-[#1C1C1E] px-4 text-[#86868B] dark:text-[#98989D]">or sign up with</span>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <motion.button 
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+            <div className="space-y-2.5">
+              <button 
                 type="button"
                 onClick={handleGoogleSignup}
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-3 py-4 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2.5 py-3 bg-[#F5F5F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA]/70 dark:hover:bg-[#3A3A3C] border border-black/[0.08] dark:border-white/[0.10] rounded-xl text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] transition-all disabled:opacity-50"
               >
-                <Chrome size={20} className="text-red-500" />
-                Sign up with Google
-              </motion.button>
+                <Chrome size={18} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                <span>Sign up with Google</span>
+              </button>
 
-              <motion.button 
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+              <button 
                 id="signup-demo" 
                 onClick={handleDemoLogin}
                 type="button"
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-50 border border-indigo-100 rounded-2xl text-sm font-bold text-indigo-700 hover:bg-indigo-100/80 transition-all"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 hover:bg-[#007AFF]/15 dark:hover:bg-[#0A84FF]/25 border border-[#007AFF]/20 dark:border-[#0A84FF]/30 rounded-xl text-sm font-semibold text-[#007AFF] dark:text-[#0A84FF] transition-all"
               >
-                <UserCheck size={18} className="text-indigo-600" />
-                Explore in Demo Mode
-              </motion.button>
+                <UserCheck size={17} />
+                <span>Explore in Demo Mode</span>
+              </button>
             </div>
           </form>
 
-          <p className="text-center mt-12 text-sm text-slate-500 font-medium">
-            Already have an account? <Link to="/login" className="font-bold text-indigo-600 hover:text-indigo-700 transition-colors">Log in</Link>
+          <p className="text-center mt-8 text-xs text-[#86868B] dark:text-[#98989D]">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline">
+              Sign in
+            </Link>
           </p>
+        </div>
+
+        <div className="text-xs text-[#86868B] dark:text-[#98989D] flex items-center justify-between pt-4 border-t border-black/[0.06] dark:border-white/[0.06]">
+          <span>© 2026 InquireCMS</span>
+          <Link to="/landing" className="hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] transition-colors">
+            Back to Home
+          </Link>
         </div>
       </motion.div>
     </div>

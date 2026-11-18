@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Terminal, 
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BlockRenderer } from '../components/BlockRenderer';
+import { AppleThemeSwitcher } from '../components/AppleThemeSwitcher';
 
 const HeadlessClientDemo: React.FC = () => {
   const [pages, setPages] = useState<any[]>([]);
@@ -31,7 +31,7 @@ const HeadlessClientDemo: React.FC = () => {
     setError(null);
     try {
       const [pagesRes, configRes] = await Promise.all([
-        fetch('/api/v1/content/pages?includeDrafts=true'), // Show drafts in demo so users see content immediately
+        fetch('/api/v1/content/pages?includeDrafts=true'),
         fetch('/api/v1/content/config')
       ]);
       
@@ -55,9 +55,9 @@ const HeadlessClientDemo: React.FC = () => {
         setGlobalStyles(configData.data.styles);
       } else {
         setGlobalStyles({
-          primaryColor: '#4f46e5',
-          textColor: '#1e293b',
-          backgroundColor: '#ffffff',
+          primaryColor: '#007AFF',
+          textColor: '#1D1D1F',
+          backgroundColor: '#FFFFFF',
           containerWidth: '1200px'
         });
       }
@@ -96,8 +96,8 @@ const HeadlessClientDemo: React.FC = () => {
   const renderLayout = (layout: any) => {
     if (!layout) {
       return (
-        <div className="p-8 border-2 border-dashed border-slate-100 rounded-2xl text-center text-slate-400">
-          <p className="text-sm italic">This page has no layout data.</p>
+        <div className="p-8 border border-dashed border-black/[0.08] dark:border-white/[0.10] rounded-2xl text-center text-[#86868B] dark:text-[#98989D]">
+          <p className="text-sm">This page has no layout data.</p>
         </div>
       );
     }
@@ -105,25 +105,25 @@ const HeadlessClientDemo: React.FC = () => {
     const sections = layout.sections || [];
     if (sections.length === 0) {
       return (
-        <div className="p-8 border-2 border-dashed border-slate-100 rounded-2xl text-center text-slate-400">
-          <p className="text-sm italic">This layout has no sections.</p>
+        <div className="p-8 border border-dashed border-black/[0.08] dark:border-white/[0.10] rounded-2xl text-center text-[#86868B] dark:text-[#98989D]">
+          <p className="text-sm">This layout has no sections.</p>
         </div>
       );
     }
     
     if (!globalStyles) return (
       <div className="flex items-center justify-center py-12">
-        <RefreshCcw className="animate-spin text-slate-300" />
+        <RefreshCcw className="animate-spin text-[#86868B]" />
       </div>
     );
     
     return (
       <div 
-        className="w-full rounded-xl overflow-hidden shadow-inner bg-white"
+        className="w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-white"
         style={{ 
           backgroundColor: globalStyles.backgroundColor || '#ffffff',
-          color: globalStyles.textColor || '#1e293b',
-          fontFamily: globalStyles.bodyFont || 'Inter, sans-serif'
+          color: globalStyles.textColor || '#1D1D1F',
+          fontFamily: globalStyles.bodyFont || '-apple-system, BlinkMacSystemFont, Plus Jakarta Sans, sans-serif'
         }}
       >
         {sections.map((section: any, sIdx: number) => (
@@ -170,179 +170,192 @@ const HeadlessClientDemo: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500">
-              <ArrowLeft size={20} />
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-[#F5F5F7] font-sans transition-colors duration-200">
+      {/* Apple Frosted Header */}
+      <header className="bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl border-b border-black/[0.07] dark:border-white/[0.08] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="p-2 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-xl transition-colors text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]"
+              title="Back to Studio"
+            >
+              <ArrowLeft size={18} />
             </Link>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] rounded-xl flex items-center justify-center text-white shadow-xs">
                 <Terminal size={16} />
               </div>
-              <h1 className="font-bold text-slate-900">Headless API Demo</h1>
+              <h1 className="font-bold text-sm sm:text-base text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                Headless Content API Console
+              </h1>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-             <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-600 text-[10px] font-black uppercase tracking-widest border border-green-100">
-               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-               API Connected
-             </div>
-             <button 
-               onClick={fetchInitialData}
-               className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
-               title="Refresh Data"
-             >
-               <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
-             </button>
+            <span className="hidden sm:inline text-xs font-medium text-[#34C759]">
+              REST v1 Connected
+            </span>
+            <AppleThemeSwitcher variant="segmented" />
+            <button 
+              onClick={fetchInitialData}
+              className="p-2 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-xl transition-colors text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]"
+              title="Refresh Data"
+            >
+              <RefreshCcw size={17} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-6 md:p-8">
-        <div className="grid lg:grid-cols-12 gap-8">
-          
+        <div className="grid lg:grid-cols-12 gap-6">
           {/* Left: API Explorer Sidebar */}
           <div className="lg:col-span-4 space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-100 p-4 rounded-xl text-red-600 text-xs font-medium flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 p-4 rounded-2xl text-[#FF3B30] dark:text-[#FF453A] text-xs font-medium">
                 Error: {error}
               </div>
             )}
             
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                <Database size={16} className="text-slate-400" />
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Available Endpoints</span>
+            <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
+              <div className="px-4 py-3.5 bg-[#F5F5F7]/60 dark:bg-[#1C1C1E]/50 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center gap-2">
+                <Database size={15} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Available Page Endpoints</span>
               </div>
-              <div className="p-4 space-y-1">
+              <div className="p-3 space-y-1">
                 {pages.length === 0 && !loading && (
-                  <div className="text-center py-10 px-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                    <Database size={24} className="mx-auto text-slate-300 mb-3" />
-                    <p className="text-sm font-bold text-slate-900">No pages found</p>
-                    <p className="text-[10px] text-slate-500 mt-1 mb-4">Create and save a page in the CMS dashboard first.</p>
-                    <Link to="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition-all">
+                  <div className="text-center py-10 px-4 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-xl border border-dashed border-black/[0.08] dark:border-white/[0.10]">
+                    <Database size={24} className="mx-auto text-[#86868B] mb-3" />
+                    <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">No pages found</p>
+                    <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-1 mb-4">Create and save a page in the CMS dashboard first.</p>
+                    <Link to="/" className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-xl text-xs font-semibold hover:opacity-90 transition-all">
                       Go to Dashboard
-                      <ChevronRight size={12} />
+                      <ChevronRight size={13} />
                     </Link>
                   </div>
                 )}
-                {pages.map((page) => (
-                  <button
-                    key={page.id}
-                    onClick={() => fetchPageDetails(page.slug || page.id)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between group transition-all ${
-                      (selectedPage?.slug === page.slug || selectedPage?.id === page.id) && selectedPage
-                        ? 'bg-indigo-50 border border-indigo-100 text-indigo-700' 
-                        : 'hover:bg-slate-50 text-slate-600'
-                    }`}
-                  >
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{page.title}</span>
-                        {page.status === 'draft' && (
-                          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 font-black uppercase">Draft</span>
-                        )}
+                {pages.map((page) => {
+                  const isSelected = (selectedPage?.slug === page.slug || selectedPage?.id === page.id) && selectedPage;
+                  return (
+                    <button
+                      key={page.id}
+                      onClick={() => fetchPageDetails(page.slug || page.id)}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center justify-between group transition-all ${
+                        isSelected
+                          ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs' 
+                          : 'hover:bg-[#F5F5F7] dark:hover:bg-[#3A3A3C] text-[#1D1D1F] dark:text-[#F5F5F7]'
+                      }`}
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold truncate">{page.title}</span>
+                          {page.status === 'draft' && (
+                            <span className={`text-[10px] font-medium ${isSelected ? 'text-white/80' : 'text-[#86868B] dark:text-[#98989D]'}`}>
+                              · Draft
+                            </span>
+                          )}
+                        </div>
+                        <code className={`text-[11px] font-mono truncate ${isSelected ? 'text-white/80' : 'text-[#86868B] dark:text-[#98989D]'}`}>
+                          /api/v1/content/pages/{page.slug || page.id}
+                        </code>
                       </div>
-                      <code className="text-[10px] opacity-60">/pages/{page.slug || page.id}</code>
-                    </div>
-                    <ChevronRight size={14} className={`transition-transform ${(selectedPage?.slug === page.slug || selectedPage?.id === page.id) && selectedPage ? 'translate-x-1' : 'opacity-0 group-hover:opacity-100'}`} />
-                  </button>
-                ))}
+                      <ChevronRight size={14} className={`shrink-0 transition-transform ${isSelected ? 'translate-x-0.5 text-white' : 'text-[#86868B] opacity-0 group-hover:opacity-100'}`} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-2xl p-6 text-white overflow-hidden relative shadow-xl">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                 <Code size={120} />
-               </div>
-               <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-400 mb-4">Raw JSON Response</h3>
-               {loading ? (
-                 <div className="flex items-center gap-2 text-slate-500 text-xs font-mono">
-                   <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" />
-                   Fetching...
-                 </div>
-               ) : (
-                 <pre className="text-[10px] font-mono whitespace-pre-wrap h-[400px] overflow-y-auto custom-scrollbar text-indigo-100/70">
-                   {rawJson || '// Select a page to see response'}
-                 </pre>
-               )}
+            <div className="bg-[#1C1C1E] dark:bg-[#141416] rounded-2xl p-5 text-[#F5F5F7] border border-black/[0.08] dark:border-white/[0.08] overflow-hidden relative shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-[#0A84FF] flex items-center gap-1.5">
+                  <Code size={14} />
+                  <span>JSON Payload Inspector</span>
+                </span>
+                <span className="text-[11px] font-mono text-[#98989D]">application/json</span>
+              </div>
+              {loading ? (
+                <div className="flex items-center gap-2 text-[#98989D] text-xs font-mono py-8">
+                  <div className="w-2 h-2 rounded-full bg-[#0A84FF] animate-pulse" />
+                  Fetching response...
+                </div>
+              ) : (
+                <pre className="text-[11px] font-mono whitespace-pre-wrap h-[380px] overflow-y-auto text-[#F5F5F7]/85 leading-relaxed">
+                  {rawJson || '// Select a page endpoint to inspect JSON'}
+                </pre>
+              )}
             </div>
           </div>
 
           {/* Right: Render Preview */}
           <div className="lg:col-span-8 flex flex-col gap-6">
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex-1 flex flex-col min-h-[600px]">
-               <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Globe size={16} className="text-slate-400" />
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Headless Client Rendering (Visual)</span>
-                  </div>
-                  {selectedPage && (
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-bold text-slate-400">
-                        {selectedPage.layoutJSON?.sections?.length || 0} Blocks Rendered
-                      </span>
-                    </div>
-                  )}
-               </div>
+            <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs flex-1 flex flex-col min-h-[600px]">
+              <div className="px-5 py-3.5 bg-[#F5F5F7]/60 dark:bg-[#1C1C1E]/50 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Globe size={15} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                  <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Live Headless Client Renderer</span>
+                </div>
+                {selectedPage && (
+                  <span className="text-xs font-medium text-[#86868B] dark:text-[#98989D] tabular-nums">
+                    {selectedPage.layoutJSON?.sections?.length || 0} Sections
+                  </span>
+                )}
+              </div>
 
-               <div className="flex-1 overflow-y-auto p-8 bg-white selection:bg-blue-100">
-                 {loading && !selectedPage ? (
-                   <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                     <Zap size={48} className="mb-4 animate-pulse" />
-                     <p className="text-sm font-medium">Hydrating content from API...</p>
-                   </div>
-                 ) : selectedPage ? (
-                   <div className="max-w-3xl mx-auto">
-                     <div className="mb-12 pb-8 border-b border-slate-100">
-                        <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2">
-                          {selectedPage.title}
-                        </h2>
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                          <span className="px-2 py-0.5 rounded bg-slate-100">Headless Content</span>
-                          <span>•</span>
-                          <span>Published {new Date(selectedPage.updatedAt).toLocaleDateString()}</span>
-                        </div>
-                     </div>
-                     
-                     <div className="space-y-0">
-                       {renderLayout(selectedPage.layoutJSON)}
-                     </div>
-                   </div>
-                 ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center max-w-sm mx-auto">
-                     <Database size={48} className="mb-4 opacity-20" />
-                     <p className="text-lg font-bold text-slate-300">No Content Selected</p>
-                     <p className="text-sm mt-2">Publish a page in the main dashboard and select it from the sidebar to see how our headless API delivers structured layout data to your custom frontend.</p>
-                   </div>
-                 )}
-               </div>
+              <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-[#F5F5F7]/40 dark:bg-[#1C1C1E]/40">
+                {loading && !selectedPage ? (
+                  <div className="h-full flex flex-col items-center justify-center text-[#86868B] dark:text-[#98989D]">
+                    <Zap size={36} className="mb-3 text-[#007AFF] dark:text-[#0A84FF] animate-pulse" />
+                    <p className="text-sm font-medium">Hydrating content from REST API...</p>
+                  </div>
+                ) : selectedPage ? (
+                  <div className="max-w-3xl mx-auto">
+                    <div className="mb-8 pb-6 border-b border-black/[0.06] dark:border-white/[0.08]">
+                      <h2 className="text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight mb-2">
+                        {selectedPage.title}
+                      </h2>
+                      <div className="flex items-center gap-2 text-xs text-[#86868B] dark:text-[#98989D]">
+                        <span>Headless Delivery</span>
+                        <span>·</span>
+                        <span>Updated {new Date(selectedPage.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      {renderLayout(selectedPage.layoutJSON)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-[#86868B] dark:text-[#98989D] text-center max-w-sm mx-auto">
+                    <Database size={40} className="mb-3 opacity-30" />
+                    <p className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">No Content Selected</p>
+                    <p className="text-xs mt-1.5 leading-relaxed">
+                      Select a page from the sidebar to preview how the headless API delivers structured layout JSON to any frontend.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="bg-indigo-600 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl shadow-indigo-200">
+            <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 sm:p-8 border border-black/[0.06] dark:border-white/[0.08] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs">
               <div className="max-w-md">
-                <h3 className="text-2xl font-bold mb-2">Build your own frontend.</h3>
-                <p className="text-indigo-100 text-sm">
-                  This demo page is built using standard React `fetch` and our generic `BlockRenderer`. 
-                  Your content isn't locked into our builder – consume it anywhere.
+                <h3 className="text-lg font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Consume content anywhere.</h3>
+                <p className="text-[#86868B] dark:text-[#98989D] text-xs leading-relaxed">
+                  Built with standard REST JSON endpoints and our portable BlockRenderer. Connect React, Swift, Kotlin, or Astro clients effortlessly.
                 </p>
               </div>
               <a 
                 href="/api/v1/content/pages" 
                 target="_blank" 
-                className="bg-white text-indigo-600 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shrink-0 hover:bg-slate-50 transition-all active:scale-95"
+                rel="noreferrer"
+                className="bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all active:scale-95"
               >
-                Open API Root
-                <ExternalLink size={18} />
+                <span>Open API Root</span>
+                <ExternalLink size={15} />
               </a>
             </div>
           </div>
-
         </div>
       </main>
     </div>

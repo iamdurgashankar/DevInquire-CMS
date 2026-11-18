@@ -74,6 +74,7 @@ import {
   BrainCircuit,
   RefreshCw,
   Zap,
+  History,
 } from "lucide-react";
 import {
   Page,
@@ -96,6 +97,8 @@ import { FloatingBlockToolbar } from '../components/FloatingBlockToolbar';
 import { FloatingSectionToolbar } from '../components/FloatingSectionToolbar';
 import { BlockInsertionDivider } from '../components/BlockInsertionDivider';
 import { AssetLibrarySidebar } from '../components/AssetLibrarySidebar';
+import { VersionHistoryModal, appendPageVersion } from '../components/VersionHistoryModal';
+import { AppleThemeSwitcher } from '../components/AppleThemeSwitcher';
 
 const Editor: React.FC = () => {
   const { id } = useParams();
@@ -119,8 +122,10 @@ const Editor: React.FC = () => {
     setMedia,
     syncMedia,
     deleteMediaOnServer,
+    user,
   } = useCMS();
   const [page, setPage] = useState<Page | null>(null);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
   const [otherCursors, setOtherCursors] = useState<Record<string, { x: number, y: number }>>({});
   const isRemoteUpdate = React.useRef(false);
@@ -232,6 +237,20 @@ const Editor: React.FC = () => {
   );
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [draggedAsset, setDraggedAsset] = useState<MediaItem | null>(null);
+  const [draggedHierarchyBlock, setDraggedHierarchyBlock] = useState<{
+    blockId: string;
+    sourceSectionId: string;
+    sourceColumnId: string;
+    sourceIndex: number;
+  } | null>(null);
+  const [blockDropIndicator, setBlockDropIndicator] = useState<{
+    targetSectionId: string;
+    targetColumnId: string;
+    targetIndex: number;
+    position: "before" | "after" | "inside-empty";
+  } | null>(null);
+  const [draggedSectionIndex, setDraggedSectionIndex] = useState<number | null>(null);
+  const [sectionDropIndex, setSectionDropIndex] = useState<number | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
@@ -376,7 +395,7 @@ const Editor: React.FC = () => {
         syncTemplate(updatedTemplate);
       } else {
         // Saving a page
-        const updatedPage: Page = {
+        const baseUpdatedPage: Page = {
           ...page,
           updatedAt: new Date().toISOString(),
           isCustomSite: !!page.isCustomSite,
@@ -384,10 +403,19 @@ const Editor: React.FC = () => {
           ...(page.customCSS ? { customCSS: page.customCSS } : {}),
           ...(page.customJS ? { customJS: page.customJS } : {}),
         };
+        const finalPage = !silent
+          ? appendPageVersion(baseUpdatedPage, {
+              trigger: baseUpdatedPage.status === "published" ? "publish" : "save",
+              author: user?.name || baseUpdatedPage.author || "Admin",
+              skipIfUnchanged: true,
+            }).updatedPage
+          : baseUpdatedPage;
+
+        setPage(finalPage);
         setPages((prev) =>
-          prev.map((p) => (p.id === page.id ? updatedPage : p)),
+          prev.map((p) => (p.id === page.id ? finalPage : p)),
         );
-        syncPage(updatedPage);
+        syncPage(finalPage);
       }
 
       if (!silent) {
@@ -642,6 +670,145 @@ const Editor: React.FC = () => {
       }),
     }));
     updateLayout({ ...page.layoutJSON, sections: newSections });
+  };
+
+  const reorderBlockInHierarchy = (
+    blockId: string,
+    targetSectionId: string,
+    targetColumnId: string,
+    targetIndex: number,
+    position: "before" | "after" | "inside-empty"
+  ) => {
+    if (!page || !blockId) return;
+
+    let movedBlock: Block | null = null;
+    let sourceSectionId = "";
+    let sourceColumnId = "";
+    let sourceBlockIdx = -1;
+
+    for (const sec of page.layoutJSON.sections) {
+      if (!sec) continue;
+      for (const col of sec.columns) {
+        const bIdx = col.blocks.findIndex((b) => b.id === blockId);
+        if (bIdx !== -1) {
+          movedBlock = col.blocks[bIdx];
+          sourceSectionId = sec.id;
+          sourceColumnId = col.id;
+          sourceBlockIdx = bIdx;
+          break;
+        }
+      }
+      if (movedBlock) break;
+    }
+
+    if (!movedBlock) return;
+
+    const rawInsertIndex =
+      position === "inside-empty"
+        ? 0
+        : position === "after"
+          ? targetIndex + 1
+          : targetIndex;
+
+    const isSameColumn =
+      sourceSectionId === targetSectionId && sourceColumnId === targetColumnId;
+
+    if (
+      isSameColumn &&
+      (rawInsertIndex === sourceBlockIdx || rawInsertIndex === sourceBlockIdx + 1)
+    ) {
+      setDraggedHierarchyBlock(null);
+      setBlockDropIndicator(null);
+      return;
+    }
+
+    const newSections = page.layoutJSON.sections
+      .filter((s) => !!s)
+      .map((sec) => ({
+        ...sec,
+        columns: sec.columns.map((col) => {
+          if (isSameColumn && col.id === sourceColumnId) {
+            const blocks = [...col.blocks];
+            const [removed] = blocks.splice(sourceBlockIdx, 1);
+            const adjustedIndex =
+              sourceBlockIdx < rawInsertIndex ? rawInsertIndex - 1 : rawInsertIndex;
+            const boundedIndex = Math.max(0, Math.min(adjustedIndex, blocks.length));
+            blocks.splice(boundedIndex, 0, removed);
+            return { ...col, blocks };
+          }
+
+          if (col.id === sourceColumnId) {
+            return {
+              ...col,
+              blocks: col.blocks.filter((b) => b.id !== blockId),
+            };
+          }
+
+          if (col.id === targetColumnId) {
+            const blocks = [...col.blocks];
+            const boundedIndex = Math.max(0, Math.min(rawInsertIndex, blocks.length));
+            blocks.splice(boundedIndex, 0, movedBlock!);
+            return { ...col, blocks };
+          }
+
+          return col;
+        }),
+      }));
+
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    setSelectedBlockId(blockId);
+    setDraggedHierarchyBlock(null);
+    setBlockDropIndicator(null);
+    setDraggedOverColumn(null);
+    toast.success("Block reordered in hierarchy");
+  };
+
+  const handleBlockDragStart = (
+    e: React.DragEvent,
+    sectionId: string,
+    columnId: string,
+    blockId: string,
+    blockIndex: number,
+    useCanvasGhost = false
+  ) => {
+    e.stopPropagation();
+    e.dataTransfer.setData("reorderBlockId", blockId);
+    e.dataTransfer.effectAllowed = "move";
+    if (useCanvasGhost) {
+      const blockEl = document.getElementById(`block-${blockId}`);
+      if (blockEl && e.dataTransfer.setDragImage) {
+        e.dataTransfer.setDragImage(blockEl, 28, 20);
+      }
+    }
+    setDraggedHierarchyBlock({
+      blockId,
+      sourceSectionId: sectionId,
+      sourceColumnId: columnId,
+      sourceIndex: blockIndex,
+    });
+    setDraggedBlockType(null);
+    setDraggedTemplateId(null);
+    setDraggedPageId(null);
+    setDraggedAsset(null);
+  };
+
+  const handleBlockDragEnd = () => {
+    setDraggedHierarchyBlock(null);
+    setBlockDropIndicator(null);
+    setDraggedOverColumn(null);
+  };
+
+  const reorderSectionByIndex = (fromIndex: number, toIndex: number) => {
+    if (!page || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    const newSections = [...page.layoutJSON.sections];
+    if (fromIndex >= newSections.length) return;
+    const [moved] = newSections.splice(fromIndex, 1);
+    const boundedTo = Math.max(0, Math.min(toIndex, newSections.length));
+    newSections.splice(boundedTo, 0, moved);
+    updateLayout({ ...page.layoutJSON, sections: newSections });
+    setDraggedSectionIndex(null);
+    setSectionDropIndex(null);
+    toast.success("Section reordered");
   };
 
   const duplicateSection = (sectionId: string) => {
@@ -1274,7 +1441,7 @@ const Editor: React.FC = () => {
   const handleDeletePage = (e: React.MouseEvent, pageId: string) => {
     e.stopPropagation();
     if (pages.length <= 1) {
-      alert("You cannot delete the last page.");
+      toast.error("You cannot delete the last page.");
       return;
     }
     setConfirmModal({
@@ -1366,10 +1533,56 @@ const Editor: React.FC = () => {
   const onDragOverColumn = (e: React.DragEvent, columnId: string) => {
     e.preventDefault();
     if (draggedOverColumn !== columnId) setDraggedOverColumn(columnId);
+
+    if (draggedHierarchyBlock && page) {
+      const targetSec = page.layoutJSON.sections.find((s) =>
+        s?.columns?.some((c) => c.id === columnId)
+      );
+      const targetCol = targetSec?.columns.find((c) => c.id === columnId);
+      if (targetSec && targetCol && targetCol.blocks.length === 0) {
+        setBlockDropIndicator({
+          targetSectionId: targetSec.id,
+          targetColumnId: columnId,
+          targetIndex: 0,
+          position: "inside-empty",
+        });
+      }
+    }
   };
 
   const onDropOnColumn = (e: React.DragEvent, columnId: string) => {
     e.preventDefault();
+
+    const reorderBlockId =
+      e.dataTransfer.getData("reorderBlockId") || draggedHierarchyBlock?.blockId;
+    if (reorderBlockId && page) {
+      const targetSec = page.layoutJSON.sections.find((s) =>
+        s?.columns?.some((c) => c.id === columnId)
+      );
+      const targetCol = targetSec?.columns.find((c) => c.id === columnId);
+      if (targetSec && targetCol) {
+        const dropIdx =
+          blockDropIndicator && blockDropIndicator.targetColumnId === columnId
+            ? blockDropIndicator.targetIndex
+            : Math.max(0, targetCol.blocks.length - 1);
+        const dropPos =
+          blockDropIndicator && blockDropIndicator.targetColumnId === columnId
+            ? blockDropIndicator.position
+            : targetCol.blocks.length === 0
+              ? "inside-empty"
+              : "after";
+
+        reorderBlockInHierarchy(
+          reorderBlockId,
+          targetSec.id,
+          columnId,
+          dropIdx,
+          dropPos
+        );
+      }
+      return;
+    }
+
     const mediaUrl = e.dataTransfer.getData("mediaUrl") || draggedAsset?.url;
     const mediaName = e.dataTransfer.getData("mediaName") || draggedAsset?.name || "Asset";
     const mediaType = e.dataTransfer.getData("mediaType") || draggedAsset?.type || "image/jpeg";
@@ -1412,86 +1625,88 @@ const Editor: React.FC = () => {
   const selectedElement = getSelectedBlock();
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900 overflow-hidden text-slate-300 relative">
+    <div className="h-screen flex flex-col bg-[#F5F5F7] dark:bg-[#1C1C1E] overflow-hidden text-[#1D1D1F] dark:text-[#F5F5F7] relative transition-colors duration-300">
       {/* Exit Preview Button */}
       {isPreview && (
         <button
           onClick={() => setIsPreview(false)}
-          className="fixed top-6 right-6 z-[100] bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 font-bold text-sm transition-all hover:scale-105 active:scale-95"
+          className="fixed top-6 right-6 z-[100] bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-semibold text-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
         >
           <X size={18} />
           <span>Exit Preview</span>
         </button>
       )}
 
-      {/* Top Header */}
+      {/* macOS Studio Top Header */}
       {!isPreview && (
-        <header className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 z-50">
-        <div className="flex items-center gap-4">
+        <header className="h-14 bg-white/85 dark:bg-[#2C2C2E]/90 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between px-4 z-50">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="p-2 hover:bg-slate-700 rounded-md transition-colors text-slate-400"
+            className="p-2 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-xl transition-colors text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white cursor-pointer"
+            title="Back to Studio Dashboard"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={19} />
           </button>
           <div className="flex flex-col">
-            <span className="text-sm font-bold text-white leading-tight">
+            <span className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight">
               {page.title}
             </span>
-            <span className="text-[10px] text-slate-500 font-mono tracking-tight">
+            <span className="text-[10px] text-[#86868B] dark:text-[#98989D] font-mono tracking-tight">
               /{page.slug}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-lg border border-slate-700">
+        <div className="flex items-center gap-1.5 bg-[#F5F5F7] dark:bg-[#1C1C1E] p-1 rounded-full border border-black/[0.06] dark:border-white/[0.08]">
           <button
             type="button"
             onClick={undo}
             disabled={historyIndex <= 0}
-            className={`p-1.5 rounded transition-colors ${historyIndex > 0 ? "text-slate-300 hover:bg-slate-700" : "text-slate-600 cursor-not-allowed"}`}
+            className={`p-1.5 rounded-full transition-colors cursor-pointer ${historyIndex > 0 ? "text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-black/[0.06] dark:hover:bg-white/[0.1]" : "text-[#86868B]/40 cursor-not-allowed"}`}
             title="Undo (Ctrl+Z)"
           >
-            <Undo2 size={16} />
+            <Undo2 size={15} />
           </button>
           <button
             type="button"
             onClick={redo}
             disabled={historyIndex >= history.length - 1}
-            className={`p-1.5 rounded transition-colors ${historyIndex < history.length - 1 ? "text-slate-300 hover:bg-slate-700" : "text-slate-600 cursor-not-allowed"}`}
+            className={`p-1.5 rounded-full transition-colors cursor-pointer ${historyIndex < history.length - 1 ? "text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-black/[0.06] dark:hover:bg-white/[0.1]" : "text-[#86868B]/40 cursor-not-allowed"}`}
             title="Redo (Ctrl+Y)"
           >
-            <Redo2 size={16} />
+            <Redo2 size={15} />
           </button>
-          <div className="w-[1px] h-4 bg-slate-700 mx-1"></div>
+          <div className="w-[1px] h-4 bg-black/[0.08] dark:bg-white/[0.1] mx-1"></div>
           {(["desktop", "tablet", "mobile"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
-              className={`p-1.5 rounded-md transition-all ${viewMode === mode ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
+              className={`p-1.5 rounded-full transition-all cursor-pointer ${viewMode === mode ? "bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs" : "text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white"}`}
+              title={`Preview ${mode}`}
             >
               {mode === "desktop" ? (
-                <Monitor size={16} />
+                <Monitor size={15} />
               ) : mode === "tablet" ? (
-                <Tablet size={16} />
+                <Tablet size={15} />
               ) : (
-                <Smartphone size={16} />
+                <Smartphone size={15} />
               )}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {/* Active Users */}
-          <div className="flex -space-x-2 mr-4">
+          <div className="flex -space-x-2 mr-1">
             {activeUsers.filter((u, index, self) => 
               index === self.findIndex((t) => (t.socketId || t.id) === (u.socketId || u.id))
             ).map((u, uIdx) => (
               <div
                 key={u.socketId || u.id || `active-user-${uIdx}`}
-                className="w-8 h-8 rounded-full border-2 border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-lg"
+                className="w-7 h-7 rounded-full border-2 border-white dark:border-[#2C2C2E] flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
                 style={{ backgroundColor: u.color }}
                 title={u.name}
               >
@@ -1500,14 +1715,31 @@ const Editor: React.FC = () => {
             ))}
           </div>
 
+          <AppleThemeSwitcher variant="compact" />
+
+          {!template && (
+            <button
+              id="editor-version-history"
+              type="button"
+              onClick={() => setShowVersionHistory(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] bg-[#F5F5F7] dark:bg-[#1C1C1E] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/[0.06] dark:border-white/[0.08] rounded-full transition-colors cursor-pointer"
+              title="View and restore page version snapshots"
+            >
+              <History size={14} className="text-[#007AFF] dark:text-[#0A84FF]" />
+              <span className="hidden md:inline">History</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-white dark:bg-[#2C2C2E] text-[10px] font-mono text-[#86868B] dark:text-[#98989D]">
+                {page.versions?.length || 0}
+              </span>
+            </button>
+          )}
           {!template && (
             <button
               id="editor-save-template"
               type="button"
               onClick={handleSaveTemplate}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white transition-colors cursor-pointer"
             >
-              <Copy size={16} />
+              <Copy size={15} />
               <span>Save as Template</span>
             </button>
           )}
@@ -1515,55 +1747,55 @@ const Editor: React.FC = () => {
             id="editor-preview"
             type="button"
             onClick={() => setIsPreview(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white transition-colors cursor-pointer"
           >
-            <Eye size={16} />
-            <span>Preview</span>
+            <Eye size={15} />
+            <span className="hidden sm:inline">Preview</span>
           </button>
           <button
             id="editor-download"
             type="button"
             onClick={downloadPage}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white transition-colors cursor-pointer"
           >
-            <Download size={16} />
-            <span>Download</span>
+            <Download size={15} />
+            <span>Export</span>
           </button>
           <button
             id="editor-publish"
             type="button"
             onClick={() => handleSave()}
             disabled={isSaving || showSuccess}
-            className={`flex items-center gap-2 px-5 py-1.5 rounded-md text-sm font-bold transition-all shadow-lg ${
+            className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all shadow-sm cursor-pointer ${
               showSuccess 
-                ? "bg-green-600 text-white shadow-green-900/20" 
+                ? "bg-[#34C759] text-white" 
                 : isSaving 
-                  ? "bg-blue-600/70 text-white cursor-not-allowed" 
-                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-900/20"
+                  ? "bg-[#007AFF]/70 text-white cursor-not-allowed" 
+                  : "bg-[#007AFF] dark:bg-[#0A84FF] text-white hover:bg-[#0071E3] shadow-[#007AFF]/20"
             }`}
           >
             {isSaving ? (
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
             ) : showSuccess ? (
-              <Check size={16} className="animate-in zoom-in duration-300" />
+              <Check size={15} className="animate-in zoom-in duration-300" />
             ) : (
-              <Save size={16} />
+              <Save size={15} />
             )}
             <span>
               {isSaving ? "Saving..." : showSuccess ? "Saved!" : "Publish"}
             </span>
           </button>
-          <div className="w-[1px] h-6 bg-slate-700 mx-1"></div>
+          <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.1] mx-0.5"></div>
           <button 
             id="editor-logout"
             onClick={() => {
               localStorage.removeItem('devinquire_auth');
               navigate('/landing');
             }}
-            className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-700/50 rounded-lg transition-all"
+            className="p-2 text-[#86868B] hover:text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-full transition-all cursor-pointer"
             title="Logout"
           >
-            <LogOut size={18} />
+            <LogOut size={16} />
           </button>
         </div>
       </header>
@@ -1572,9 +1804,9 @@ const Editor: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidepanel */}
         {!isPreview && (
-          <aside className="w-80 bg-slate-800 border-r border-slate-700 flex flex-col z-40">
+          <aside className="w-80 bg-white/90 dark:bg-[#2C2C2E] backdrop-blur-2xl border-r border-black/[0.06] dark:border-white/[0.08] flex flex-col z-40 text-slate-300">
           {/* Tab Navigation */}
-          <div className="grid grid-cols-4 border-b border-slate-700 bg-slate-800/80">
+          <div className="grid grid-cols-4 border-b border-black/[0.06] dark:border-white/[0.08] bg-[#F5F5F7]/80 dark:bg-[#1C1C1E]/80">
             <TabButton
               id="tab-widgets"
               active={activeTab === "blocks"}
@@ -1586,7 +1818,7 @@ const Editor: React.FC = () => {
               id="tab-assets"
               active={activeTab === "media"}
               onClick={() => setActiveTab("media")}
-              icon={<FolderOpen size={16} className={activeTab === 'media' ? 'text-blue-400' : ''} />}
+              icon={<FolderOpen size={16} className={activeTab === 'media' ? 'text-[#007AFF] dark:text-[#0A84FF]' : ''} />}
               label="Assets"
             />
             <TabButton
@@ -1607,7 +1839,7 @@ const Editor: React.FC = () => {
               id="tab-ai"
               active={activeTab === "ai"}
               onClick={() => setActiveTab("ai")}
-              icon={<Sparkles size={16} className={activeTab === 'ai' ? 'text-blue-400' : 'text-slate-400'} />}
+              icon={<Sparkles size={16} className={activeTab === 'ai' ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#86868B]'} />}
               label="AI"
             />
             <TabButton
@@ -1632,13 +1864,13 @@ const Editor: React.FC = () => {
                 label="Code"
               />
             ) : (
-              <div className="border-t border-slate-700/30 flex items-center justify-center py-2 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-                CMS
+              <div className="border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-center py-2 text-[10px] text-[#86868B] font-semibold uppercase tracking-widest">
+                Studio
               </div>
             )}
           </div>
 
-          <div className={`flex-1 overflow-y-auto custom-scrollbar bg-slate-800 ${activeTab === 'media' ? 'p-0 overflow-hidden' : 'p-4'}`}>
+          <div className={`flex-1 overflow-y-auto custom-scrollbar bg-[#1C1C1E] text-[#F5F5F7] ${activeTab === 'media' ? 'p-0 overflow-hidden' : 'p-4'}`}>
             {/* ASSET LIBRARY PANEL */}
             {activeTab === "media" && (
               <div className="h-full flex flex-col">
@@ -4184,55 +4416,235 @@ const Editor: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  page.layoutJSON.sections
-                    .filter((s) => !!s)
-                    .map((sec, sIdx) => (
-                      <div key={sec.id} className="space-y-1 mb-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedBlockId(sec.id);
-                            setActiveTab("settings");
+                  <div className="space-y-2">
+                    <div className="px-2 py-1.5 rounded-lg bg-slate-900/70 border border-slate-700/60 flex items-center gap-2 text-[10px] text-slate-400">
+                      <GripVertical size={12} className="text-blue-400 shrink-0" />
+                      <span>Drag any block or section handle to reorder within the hierarchy.</span>
+                    </div>
+
+                    {page.layoutJSON.sections
+                      .filter((s) => !!s)
+                      .map((sec, sIdx) => (
+                        <div
+                          key={sec.id}
+                          onDragOver={(e) => {
+                            if (draggedSectionIndex !== null) {
+                              e.preventDefault();
+                              setSectionDropIndex(sIdx);
+                            }
                           }}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 transition-all ${selectedBlockId === sec.id ? "bg-blue-600/20 text-blue-400 font-bold border border-blue-500/20" : "hover:bg-slate-700 text-slate-300 border border-transparent"}`}
+                          onDrop={(e) => {
+                            if (draggedSectionIndex !== null) {
+                              e.preventDefault();
+                              reorderSectionByIndex(draggedSectionIndex, sIdx);
+                            }
+                          }}
+                          className={`space-y-1 mb-2 rounded-lg transition-all ${
+                            sectionDropIndex === sIdx && draggedSectionIndex !== sIdx
+                              ? "ring-2 ring-blue-500 bg-blue-500/10"
+                              : ""
+                          }`}
                         >
-                          <Layers size={14} className="opacity-50" />
-                          <span className="flex-1 truncate">
-                            Section {sIdx + 1}
-                          </span>
-                        </button>
-                        <div className="pl-4 border-l-2 border-slate-700 ml-3 space-y-1">
-                          {sec.columns.map((col, cIdx) => (
-                            <div key={col.id} className="space-y-1">
-                              <div className="px-3 py-1 text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                                Column {cIdx + 1}
-                              </div>
-                              <div className="space-y-1 pl-2">
-                                {col.blocks.map((blk) => (
-                                  <button
-                                    key={blk.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedBlockId(blk.id);
-                                      setActiveTab("settings");
-                                    }}
-                                    className={`w-full text-left px-3 py-1.5 rounded-md text-xs flex items-center gap-2 transition-all ${selectedBlockId === blk.id ? "bg-blue-600/30 text-blue-400 font-bold" : "hover:bg-slate-700 text-slate-400"}`}
-                                  >
-                                    <Box size={13} className="opacity-50" />
-                                    <span className="truncate">
-                                      {(blk.type || "")
-                                        .charAt(0)
-                                        .toUpperCase() +
-                                        (blk.type || "").slice(1)}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
+                          <div
+                            className={`w-full text-left px-2 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all group/layer-sec ${
+                              selectedBlockId === sec.id
+                                ? "bg-blue-600/20 text-blue-400 font-bold border border-blue-500/20"
+                                : "hover:bg-slate-700 text-slate-300 border border-transparent"
+                            }`}
+                          >
+                            {/* Section Drag Handle */}
+                            <div
+                              draggable
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                setDraggedSectionIndex(sIdx);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnd={() => {
+                                setDraggedSectionIndex(null);
+                                setSectionDropIndex(null);
+                              }}
+                              title="Drag to reorder section"
+                              className="p-1 rounded text-slate-500 hover:text-white hover:bg-slate-600/60 cursor-grab active:cursor-grabbing transition-colors"
+                            >
+                              <GripVertical size={13} />
                             </div>
-                          ))}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedBlockId(sec.id);
+                                setActiveTab("settings");
+                              }}
+                              className="flex-1 flex items-center gap-2 text-left min-w-0"
+                            >
+                              <Layers size={14} className="opacity-60 shrink-0" />
+                              <span className="flex-1 truncate">
+                                Section {sIdx + 1}
+                              </span>
+                            </button>
+                          </div>
+
+                          <div className="pl-4 border-l-2 border-slate-700 ml-3 space-y-1.5">
+                            {sec.columns.map((col, cIdx) => (
+                              <div
+                                key={col.id}
+                                onDragOver={(e) => {
+                                  if (draggedHierarchyBlock && col.blocks.length === 0) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setBlockDropIndicator({
+                                      targetSectionId: sec.id,
+                                      targetColumnId: col.id,
+                                      targetIndex: 0,
+                                      position: "inside-empty",
+                                    });
+                                  }
+                                }}
+                                onDrop={(e) => {
+                                  if (draggedHierarchyBlock && col.blocks.length === 0) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    reorderBlockInHierarchy(
+                                      draggedHierarchyBlock.blockId,
+                                      sec.id,
+                                      col.id,
+                                      0,
+                                      "inside-empty"
+                                    );
+                                  }
+                                }}
+                                className="space-y-1"
+                              >
+                                <div className="px-3 py-1 text-[9px] text-slate-500 font-bold uppercase tracking-wider flex items-center justify-between">
+                                  <span>Column {cIdx + 1}</span>
+                                  <span className="font-mono text-[9px] text-slate-600">
+                                    {col.blocks.length} blk
+                                  </span>
+                                </div>
+                                <div className="space-y-1 pl-2">
+                                  {col.blocks.length === 0 &&
+                                    blockDropIndicator?.targetColumnId === col.id &&
+                                    blockDropIndicator.position === "inside-empty" && (
+                                      <div className="h-7 rounded border border-dashed border-blue-400 bg-blue-500/15 flex items-center justify-center text-[10px] font-bold text-blue-300">
+                                        Drop block into Column {cIdx + 1}
+                                      </div>
+                                    )}
+                                  {col.blocks.map((blk, bIdx) => {
+                                    const isDraggingThis =
+                                      draggedHierarchyBlock?.blockId === blk.id;
+                                    const isDropTargetBefore =
+                                      blockDropIndicator?.targetColumnId === col.id &&
+                                      blockDropIndicator?.targetIndex === bIdx &&
+                                      blockDropIndicator?.position === "before";
+                                    const isDropTargetAfter =
+                                      blockDropIndicator?.targetColumnId === col.id &&
+                                      blockDropIndicator?.targetIndex === bIdx &&
+                                      blockDropIndicator?.position === "after";
+
+                                    return (
+                                      <div
+                                        key={blk.id}
+                                        onDragOver={(e) => {
+                                          if (!draggedHierarchyBlock) return;
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          const pos: "before" | "after" =
+                                            e.clientY < rect.top + rect.height / 2
+                                              ? "before"
+                                              : "after";
+                                          setBlockDropIndicator({
+                                            targetSectionId: sec.id,
+                                            targetColumnId: col.id,
+                                            targetIndex: bIdx,
+                                            position: pos,
+                                          });
+                                        }}
+                                        onDrop={(e) => {
+                                          const reorderId =
+                                            e.dataTransfer.getData("reorderBlockId") ||
+                                            draggedHierarchyBlock?.blockId;
+                                          if (!reorderId) return;
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          const pos: "before" | "after" =
+                                            e.clientY < rect.top + rect.height / 2
+                                              ? "before"
+                                              : "after";
+                                          reorderBlockInHierarchy(
+                                            reorderId,
+                                            sec.id,
+                                            col.id,
+                                            bIdx,
+                                            pos
+                                          );
+                                        }}
+                                        className="relative"
+                                      >
+                                        {isDropTargetBefore && (
+                                          <div className="h-0.5 bg-blue-400 rounded-full my-0.5 shadow-[0_0_8px_rgba(59,130,246,0.9)]" />
+                                        )}
+                                        <div
+                                          className={`w-full text-left px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 transition-all group/layer-blk ${
+                                            isDraggingThis
+                                              ? "opacity-40 border border-dashed border-blue-400 bg-slate-900"
+                                              : selectedBlockId === blk.id
+                                                ? "bg-blue-600/30 text-blue-400 font-bold"
+                                                : "hover:bg-slate-700 text-slate-400"
+                                          }`}
+                                        >
+                                          {/* Block Drag Handle in Hierarchy */}
+                                          <div
+                                            draggable
+                                            onDragStart={(e) =>
+                                              handleBlockDragStart(
+                                                e,
+                                                sec.id,
+                                                col.id,
+                                                blk.id,
+                                                bIdx,
+                                                false
+                                              )
+                                            }
+                                            onDragEnd={handleBlockDragEnd}
+                                            title="Drag handle to reorder block in hierarchy"
+                                            className="p-0.5 rounded text-slate-500 hover:text-white hover:bg-slate-600/70 cursor-grab active:cursor-grabbing transition-colors shrink-0"
+                                          >
+                                            <GripVertical size={13} />
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedBlockId(blk.id);
+                                              setActiveTab("settings");
+                                            }}
+                                            className="flex-1 flex items-center gap-2 text-left min-w-0"
+                                          >
+                                            <Box size={13} className="opacity-50 shrink-0" />
+                                            <span className="truncate">
+                                              {(blk.type || "")
+                                                .charAt(0)
+                                                .toUpperCase() +
+                                                (blk.type || "").slice(1)}
+                                            </span>
+                                          </button>
+                                        </div>
+                                        {isDropTargetAfter && (
+                                          <div className="h-0.5 bg-blue-400 rounded-full my-0.5 shadow-[0_0_8px_rgba(59,130,246,0.9)]" />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                  </div>
                 )}
               </div>
             )}
@@ -4503,103 +4915,233 @@ const Editor: React.FC = () => {
                                 : ""
                             }`}
                           >
-                            {column.blocks.map((block, bIdx) => (
-                              <React.Fragment key={block.id}>
-                                {/* Between-block Inserter Divider */}
-                                {!isPreview && bIdx > 0 && (
-                                  <BlockInsertionDivider
-                                    label="Add Block Here"
-                                    onInsert={() =>
-                                      setQuickInserter({
-                                        isOpen: true,
-                                        columnId: column.id,
-                                        blockIndex: bIdx,
-                                        title: `Insert at Slot #${bIdx + 1}`
-                                      })
-                                    }
-                                  />
-                                )}
+                            {column.blocks.map((block, bIdx) => {
+                              const isBeingDragged =
+                                draggedHierarchyBlock?.blockId === block.id;
+                              const showDropBefore =
+                                !isPreview &&
+                                blockDropIndicator?.targetColumnId === column.id &&
+                                blockDropIndicator?.targetIndex === bIdx &&
+                                blockDropIndicator?.position === "before" &&
+                                draggedHierarchyBlock?.blockId !== block.id;
+                              const showDropAfter =
+                                !isPreview &&
+                                blockDropIndicator?.targetColumnId === column.id &&
+                                blockDropIndicator?.targetIndex === bIdx &&
+                                blockDropIndicator?.position === "after" &&
+                                draggedHierarchyBlock?.blockId !== block.id;
 
-                                <div
-                                  id={`block-${block.id}`}
-                                  onClick={(e) => {
-                                    if (!isPreview) {
-                                      e.stopPropagation();
-                                      setSelectedBlockId(block.id);
-                                    }
-                                  }}
-                                  style={{
-                                    borderWidth: block.styles?.borderWidth,
-                                    borderStyle:
-                                      block.styles?.borderStyle || "none",
-                                    borderColor: block.styles?.borderColor,
-                                    borderRadius: block.styles?.borderRadius,
-                                    backgroundColor:
-                                      block.styles?.backgroundColor,
-                                    margin: block.styles?.margin,
-                                    boxShadow: block.styles?.boxShadow,
-                                    fontSize: block.styles?.fontSize,
-                                    fontWeight: block.styles?.fontWeight,
-                                    color: block.styles?.color,
-                                    width: block.styles?.width,
-                                    height: block.styles?.height,
-                                    display: block.styles?.display,
-                                    opacity: block.styles?.opacity,
-                                    zIndex: block.styles?.zIndex,
-                                  }}
-                                  className={`relative border-2 transition-all rounded-xl p-2 group/block ${
-                                    !isPreview && selectedBlockId === block.id 
-                                      ? "border-blue-500 bg-blue-50/15 ring-4 ring-blue-500/15 shadow-md" 
-                                      : !isPreview ? "border-transparent hover:border-blue-300/80" : "border-transparent"
-                                  }`}
-                                >
-                                  {/* Floating Block Toolbar */}
-                                  {!isPreview && selectedBlockId === block.id && (
-                                    <FloatingBlockToolbar
-                                      block={block}
-                                      canMoveUp={bIdx > 0}
-                                      canMoveDown={bIdx < column.blocks.length - 1}
-                                      onDuplicate={() => duplicateBlock(block.id)}
-                                      onMoveUp={() => moveBlock(block.id, 'up')}
-                                      onMoveDown={() => moveBlock(block.id, 'down')}
-                                      onDelete={() => removeBlock(block.id)}
-                                      onAddBelow={() =>
+                              return (
+                                <React.Fragment key={block.id}>
+                                  {/* Between-block Inserter Divider */}
+                                  {!isPreview && bIdx > 0 && !draggedHierarchyBlock && (
+                                    <BlockInsertionDivider
+                                      label="Add Block Here"
+                                      onInsert={() =>
                                         setQuickInserter({
                                           isOpen: true,
                                           columnId: column.id,
-                                          blockIndex: bIdx + 1,
-                                          title: `Insert Below ${block.type.toUpperCase()}`
+                                          blockIndex: bIdx,
+                                          title: `Insert at Slot #${bIdx + 1}`
                                         })
-                                      }
-                                      onAlignChange={(align) =>
-                                        updateBlockQuickStyles(block.id, { textAlign: align })
-                                      }
-                                      onOpenSettings={() => {
-                                        setSelectedBlockId(block.id);
-                                        setActiveTab("settings");
-                                      }}
-                                      onAiEnhance={() => {
-                                        setSelectedBlockId(block.id);
-                                        setActiveTab("ai");
-                                      }}
-                                      onQuickStyleChange={(styles) =>
-                                        updateBlockQuickStyles(block.id, styles)
                                       }
                                     />
                                   )}
 
-                                  <BlockRenderer
-                                    block={block}
-                                    globalStyles={globalStyles}
-                                    pages={pages}
-                                    onRemove={() => removeBlock(block.id)}
-                                    onUpdate={(updates) =>
-                                      updateElement(block.id, updates)
-                                    }
-                                  />
-                                </div>
-                              </React.Fragment>
-                            ))}
+                                  {/* Drop Indicator BEFORE block when dragging */}
+                                  {showDropBefore && (
+                                    <div className="relative h-1.5 my-1 rounded-full bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.65)] flex items-center justify-center z-30 pointer-events-none animate-pulse">
+                                      <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider shadow">
+                                        Drop Above {block.type}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  <div
+                                    id={`block-${block.id}`}
+                                    onClick={(e) => {
+                                      if (!isPreview) {
+                                        e.stopPropagation();
+                                        setSelectedBlockId(block.id);
+                                      }
+                                    }}
+                                    onDragOver={(e) => {
+                                      if (isPreview) return;
+                                      const isReorderingBlock =
+                                        Boolean(draggedHierarchyBlock) ||
+                                        e.dataTransfer.types.includes("reorderblockid");
+                                      if (isReorderingBlock) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const pos: "before" | "after" =
+                                          e.clientY < rect.top + rect.height / 2
+                                            ? "before"
+                                            : "after";
+                                        if (
+                                          blockDropIndicator?.targetColumnId !== column.id ||
+                                          blockDropIndicator?.targetIndex !== bIdx ||
+                                          blockDropIndicator?.position !== pos
+                                        ) {
+                                          setBlockDropIndicator({
+                                            targetSectionId: section.id,
+                                            targetColumnId: column.id,
+                                            targetIndex: bIdx,
+                                            position: pos,
+                                          });
+                                        }
+                                      }
+                                    }}
+                                    onDrop={(e) => {
+                                      if (isPreview) return;
+                                      const reorderId =
+                                        e.dataTransfer.getData("reorderBlockId") ||
+                                        draggedHierarchyBlock?.blockId;
+                                      if (reorderId) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const pos: "before" | "after" =
+                                          e.clientY < rect.top + rect.height / 2
+                                            ? "before"
+                                            : "after";
+                                        reorderBlockInHierarchy(
+                                          reorderId,
+                                          section.id,
+                                          column.id,
+                                          bIdx,
+                                          pos
+                                        );
+                                      }
+                                    }}
+                                    style={{
+                                      borderWidth: block.styles?.borderWidth,
+                                      borderStyle:
+                                        block.styles?.borderStyle || "none",
+                                      borderColor: block.styles?.borderColor,
+                                      borderRadius: block.styles?.borderRadius,
+                                      backgroundColor:
+                                        block.styles?.backgroundColor,
+                                      margin: block.styles?.margin,
+                                      boxShadow: block.styles?.boxShadow,
+                                      fontSize: block.styles?.fontSize,
+                                      fontWeight: block.styles?.fontWeight,
+                                      color: block.styles?.color,
+                                      width: block.styles?.width,
+                                      height: block.styles?.height,
+                                      display: block.styles?.display,
+                                      opacity: block.styles?.opacity,
+                                      zIndex: block.styles?.zIndex,
+                                    }}
+                                    className={`relative border-2 transition-all rounded-xl p-2 group/block ${
+                                      isBeingDragged
+                                        ? "opacity-45 border-dashed border-blue-500 bg-blue-50/20 scale-[0.99]"
+                                        : !isPreview && selectedBlockId === block.id
+                                          ? "border-blue-500 bg-blue-50/15 ring-4 ring-blue-500/15 shadow-md"
+                                          : !isPreview
+                                            ? "border-transparent hover:border-blue-300/80"
+                                            : "border-transparent"
+                                    }`}
+                                  >
+                                    {/* Dedicated Drag-Handle UI Element on Each Block */}
+                                    {!isPreview && (
+                                      <div
+                                        draggable
+                                        data-testid={`block-drag-handle-${block.id}`}
+                                        onDragStart={(e) =>
+                                          handleBlockDragStart(
+                                            e,
+                                            section.id,
+                                            column.id,
+                                            block.id,
+                                            bIdx,
+                                            true
+                                          )
+                                        }
+                                        onDragEnd={handleBlockDragEnd}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        title="Drag handle to reorder block in hierarchy"
+                                        className={`absolute -left-3 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center w-6 h-9 rounded-lg bg-slate-900/95 hover:bg-blue-600 text-slate-200 hover:text-white border border-slate-700 shadow-lg cursor-grab active:cursor-grabbing select-none transition-all ${
+                                          selectedBlockId === block.id || isBeingDragged
+                                            ? "opacity-100 scale-100"
+                                            : "opacity-0 group-hover/block:opacity-100"
+                                        }`}
+                                      >
+                                        <GripVertical size={14} />
+                                      </div>
+                                    )}
+
+                                    {/* Floating Block Toolbar */}
+                                    {!isPreview && selectedBlockId === block.id && (
+                                      <FloatingBlockToolbar
+                                        block={block}
+                                        canMoveUp={bIdx > 0}
+                                        canMoveDown={bIdx < column.blocks.length - 1}
+                                        onDuplicate={() => duplicateBlock(block.id)}
+                                        onMoveUp={() => moveBlock(block.id, 'up')}
+                                        onMoveDown={() => moveBlock(block.id, 'down')}
+                                        onDelete={() => removeBlock(block.id)}
+                                        onAddBelow={() =>
+                                          setQuickInserter({
+                                            isOpen: true,
+                                            columnId: column.id,
+                                            blockIndex: bIdx + 1,
+                                            title: `Insert Below ${block.type.toUpperCase()}`
+                                          })
+                                        }
+                                        onAlignChange={(align) =>
+                                          updateBlockQuickStyles(block.id, { textAlign: align })
+                                        }
+                                        onOpenSettings={() => {
+                                          setSelectedBlockId(block.id);
+                                          setActiveTab("settings");
+                                        }}
+                                        onAiEnhance={() => {
+                                          setSelectedBlockId(block.id);
+                                          setActiveTab("ai");
+                                        }}
+                                        onQuickStyleChange={(styles) =>
+                                          updateBlockQuickStyles(block.id, styles)
+                                        }
+                                        onDragStartBlock={(e) =>
+                                          handleBlockDragStart(
+                                            e,
+                                            section.id,
+                                            column.id,
+                                            block.id,
+                                            bIdx,
+                                            true
+                                          )
+                                        }
+                                        onDragEndBlock={handleBlockDragEnd}
+                                      />
+                                    )}
+
+                                    <BlockRenderer
+                                      block={block}
+                                      globalStyles={globalStyles}
+                                      pages={pages}
+                                      onRemove={() => removeBlock(block.id)}
+                                      onUpdate={(updates) =>
+                                        updateElement(block.id, updates)
+                                      }
+                                    />
+                                  </div>
+
+                                  {/* Drop Indicator AFTER block when dragging */}
+                                  {showDropAfter && (
+                                    <div className="relative h-1.5 my-1 rounded-full bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.65)] flex items-center justify-center z-30 pointer-events-none animate-pulse">
+                                      <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider shadow">
+                                        Drop Below {block.type}
+                                      </span>
+                                    </div>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
 
                             {/* Column State: Empty vs Populated */}
                             {!isPreview && column.blocks.length === 0 ? (
@@ -4960,6 +5502,30 @@ const Editor: React.FC = () => {
           insertSectionKit(kit, quickInserter.sectionIndex);
         }}
       />
+
+      {/* Version History Modal */}
+      {!template && page && (
+        <VersionHistoryModal
+          isOpen={showVersionHistory}
+          onClose={() => setShowVersionHistory(false)}
+          page={page}
+          globalStyles={globalStyles}
+          currentUser={user?.name || page.author || "Admin"}
+          canEdit={true}
+          onUpdatePage={(updatedPage) => {
+            isInternalChange.current = true;
+            setPage(updatedPage);
+            setPages((prev) =>
+              prev.map((p) => (p.id === updatedPage.id ? updatedPage : p))
+            );
+            syncPage(updatedPage);
+            setHistory((prev) => [...prev.slice(-49), JSON.parse(JSON.stringify(updatedPage))]);
+            setTimeout(() => {
+              isInternalChange.current = false;
+            }, 100);
+          }}
+        />
+      )}
 
       {/* Cursor Overlay */}
       {!isPreview && Object.entries(otherCursors).map(([socketId, cursor], cIdx) => {
@@ -5560,16 +6126,16 @@ const TabButton: React.FC<{
     id={id}
     type="button"
     onClick={onClick}
-    className={`flex-1 flex flex-col items-center justify-center gap-2 py-4 text-[11px] font-bold uppercase tracking-widest transition-all relative outline-none ${
+    className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-3.5 text-[10px] font-semibold uppercase tracking-wider transition-all relative outline-none cursor-pointer ${
       active
-        ? "text-blue-500 bg-slate-700/50"
-        : "text-slate-500 hover:text-slate-300 hover:bg-slate-700/20"
+        ? "text-[#007AFF] dark:text-[#0A84FF] bg-white dark:bg-[#2C2C2E]"
+        : "text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
     }`}
   >
     {icon}
     <span>{label}</span>
     {active && (
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500 shadow-[0_-2px_6_rgba(59,130,246,0.5)]" />
+      <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#007AFF] dark:bg-[#0A84FF]" />
     )}
   </button>
 );

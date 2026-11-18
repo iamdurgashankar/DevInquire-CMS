@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Copy, Trash2, ArrowUp, ArrowDown, Plus, AlignLeft, 
   AlignCenter, AlignRight, Sparkles, Sliders, Palette,
-  X, Check, ChevronDown
+  X, Check, ChevronDown, GripVertical
 } from 'lucide-react';
 import { Block, BlockType } from '../types';
 
@@ -19,6 +19,8 @@ interface FloatingBlockToolbarProps {
   onOpenSettings: () => void;
   onAiEnhance?: () => void;
   onQuickStyleChange?: (styles: Partial<Block['styles']>) => void;
+  onDragStartBlock?: (e: React.DragEvent) => void;
+  onDragEndBlock?: (e: React.DragEvent) => void;
 }
 
 export const FloatingBlockToolbar: React.FC<FloatingBlockToolbarProps> = ({
@@ -34,6 +36,8 @@ export const FloatingBlockToolbar: React.FC<FloatingBlockToolbarProps> = ({
   onOpenSettings,
   onAiEnhance,
   onQuickStyleChange,
+  onDragStartBlock,
+  onDragEndBlock,
 }) => {
   const [showStyleMenu, setShowStyleMenu] = useState(false);
 
@@ -77,6 +81,19 @@ export const FloatingBlockToolbar: React.FC<FloatingBlockToolbarProps> = ({
       className="absolute -top-11 left-0 z-40 flex items-center gap-1 bg-slate-900/95 backdrop-blur-md text-white px-2 py-1 rounded-xl shadow-2xl border border-slate-700/80 text-xs select-none animate-in fade-in zoom-in-95 duration-150"
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Drag Handle for Reordering */}
+      {onDragStartBlock && (
+        <div
+          draggable
+          onDragStart={onDragStartBlock}
+          onDragEnd={onDragEndBlock}
+          title="Drag to reorder block in hierarchy"
+          className="flex items-center justify-center p-1 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white cursor-grab active:cursor-grabbing transition-colors"
+        >
+          <GripVertical size={13} />
+        </div>
+      )}
+
       {/* Block Type Tag */}
       <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-600/30 border border-blue-500/40 rounded-lg text-[11px] font-bold text-blue-300">
         <span className="capitalize">{getFriendlyName(block.type)}</span>

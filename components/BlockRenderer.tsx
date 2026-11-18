@@ -17,10 +17,11 @@ interface BlockRendererProps {
   globalStyles: GlobalStyles;
   pages: Page[];
   readOnly?: boolean;
+  onNavigatePage?: (slugOrUrl: string) => void;
 }
 
 export const BlockRenderer: React.FC<BlockRendererProps> = ({ 
-  block, onUpdate, onRemove, globalStyles, pages, readOnly = false 
+  block, onUpdate, onRemove, globalStyles, pages, readOnly = false, onNavigatePage 
 }) => {
   const alignClass =
     block.styles?.textAlign === "center"
@@ -234,6 +235,11 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
                 <span
                   contentEditable={!readOnly}
                   suppressContentEditableWarning
+                  onClick={() => {
+                    if (readOnly && onNavigatePage && link.url) {
+                      onNavigatePage(link.url);
+                    }
+                  }}
                   onBlur={(e) => {
                     const newLinks = [...navContent.links];
                     newLinks[idx] = {
@@ -245,7 +251,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.preventDefault();
                   }}
-                  className="text-sm font-medium transition-colors cursor-text outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-1"
+                  className={`text-sm font-medium transition-colors ${readOnly ? 'cursor-pointer' : 'cursor-text'} outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-1`}
                   style={{ color: globalStyles.textColor }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.color = globalStyles.primaryColor)
@@ -625,40 +631,81 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
         </div>
       );
     case "sitemap":
-      const sm = block.content;
+      const sm = block.content || { title: 'Site Directory & Sitemap', layout: 'grid', showDrafts: true, showHome: true };
       const displayPages = (pages || []).filter(p => {
         if (!sm.showDrafts && p.status === 'draft') return false;
-        if (!sm.showHome && p.slug === 'home') return false;
+        if (sm.showHome === false && p.slug === 'home') return false;
         return true;
       });
 
       return (
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-          {sm.title && <h3 className="text-xl font-bold text-slate-900 mb-6">{sm.title}</h3>}
-          <div className={sm.layout === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 gap-4' : 'space-y-3'}>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <h3
+              className="text-xl font-bold text-slate-900 outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-1"
+              contentEditable={!readOnly}
+              suppressContentEditableWarning
+              onBlur={(e) => handleUpdate({ content: { ...sm, title: e.currentTarget.innerText } })}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+            >
+              {sm.title || 'Site Directory & Sitemap'}
+            </h3>
+            {!readOnly && (
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUpdate({ content: { ...sm, layout: sm.layout === 'grid' ? 'list' : 'grid' } });
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold transition-colors"
+                >
+                  Layout: {sm.layout === 'grid' ? 'Grid' : 'List'}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUpdate({ content: { ...sm, showDrafts: !sm.showDrafts } });
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold transition-colors"
+                >
+                  {sm.showDrafts ? 'Showing Drafts' : 'Published Only'}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className={sm.layout === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4' : 'space-y-3'}>
             {displayPages.map(p => (
               <Link 
                 key={p.id} 
-                to={readOnly ? `/${p.slug}` : `/editor/${p.id}`}
-                className={`flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all group/sm-item ${sm.layout === 'grid' ? 'flex-col text-center' : ''}`}
+                to={readOnly ? `/p/${p.slug}` : `/editor/${p.id}`}
+                onClick={(e) => {
+                  if (onNavigatePage) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNavigatePage(p.slug);
+                  }
+                }}
+                className={`flex items-center gap-3 p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/40 transition-all group/sm-item ${sm.layout === 'grid' ? 'flex-col text-center' : ''}`}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${p.slug === 'home' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-400 group-hover/sm-item:bg-white group-hover/sm-item:text-blue-600'}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${p.slug === 'home' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500 group-hover/sm-item:bg-white group-hover/sm-item:text-blue-600'}`}>
                   {p.slug === 'home' ? <Home size={20} /> : <FileText size={20} />}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-sm font-bold text-slate-800">{p.title}</p>
+                <div className="flex-1 min-w-0">
+                  <div className={`flex items-center gap-2 mb-0.5 ${sm.layout === 'grid' ? 'justify-center' : ''}`}>
+                    <p className="text-sm font-bold text-slate-800 truncate">{p.title}</p>
                     {p.status === 'draft' && (
-                      <span className="text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full">Draft</span>
+                      <span className="text-[10px] font-medium text-amber-700">· Draft</span>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-400 font-mono italic">/{p.slug}</p>
+                  <p className="text-xs text-slate-500 font-mono truncate">/{p.slug}</p>
                 </div>
-                {sm.layout === 'list' && <ChevronRight size={14} className="text-slate-300 group-hover/sm-item:text-blue-400" />}
+                {sm.layout !== 'grid' && <ChevronRight size={14} className="text-slate-400 group-hover/sm-item:text-blue-500" />}
               </Link>
             ))}
             {displayPages.length === 0 && (
-              <div className="text-center py-8 text-slate-400 italic text-sm">
+              <div className="text-center py-8 text-slate-400 italic text-sm col-span-full">
                 No pages to display
               </div>
             )}

@@ -479,28 +479,28 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[250] flex items-start justify-center pt-16 sm:pt-24 px-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-[250] flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[80vh]"
+        className="bg-white/95 dark:bg-[#2C2C2E]/95 backdrop-blur-2xl rounded-[24px] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.35)] border border-black/[0.08] dark:border-white/[0.12] w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[80vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Search Input Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3 bg-white">
-          <Search className="text-blue-600 shrink-0" size={20} />
+        <div className="px-6 py-4 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center gap-3.5 bg-transparent">
+          <Search className="text-[#007AFF] dark:text-[#0A84FF] shrink-0" size={20} />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search pages, media assets, or collection entries by title or content snippet..."
-            className="flex-1 text-base font-medium text-slate-900 placeholder:text-slate-400 outline-none bg-transparent"
+            placeholder="Spotlight Search — pages, media assets, or collection entries..."
+            className="flex-1 text-[16px] font-medium text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] outline-none bg-transparent"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className="p-1.5 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-full transition-colors cursor-pointer"
               title="Clear search"
             >
               <X size={16} />
@@ -508,31 +508,31 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
           )}
           <button
             onClick={onClose}
-            className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+            className="px-2.5 py-1 text-[11px] font-semibold text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-lg transition-colors cursor-pointer"
           >
             ESC
           </button>
         </div>
 
         {/* Category Filter Tabs */}
-        <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
+        <div className="px-6 py-2.5 bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center gap-2 overflow-x-auto">
           {categories.map(cat => {
             const isActive = activeCategory === cat.id;
             return (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shrink-0 ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                    ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs'
+                    : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
                 }`}
               >
                 {cat.icon}
                 <span>{cat.label}</span>
                 <span
                   className={`text-[11px] font-semibold ${
-                    isActive ? 'text-slate-300' : 'text-slate-400'
+                    isActive ? 'text-white/80' : 'text-[#86868B]'
                   }`}
                 >
                   ({cat.count})
@@ -543,16 +543,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         </div>
 
         {/* Results List */}
-        <div ref={listRef} className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        <div ref={listRef} className="flex-1 overflow-y-auto divide-y divide-black/[0.05] dark:divide-white/[0.06]">
           {filteredResults.length === 0 ? (
             <div className="py-16 px-6 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B] flex items-center justify-center mx-auto mb-3">
                 <Search size={22} />
               </div>
-              <p className="text-sm font-bold text-slate-800">
+              <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                 No matching content found for "{query}"
               </p>
-              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-1 max-w-md mx-auto">
                 Try searching for a page title, section copy, image filename, or collection field value.
               </p>
             </div>
@@ -564,13 +564,15 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                   key={result.id}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   onClick={() => onSelectResult(result, 'primary')}
-                  className={`px-5 py-3.5 flex items-start gap-4 cursor-pointer transition-colors ${
-                    isSelected ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                  className={`px-6 py-3.5 flex items-start gap-4 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-[#007AFF]/[0.08] dark:bg-[#0A84FF]/[0.15]'
+                      : 'hover:bg-[#F5F5F7]/60 dark:hover:bg-white/[0.04]'
                   }`}
                 >
                   {/* Thumbnail or Category Icon */}
                   {result.category === 'media' && result.thumbnailUrl ? (
-                    <div className="w-11 h-11 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-11 h-11 rounded-xl border border-black/[0.06] dark:border-white/[0.08] bg-[#F5F5F7] dark:bg-[#1C1C1E] overflow-hidden shrink-0 flex items-center justify-center">
                       <img
                         src={result.thumbnailUrl}
                         alt={result.title}
@@ -582,10 +584,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                     <div
                       className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
                         result.category === 'pages'
-                          ? 'bg-blue-50 text-blue-600'
+                          ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]'
                           : result.category === 'media'
-                          ? 'bg-purple-50 text-purple-600'
-                          : 'bg-cyan-50 text-cyan-600'
+                          ? 'bg-[#AF52DE]/10 text-[#AF52DE]'
+                          : 'bg-[#34C759]/10 text-[#34C759]'
                       }`}
                     >
                       {result.category === 'pages' && <FileText size={20} />}
@@ -597,21 +599,21 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                   {/* Main Result Copy */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-bold text-slate-900 truncate">
+                      <h4 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">
                         <HighlightMatch text={result.title} query={query} />
                       </h4>
-                      <span className="text-xs text-slate-400">·</span>
-                      <span className="text-xs font-mono text-slate-500 truncate">
+                      <span className="text-xs text-[#86868B]">·</span>
+                      <span className="text-xs font-mono text-[#86868B] truncate">
                         <HighlightMatch text={result.subtitle} query={query} />
                       </span>
                       {result.status && (
                         <>
-                          <span className="text-xs text-slate-300">·</span>
+                          <span className="text-xs text-[#86868B]">·</span>
                           <span
-                            className={`text-[11px] font-bold uppercase tracking-wider ${
+                            className={`text-[11px] font-semibold uppercase tracking-wider ${
                               result.status === 'published'
-                                ? 'text-emerald-600'
-                                : 'text-amber-600'
+                                ? 'text-[#34C759]'
+                                : 'text-[#FF9500]'
                             }`}
                           >
                             {result.status}
@@ -622,14 +624,14 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
                     {/* Content Snippet */}
                     {result.snippet && (
-                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-1 line-clamp-2 leading-relaxed">
                         <HighlightMatch text={result.snippet} query={query} />
                       </p>
                     )}
 
                     {/* Match Metadata */}
-                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-400 font-medium">
-                      <span className="uppercase tracking-wider font-bold text-slate-500">
+                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[#86868B] font-medium">
+                      <span className="uppercase tracking-wider font-semibold text-[#1D1D1F]/70 dark:text-[#F5F5F7]/70">
                         {result.category === 'pages'
                           ? 'Page'
                           : result.category === 'media'
@@ -649,17 +651,17 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                           e.stopPropagation();
                           onSelectResult(result, 'secondary');
                         }}
-                        className="px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all"
+                        className="px-2.5 py-1.5 text-xs font-semibold text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-white dark:hover:bg-[#1C1C1E] rounded-lg border border-transparent hover:border-black/[0.06] dark:hover:border-white/[0.08] transition-all cursor-pointer"
                         title="Show in Pages list"
                       >
                         Locate
                       </button>
                     )}
                     <div
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
                         isSelected
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-600'
+                          ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs'
+                          : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'
                       }`}
                     >
                       <span>
@@ -679,25 +681,25 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         </div>
 
         {/* Footer Keyboard Hints */}
-        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-6 py-3 bg-[#F5F5F7]/80 dark:bg-[#1C1C1E]/80 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between text-xs text-[#86868B]">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-700 shadow-2xs">
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded text-[10px] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] shadow-2xs">
                 <ArrowUp size={10} className="inline" />
               </kbd>
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-700 shadow-2xs">
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded text-[10px] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] shadow-2xs">
                 <ArrowDown size={10} className="inline" />
               </kbd>
               <span>Navigate</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-700 shadow-2xs">
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] rounded text-[10px] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] shadow-2xs">
                 <CornerDownLeft size={10} className="inline" />
               </kbd>
               <span>Open Selected</span>
             </span>
           </div>
-          <div className="font-medium text-slate-400">
+          <div className="font-medium text-[#86868B]">
             {pages.length} Pages · {media.length} Media Assets · {entries.length} Entries indexed
           </div>
         </div>

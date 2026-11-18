@@ -8,13 +8,44 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, setLogLevel, disableNetwork, terminate } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
+
+// Silence noisy internal @firebase/firestore GrpcConnection/WebChannel retry logs when running in fallback/demo mode
+try {
+  setLogLevel('silent');
+} catch {
+  // ignore
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
+
+export const isFirestoreConfigured = Boolean(
+  firebaseConfig?.projectId && firebaseConfig.projectId !== 'devinquire-cms'
+);
+
+let firestoreTerminated = false;
+export const disableFirestoreNetwork = async () => {
+  if (firestoreTerminated) return;
+  firestoreTerminated = true;
+  try {
+    await disableNetwork(db);
+  } catch {
+    // ignore
+  }
+  try {
+    await terminate(db);
+  } catch {
+    // ignore
+  }
+};
+
+if (!isFirestoreConfigured) {
+  disableFirestoreNetwork();
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -45,16 +76,26 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (
+    msg.includes('Permission denied on resource project') ||
+    msg.includes('API key not valid') ||
+    msg.includes('api-key-not-valid')
+  ) {
+    disableFirestoreNetwork();
+    return;
+  }
+
   // Ignore benign Firestore errors related to idle streams, offline fallback, or manual cancellations
-  if (error instanceof Error && (
-    error.message.includes('CANCELLED') || 
-    error.message.includes('Disconnecting idle stream') ||
-    error.message.includes('stream error. Code: 1') ||
-    error.message.includes('offline') ||
-    error.message.includes('API key not valid') ||
-    error.message.includes('api-key-not-valid') ||
-    error.message.includes('Missing or insufficient permissions')
-  )) {
+  if (
+    msg.includes('CANCELLED') || 
+    msg.includes('Disconnecting idle stream') ||
+    msg.includes('stream error. Code: 1') ||
+    msg.includes('offline') ||
+    msg.includes('permission-denied') ||
+    msg.includes('PERMISSION_DENIED') ||
+    msg.includes('Missing or insufficient permissions')
+  ) {
     return;
   }
 
