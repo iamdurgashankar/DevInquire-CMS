@@ -110,6 +110,8 @@ export interface Page {
   customCSS?: string;
   customJS?: string;
   versions?: PageVersion[];
+  domainId?: string;
+  domain?: string;
 }
 
 export interface GlobalStyles {
@@ -330,10 +332,28 @@ export interface UserManagementItem {
   permissions?: UserSectionPermissions;
 }
 
+export interface DomainConnection {
+  id: string;
+  domain: string;
+  hostingProvider: string;
+  siteName?: string;
+  baseUrl: string;
+  connected: boolean;
+  dnsVerified?: boolean;
+  resolvedIps?: string[];
+  verifiedAt?: string;
+}
+
 export interface SiteConfig {
   siteName: string;
   baseUrl: string;
   customDomain?: string;
+  hostingProvider?: string;
+  hostingConnected?: boolean;
+  verifiedAt?: string;
+  resolvedIps?: string[];
+  domains?: DomainConnection[];
+  activeDomainId?: string;
 }
 
 export type CollectionFieldType = 'text' | 'rich-text' | 'image' | 'date' | 'number' | 'boolean' | 'select' | 'relation';

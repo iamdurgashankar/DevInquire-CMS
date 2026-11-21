@@ -488,7 +488,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       >
         {/* Search Input Header */}
         <div className="px-6 py-4 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center gap-3.5 bg-transparent">
-          <Search className="text-[#007AFF] dark:text-[#0A84FF] shrink-0" size={20} />
+          <Search className="text-[#4e45e1] dark:text-[#6B63F2] shrink-0" size={20} />
           <input
             ref={inputRef}
             type="text"
@@ -524,7 +524,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                 onClick={() => setActiveCategory(cat.id)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
                   isActive
-                    ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs'
+                    ? 'bg-[#4e45e1] dark:bg-[#6B63F2] text-white shadow-xs'
                     : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
                 }`}
               >
@@ -566,7 +566,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                   onClick={() => onSelectResult(result, 'primary')}
                   className={`px-6 py-3.5 flex items-start gap-4 cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-[#007AFF]/[0.08] dark:bg-[#0A84FF]/[0.15]'
+                      ? 'bg-[#4e45e1]/[0.08] dark:bg-[#6B63F2]/[0.15]'
                       : 'hover:bg-[#F5F5F7]/60 dark:hover:bg-white/[0.04]'
                   }`}
                 >
@@ -584,7 +584,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                     <div
                       className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
                         result.category === 'pages'
-                          ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]'
+                          ? 'bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]'
                           : result.category === 'media'
                           ? 'bg-[#AF52DE]/10 text-[#AF52DE]'
                           : 'bg-[#34C759]/10 text-[#34C759]'
@@ -651,7 +651,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                           e.stopPropagation();
                           onSelectResult(result, 'secondary');
                         }}
-                        className="px-2.5 py-1.5 text-xs font-semibold text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-white dark:hover:bg-[#1C1C1E] rounded-lg border border-transparent hover:border-black/[0.06] dark:hover:border-white/[0.08] transition-all cursor-pointer"
+                        className="px-2.5 py-1.5 text-xs font-semibold text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] hover:bg-white dark:hover:bg-[#1C1C1E] rounded-lg border border-transparent hover:border-black/[0.06] dark:hover:border-white/[0.08] transition-all cursor-pointer"
                         title="Show in Pages list"
                       >
                         Locate
@@ -660,7 +660,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                     <div
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
                         isSelected
-                          ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs'
+                          ? 'bg-[#4e45e1] dark:bg-[#6B63F2] text-white shadow-xs'
                           : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'
                       }`}
                     >

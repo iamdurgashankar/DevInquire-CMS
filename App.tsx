@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { Toaster } from 'sonner';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -19,11 +19,16 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PublicPage from './pages/PublicPage';
 import HeadlessClientDemo from './pages/HeadlessClientDemo';
+import ConsolePage from './pages/ConsolePage';
+import { initGlobalConsoleCapture, reportConsoleEvent } from './services/consoleLogger';
 import { Page, Template, GlobalStyles, User, MediaItem, URLRewrite, UserManagementItem, SiteConfig, Collection, CollectionEntry, getPermissionsForRole } from './types';
 import { SAMPLE_PAGES, SAMPLE_TEMPLATES, SAMPLE_MEDIA } from './sampleData';
 import { ensurePageBaselineVersion } from './components/VersionHistoryModal';
 
-const socket = io();
+const CMS_BASE_PATH = ((import.meta as any).env?.BASE_URL || '/cms/').replace(/\/+$/, '') || '/cms';
+const socket = io({ path: `${CMS_BASE_PATH}/socket.io` });
+const JAVA_API_BASE = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
+initGlobalConsoleCapture();
 
 export type AppleThemeMode = 'light' | 'dark';
 
@@ -39,6 +44,14 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
   componentDidCatch(error: any, errorInfo: any) {
     console.warn("ErrorBoundary caught an error", error, errorInfo);
+    reportConsoleEvent({
+      level: 'ERROR',
+      source: 'FRONTEND',
+      category: 'REACT_ERROR_BOUNDARY',
+      message: error?.message || 'React ErrorBoundary caught an error',
+      stackTrace: error?.stack || errorInfo?.componentStack,
+      nodePath: '/client/error-boundary',
+    });
   }
 
   render() {
@@ -59,7 +72,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
             </p>
             <button 
               onClick={() => window.location.reload()}
-              className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-all active:scale-[0.98]"
+              className="w-full bg-[#4e45e1] dark:bg-[#6B63F2] text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-all active:scale-[0.98]"
             >
               Refresh Page
             </button>
@@ -80,9 +93,9 @@ const ProtectedRoute = ({ children, firebaseUser, isDemo }: { children: React.Re
 };
 
 const DEFAULT_GLOBAL_STYLES: GlobalStyles = {
-  primaryColor: '#007AFF',
+  primaryColor: '#4e45e1',
   secondaryColor: '#5856D6',
-  accentColor: '#0A84FF',
+  accentColor: '#6B63F2',
   backgroundColor: '#FFFFFF',
   backgroundGradient: '',
   textColor: '#1D1D1F',
@@ -375,6 +388,42 @@ const App: React.FC = () => {
   useEffect(() => { saveToStorage('devinquire_entries', entries); }, [entries]);
   useEffect(() => { saveToStorage('devinquire_users', users); }, [users]);
 
+  // Hydrate pages and active hosting domain from Java Spring Boot backend on startup
+  useEffect(() => {
+    if (!JAVA_API_BASE) return;
+    fetch(`${JAVA_API_BASE}/api/v1/content/pages?includeDrafts=true`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+          setPages((prev) => {
+            const byId = new Map<string, Page>();
+            prev.forEach((p) => byId.set(p.id, p));
+            json.data.forEach((srvPage: Page) => byId.set(srvPage.id, srvPage));
+            return Array.from(byId.values());
+          });
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${JAVA_API_BASE}/api/hosting/status`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.success && json.data?.domains?.length > 0) {
+          const { domains, activeDomainId, activeDomain } = json.data;
+          setSiteConfig((prev) => ({
+            ...prev,
+            domains,
+            activeDomainId: activeDomainId || prev.activeDomainId,
+            customDomain: activeDomain?.domain || prev.customDomain,
+            baseUrl: activeDomain?.baseUrl || prev.baseUrl,
+            hostingProvider: activeDomain?.hostingProvider || prev.hostingProvider,
+            hostingConnected: true,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Helper to remove any undefined fields before writing to Firestore
   const cleanFirestoreData = <T,>(obj: T): T => {
     if (obj === null || typeof obj !== 'object') {
@@ -495,11 +544,40 @@ const App: React.FC = () => {
 
   // Sync functions (used by components)
   const syncPage = async (rawPage: Page) => {
-    const page = rawPage.versions === undefined ? ensurePageBaselineVersion(rawPage) : rawPage;
+    const activeDomainObj = siteConfig.domains?.find((d) => d.id === siteConfig.activeDomainId);
+    const enrichedPage: Page = {
+      ...rawPage,
+      domainId: rawPage.domainId || activeDomainObj?.id || siteConfig.activeDomainId || undefined,
+      domain: rawPage.domain || activeDomainObj?.domain || siteConfig.customDomain || undefined,
+    };
+    const page = enrichedPage.versions === undefined ? ensurePageBaselineVersion(enrichedPage) : enrichedPage;
     setPages(prev => {
       const exists = prev.some(p => p.id === page.id);
       return exists ? prev.map(p => p.id === page.id ? page : p) : [page, ...prev];
     });
+    if (JAVA_API_BASE) {
+      try {
+        await fetch(`${JAVA_API_BASE}/api/v1/content/pages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(page),
+        });
+        if (page.status === 'published') {
+          await fetch(`${JAVA_API_BASE}/api/v1/console/replication/replicate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              targetDomain: page.domain || siteConfig.baseUrl || 'all-connected-domains',
+              contentType: 'PAGE',
+              contentPath: `/content/pages/${page.slug}`,
+              actor: user?.email || user?.name || 'cms-publisher',
+            }),
+          });
+        }
+      } catch {
+        // ignore network errors so local state stays responsive
+      }
+    }
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'pages', page.id), cleanFirestoreData(page));
@@ -510,6 +588,11 @@ const App: React.FC = () => {
 
   const deletePageOnServer = async (id: string) => {
     setPages(prev => prev.filter(p => p.id !== id));
+    if (JAVA_API_BASE) {
+      fetch(`${JAVA_API_BASE}/api/v1/content/pages/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+    }
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'pages', id));
@@ -606,11 +689,16 @@ const App: React.FC = () => {
 
   const syncSiteConfig = async (config: SiteConfig) => {
     setSiteConfig(config);
+    try {
+      localStorage.setItem('devinquire_site_config', JSON.stringify(config));
+    } catch {
+      // ignore storage quota errors
+    }
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'config', 'siteConfig'), cleanFirestoreData(config));
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'config/siteConfig');
+      console.warn('Firestore siteConfig sync skipped:', err);
     }
   };
 
@@ -642,6 +730,13 @@ const App: React.FC = () => {
       const exists = prev.some(c => c.id === collectionData.id);
       return exists ? prev.map(c => c.id === collectionData.id ? collectionData : c) : [...prev, collectionData];
     });
+    if (JAVA_API_BASE) {
+      fetch(`${JAVA_API_BASE}/api/v1/content/collections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collectionData),
+      }).catch(() => {});
+    }
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'collections', collectionData.id), cleanFirestoreData(collectionData));
@@ -687,7 +782,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-[3px] border-[#007AFF] dark:border-[#0A84FF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-10 h-10 border-[3px] border-[#4e45e1] dark:border-[#6B63F2] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-[#86868B] dark:text-[#98989D] text-sm font-medium">Loading DevInquire CMS...</p>
         </div>
       </div>
@@ -726,7 +821,7 @@ const App: React.FC = () => {
         toggleTheme
       }}>
         <Toaster position="top-right" theme={theme} richColors />
-        <HashRouter>
+        <BrowserRouter basename={CMS_BASE_PATH}>
           <Routes>
             <Route path="/landing" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
@@ -742,10 +837,15 @@ const App: React.FC = () => {
                 <Editor />
               </ProtectedRoute>
             } />
+            <Route path="/console" element={
+              <ProtectedRoute firebaseUser={firebaseUser} isDemo={isDemoMode}>
+                <ConsolePage />
+              </ProtectedRoute>
+            } />
             <Route path="/p/:slug" element={<PublicPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </HashRouter>
+        </BrowserRouter>
       </CMSContext.Provider>
     </ErrorBoundary>
   );

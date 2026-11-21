@@ -25,7 +25,7 @@ export const AppleThemeSwitcher: React.FC<AppleThemeSwitcherProps> = ({
         {theme === 'dark' ? (
           <Sun size={16} className="text-[#FF9F0A]" />
         ) : (
-          <Moon size={16} className="text-[#007AFF]" />
+          <Moon size={16} className="text-[#4e45e1]" />
         )}
       </button>
     );
@@ -42,12 +42,12 @@ export const AppleThemeSwitcher: React.FC<AppleThemeSwitcherProps> = ({
       >
         {theme === 'dark' ? (
           <>
-            <Moon size={13.5} className="text-[#0A84FF]" />
+            <Moon size={13.5} className="text-[#6B63F2]" />
             <span>Dark</span>
           </>
         ) : (
           <>
-            <Sun size={13.5} className="text-[#007AFF]" />
+            <Sun size={13.5} className="text-[#4e45e1]" />
             <span>Light</span>
           </>
         )}
@@ -65,28 +65,28 @@ export const AppleThemeSwitcher: React.FC<AppleThemeSwitcherProps> = ({
         type="button"
         onClick={() => setTheme('light')}
         aria-pressed={theme === 'light'}
-        title="Apple Light (#FFFFFF / #F5F5F7 / #007AFF)"
+        title="Apple Light (#FFFFFF / #F5F5F7 / #4e45e1)"
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
           theme === 'light'
             ? 'bg-white text-[#1D1D1F] shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
             : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
         }`}
       >
-        <Sun size={13} className={theme === 'light' ? 'text-[#007AFF]' : ''} />
+        <Sun size={13} className={theme === 'light' ? 'text-[#4e45e1]' : ''} />
         <span>Light</span>
       </button>
       <button
         type="button"
         onClick={() => setTheme('dark')}
         aria-pressed={theme === 'dark'}
-        title="Apple Dark (#1C1C1E / #2C2C2E / #0A84FF)"
+        title="Apple Dark (#1C1C1E / #2C2C2E / #6B63F2)"
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
           theme === 'dark'
             ? 'bg-[#3A3A3C] text-[#F5F5F7] shadow-[0_1px_4px_rgba(0,0,0,0.35)]'
             : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
         }`}
       >
-        <Moon size={13} className={theme === 'dark' ? 'text-[#0A84FF]' : ''} />
+        <Moon size={13} className={theme === 'dark' ? 'text-[#6B63F2]' : ''} />
         <span>Dark</span>
       </button>
     </div>

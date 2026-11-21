@@ -1,8 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
+import { Globe } from 'lucide-react';
 import { useCMS } from '../App';
 import { BlockRenderer } from '../components/BlockRenderer';
 import { Page } from '../types';
+import {
+  DEFAULT_I18N_CONFIG,
+  I18nConfig,
+  detectVisitorLocationAndLocale,
+  fetchI18nConfig,
+  localizeSections,
+  translatePhrase,
+} from '../services/i18nService';
 
 const PublicPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -10,6 +19,29 @@ const PublicPage: React.FC = () => {
   const [targetPage, setTargetPage] = useState<Page | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [i18nConfig, setI18nConfig] = useState<I18nConfig>(DEFAULT_I18N_CONFIG);
+  const [activeLocale, setActiveLocale] = useState<string>('en');
+  const [detectedReason, setDetectedReason] = useState<string>('');
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const cfg = await fetchI18nConfig();
+      if (!mounted) return;
+      setI18nConfig(cfg);
+      if (cfg.multiLanguageEnabled) {
+        const res = await detectVisitorLocationAndLocale(cfg);
+        if (!mounted) return;
+        setActiveLocale(res.locale);
+        setDetectedReason(res.reason);
+      } else {
+        setActiveLocale(cfg.defaultLocale || 'en');
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -28,12 +60,29 @@ const PublicPage: React.FC = () => {
       }
     }
 
-    // 2. Find the page
-    const page = pages.find(p => p.slug === currentSlug && p.status === 'published');
-    if (page) {
-      setTargetPage(page);
+    // 2. Find the page locally first, then verify/fetch from Java backend for instant live updates
+    const localPage = pages.find(p => p.slug === currentSlug && p.status === 'published');
+    if (localPage) {
+      setTargetPage(localPage);
       setNotFound(false);
-    } else {
+    }
+
+    const apiBase = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
+    if (apiBase) {
+      fetch(`${apiBase}/api/v1/content/pages/${encodeURIComponent(currentSlug)}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(json => {
+          if (json?.success && json.data) {
+            setTargetPage(json.data);
+            setNotFound(false);
+          } else if (!localPage) {
+            setNotFound(true);
+          }
+        })
+        .catch(() => {
+          if (!localPage) setNotFound(true);
+        });
+    } else if (!localPage) {
       setNotFound(true);
     }
   }, [slug, pages, rewrites]);
@@ -53,7 +102,7 @@ const PublicPage: React.FC = () => {
           </p>
           <Link
             to="/"
-            className="inline-flex items-center justify-center w-full px-6 py-3 bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white rounded-xl text-sm font-semibold transition-all"
+            className="inline-flex items-center justify-center w-full px-6 py-3 bg-[#4e45e1] hover:bg-[#4139BF] dark:bg-[#6B63F2] dark:hover:bg-[#8179FF] text-white rounded-xl text-sm font-semibold transition-all"
           >
             Back to Studio Dashboard
           </Link>
@@ -65,7 +114,7 @@ const PublicPage: React.FC = () => {
   if (!targetPage) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] dark:bg-[#1C1C1E]">
-        <div className="w-8 h-8 border-[3px] border-[#007AFF] dark:border-[#0A84FF] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-[3px] border-[#4e45e1] dark:border-[#6B63F2] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -81,17 +130,29 @@ const PublicPage: React.FC = () => {
     );
   }
 
+  const activeLocaleObj = useMemo(
+    () => i18nConfig.supportedLocales.find((l) => l.code === activeLocale),
+    [i18nConfig, activeLocale]
+  );
+
+  const localizedSections = useMemo(() => {
+    if (!targetPage) return [];
+    if (!i18nConfig.multiLanguageEnabled) return targetPage.layoutJSON.sections;
+    return localizeSections(targetPage.layoutJSON.sections, activeLocale);
+  }, [targetPage, i18nConfig.multiLanguageEnabled, activeLocale]);
+
   // Render CMS Page
   return (
     <div 
-      className="min-h-screen"
+      dir={i18nConfig.multiLanguageEnabled && activeLocaleObj?.rtl ? 'rtl' : 'ltr'}
+      className="min-h-screen relative"
       style={{ 
         backgroundColor: globalStyles.backgroundColor,
         color: globalStyles.textColor,
         fontFamily: globalStyles.bodyFont
       }}
     >
-      {targetPage.layoutJSON.sections.map((section) => (
+      {localizedSections.map((section) => (
         <section 
           key={section.id}
           style={{
@@ -123,6 +184,29 @@ const PublicPage: React.FC = () => {
           </div>
         </section>
       ))}
+
+      {i18nConfig.multiLanguageEnabled && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/90 dark:bg-[#2C2C2E]/90 backdrop-blur-xl border border-black/[0.08] dark:border-white/[0.12] shadow-lg text-xs">
+          <Globe size={14} className="text-[#4e45e1] dark:text-[#6B63F2]" />
+          <select
+            value={activeLocale}
+            onChange={(e) => {
+              setActiveLocale(e.target.value);
+              setDetectedReason('Manual visitor selection');
+            }}
+            className="bg-transparent font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] outline-none cursor-pointer"
+            title={detectedReason || 'Select Language'}
+          >
+            {i18nConfig.supportedLocales
+              .filter((l) => l.enabled)
+              .map((l) => (
+                <option key={l.code} value={l.code} className="text-black">
+                  {l.nativeName} ({l.code.toUpperCase()})
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 };

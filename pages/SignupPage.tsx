@@ -23,11 +23,25 @@ const SignupPage: React.FC = () => {
   const [isEmailValid, setIsEmailValid] = useState<boolean | null>(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
+  const markNewAccountCreated = () => {
+    if (typeof document !== 'undefined') {
+      document.cookie = 'devinquire_cms_new_account=1; max-age=86400; path=/; SameSite=Lax';
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('devinquire_cms_new_account', '1');
+    }
+  };
+
   const handleGoogleSignup = async () => {
     setIsLoading(true);
     setError('');
     try {
-      await signInWithGoogle();
+      const cred: any = await signInWithGoogle();
+      const meta = cred?.user?.metadata;
+      const isNew =
+        cred?._tokenResponse?.isNewUser ||
+        (meta?.creationTime && meta?.lastSignInTime && meta.creationTime === meta.lastSignInTime);
+      if (isNew) markNewAccountCreated();
       navigate('/');
     } catch (err: any) {
       const rawError = err?.message || String(err);
@@ -41,6 +55,7 @@ const SignupPage: React.FC = () => {
         errorCode === 'auth/unauthorized-domain'
       ) {
         loginAsDemoUser({ name: name || undefined, email: email || 'admin@devinquire.com' });
+        markNewAccountCreated();
         toast.success('Account ready! Welcome to DevInquire CMS.');
         navigate('/');
         return;
@@ -86,7 +101,7 @@ const SignupPage: React.FC = () => {
   const getStrengthColor = () => {
     if (passwordStrength <= 2) return 'bg-[#FF3B30]';
     if (passwordStrength <= 3) return 'bg-[#FF9F0A]';
-    if (passwordStrength <= 4) return 'bg-[#007AFF]';
+    if (passwordStrength <= 4) return 'bg-[#4e45e1]';
     return 'bg-[#34C759]';
   };
 
@@ -115,6 +130,7 @@ const SignupPage: React.FC = () => {
       if (name) {
         await updateProfile(userCredential.user, { displayName: name });
       }
+      markNewAccountCreated();
       navigate('/');
     } catch (err: any) {
       const rawError = err?.message || String(err);
@@ -129,6 +145,7 @@ const SignupPage: React.FC = () => {
         rawError.includes('operation-not-allowed')
       ) {
         loginAsDemoUser({ name, email });
+        markNewAccountCreated();
         toast.success('Account created! Welcome to DevInquire CMS.');
         navigate('/');
         return;
@@ -153,7 +170,7 @@ const SignupPage: React.FC = () => {
       <div className="hidden md:flex md:w-1/2 relative bg-[#F5F5F7] dark:bg-[#141416] border-r border-black/[0.06] dark:border-white/[0.08] overflow-hidden items-center justify-center p-12 lg:p-20">
         <div className="max-w-lg w-full space-y-10">
           <Link to="/landing" className="inline-flex items-center gap-2.5 group">
-            <div className="w-9 h-9 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-xl flex items-center justify-center shadow-sm">
+            <div className="w-9 h-9 bg-[#4e45e1] dark:bg-[#6B63F2] text-white rounded-xl flex items-center justify-center shadow-sm">
               <Command size={19} />
             </div>
             <span className="text-lg font-bold tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7]">InquireCMS</span>
@@ -175,7 +192,7 @@ const SignupPage: React.FC = () => {
               { icon: <Sparkles size={18} />, title: "Version Snapshots", desc: "Compare and restore any point-in-time page revision." }
             ].map((feature, i) => (
               <div key={i} className="flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08]">
-                <div className="w-9 h-9 rounded-xl bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] flex items-center justify-center shrink-0">
                   {feature.icon}
                 </div>
                 <div>
@@ -197,7 +214,7 @@ const SignupPage: React.FC = () => {
       >
         <div className="flex items-center justify-between">
           <Link to="/landing" className="md:hidden inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] rounded-xl flex items-center justify-center text-white">
+            <div className="w-8 h-8 bg-[#4e45e1] dark:bg-[#6B63F2] rounded-xl flex items-center justify-center text-white">
               <Command size={17} />
             </div>
             <span className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">InquireCMS</span>
@@ -235,7 +252,7 @@ const SignupPage: React.FC = () => {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] ml-0.5">Full Name</label>
               <div className="relative group">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#007AFF] dark:group-focus-within:text-[#0A84FF] transition-colors" size={17} />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#4e45e1] dark:group-focus-within:text-[#6B63F2] transition-colors" size={17} />
                 <input 
                   id="signup-name"
                   type="text" 
@@ -243,7 +260,7 @@ const SignupPage: React.FC = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Alex Rivera"
-                  className="w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#007AFF]/20 dark:focus:ring-[#0A84FF]/30 focus:border-[#007AFF] dark:focus:border-[#0A84FF] outline-none transition-all"
+                  className="w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#4e45e1]/20 dark:focus:ring-[#6B63F2]/30 focus:border-[#4e45e1] dark:focus:border-[#6B63F2] outline-none transition-all"
                 />
               </div>
             </div>
@@ -251,7 +268,7 @@ const SignupPage: React.FC = () => {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] ml-0.5">Email Address</label>
               <div className="relative group">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#007AFF] dark:group-focus-within:text-[#0A84FF] transition-colors" size={17} />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#4e45e1] dark:group-focus-within:text-[#6B63F2] transition-colors" size={17} />
                 <input 
                   id="signup-email"
                   type="email" 
@@ -261,7 +278,7 @@ const SignupPage: React.FC = () => {
                   placeholder="name@company.com"
                   className={`w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border ${
                     isEmailValid === false ? 'border-[#FF3B30]' : 'border-black/[0.08] dark:border-white/[0.10]'
-                  } rounded-xl pl-10 pr-10 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#007AFF]/20 dark:focus:ring-[#0A84FF]/30 focus:border-[#007AFF] dark:focus:border-[#0A84FF] outline-none transition-all`}
+                  } rounded-xl pl-10 pr-10 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#4e45e1]/20 dark:focus:ring-[#6B63F2]/30 focus:border-[#4e45e1] dark:focus:border-[#6B63F2] outline-none transition-all`}
                 />
                 {isEmailValid !== null && (
                   <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
@@ -274,7 +291,7 @@ const SignupPage: React.FC = () => {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] ml-0.5">Password</label>
               <div className="relative group">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#007AFF] dark:group-focus-within:text-[#0A84FF] transition-colors" size={17} />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B] group-focus-within:text-[#4e45e1] dark:group-focus-within:text-[#6B63F2] transition-colors" size={17} />
                 <input 
                   id="signup-password"
                   type="password" 
@@ -282,7 +299,7 @@ const SignupPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#007AFF]/20 dark:focus:ring-[#0A84FF]/30 focus:border-[#007AFF] dark:focus:border-[#0A84FF] outline-none transition-all"
+                  className="w-full bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#3A3A3C] focus:ring-3 focus:ring-[#4e45e1]/20 dark:focus:ring-[#6B63F2]/30 focus:border-[#4e45e1] dark:focus:border-[#6B63F2] outline-none transition-all"
                 />
               </div>
               {password && (
@@ -308,10 +325,10 @@ const SignupPage: React.FC = () => {
                 id="signup-terms" 
                 type="checkbox" 
                 required 
-                className="mt-0.5 w-4 h-4 rounded border-black/20 text-[#007AFF] focus:ring-[#007AFF]" 
+                className="mt-0.5 w-4 h-4 rounded border-black/20 text-[#4e45e1] focus:ring-[#4e45e1]" 
               />
               <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">
-                I agree to the <a href="#terms" className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline">Terms</a> and <a href="#privacy" className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline">Privacy Policy</a>.
+                I agree to the <a href="#terms" className="font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline">Terms</a> and <a href="#privacy" className="font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline">Privacy Policy</a>.
               </p>
             </div>
 
@@ -319,7 +336,7 @@ const SignupPage: React.FC = () => {
               id="signup-submit"
               type="submit"
               disabled={isLoading}
-              className="w-full bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white py-3.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+              className="w-full bg-[#4e45e1] hover:bg-[#4139BF] dark:bg-[#6B63F2] dark:hover:bg-[#8179FF] text-white py-3.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
               {isLoading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -347,7 +364,7 @@ const SignupPage: React.FC = () => {
                 disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2.5 py-3 bg-[#F5F5F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA]/70 dark:hover:bg-[#3A3A3C] border border-black/[0.08] dark:border-white/[0.10] rounded-xl text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] transition-all disabled:opacity-50"
               >
-                <Chrome size={18} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                <Chrome size={18} className="text-[#4e45e1] dark:text-[#6B63F2]" />
                 <span>Sign up with Google</span>
               </button>
 
@@ -355,7 +372,7 @@ const SignupPage: React.FC = () => {
                 id="signup-demo" 
                 onClick={handleDemoLogin}
                 type="button"
-                className="w-full flex items-center justify-center gap-2 py-3 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 hover:bg-[#007AFF]/15 dark:hover:bg-[#0A84FF]/25 border border-[#007AFF]/20 dark:border-[#0A84FF]/30 rounded-xl text-sm font-semibold text-[#007AFF] dark:text-[#0A84FF] transition-all"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 hover:bg-[#4e45e1]/15 dark:hover:bg-[#6B63F2]/25 border border-[#4e45e1]/20 dark:border-[#6B63F2]/30 rounded-xl text-sm font-semibold text-[#4e45e1] dark:text-[#6B63F2] transition-all"
               >
                 <UserCheck size={17} />
                 <span>Explore in Demo Mode</span>
@@ -365,7 +382,7 @@ const SignupPage: React.FC = () => {
 
           <p className="text-center mt-8 text-xs text-[#86868B] dark:text-[#98989D]">
             Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline">
+            <Link to="/login" className="font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline">
               Sign in
             </Link>
           </p>

@@ -1630,7 +1630,7 @@ const Editor: React.FC = () => {
       {isPreview && (
         <button
           onClick={() => setIsPreview(false)}
-          className="fixed top-6 right-6 z-[100] bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-semibold text-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          className="fixed top-6 right-6 z-[100] bg-[#4e45e1] dark:bg-[#6B63F2] hover:bg-[#0071E3] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-semibold text-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
         >
           <X size={18} />
           <span>Exit Preview</span>
@@ -1684,7 +1684,7 @@ const Editor: React.FC = () => {
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
-              className={`p-1.5 rounded-full transition-all cursor-pointer ${viewMode === mode ? "bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs" : "text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white"}`}
+              className={`p-1.5 rounded-full transition-all cursor-pointer ${viewMode === mode ? "bg-[#4e45e1] dark:bg-[#6B63F2] text-white shadow-xs" : "text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white"}`}
               title={`Preview ${mode}`}
             >
               {mode === "desktop" ? (
@@ -1725,7 +1725,7 @@ const Editor: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] bg-[#F5F5F7] dark:bg-[#1C1C1E] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] border border-black/[0.06] dark:border-white/[0.08] rounded-full transition-colors cursor-pointer"
               title="View and restore page version snapshots"
             >
-              <History size={14} className="text-[#007AFF] dark:text-[#0A84FF]" />
+              <History size={14} className="text-[#4e45e1] dark:text-[#6B63F2]" />
               <span className="hidden md:inline">History</span>
               <span className="px-1.5 py-0.2 rounded-full bg-white dark:bg-[#2C2C2E] text-[10px] font-mono text-[#86868B] dark:text-[#98989D]">
                 {page.versions?.length || 0}
@@ -1770,8 +1770,8 @@ const Editor: React.FC = () => {
               showSuccess 
                 ? "bg-[#34C759] text-white" 
                 : isSaving 
-                  ? "bg-[#007AFF]/70 text-white cursor-not-allowed" 
-                  : "bg-[#007AFF] dark:bg-[#0A84FF] text-white hover:bg-[#0071E3] shadow-[#007AFF]/20"
+                  ? "bg-[#4e45e1]/70 text-white cursor-not-allowed" 
+                  : "bg-[#4e45e1] dark:bg-[#6B63F2] text-white hover:bg-[#0071E3] shadow-[#4e45e1]/20"
             }`}
           >
             {isSaving ? (
@@ -1818,7 +1818,7 @@ const Editor: React.FC = () => {
               id="tab-assets"
               active={activeTab === "media"}
               onClick={() => setActiveTab("media")}
-              icon={<FolderOpen size={16} className={activeTab === 'media' ? 'text-[#007AFF] dark:text-[#0A84FF]' : ''} />}
+              icon={<FolderOpen size={16} className={activeTab === 'media' ? 'text-[#4e45e1] dark:text-[#6B63F2]' : ''} />}
               label="Assets"
             />
             <TabButton
@@ -1839,7 +1839,7 @@ const Editor: React.FC = () => {
               id="tab-ai"
               active={activeTab === "ai"}
               onClick={() => setActiveTab("ai")}
-              icon={<Sparkles size={16} className={activeTab === 'ai' ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#86868B]'} />}
+              icon={<Sparkles size={16} className={activeTab === 'ai' ? 'text-[#4e45e1] dark:text-[#6B63F2]' : 'text-[#86868B]'} />}
               label="AI"
             />
             <TabButton
@@ -6128,14 +6128,14 @@ const TabButton: React.FC<{
     onClick={onClick}
     className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-3.5 text-[10px] font-semibold uppercase tracking-wider transition-all relative outline-none cursor-pointer ${
       active
-        ? "text-[#007AFF] dark:text-[#0A84FF] bg-white dark:bg-[#2C2C2E]"
+        ? "text-[#4e45e1] dark:text-[#6B63F2] bg-white dark:bg-[#2C2C2E]"
         : "text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
     }`}
   >
     {icon}
     <span>{label}</span>
     {active && (
-      <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#007AFF] dark:bg-[#0A84FF]" />
+      <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#4e45e1] dark:bg-[#6B63F2]" />
     )}
   </button>
 );

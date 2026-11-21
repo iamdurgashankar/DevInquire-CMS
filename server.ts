@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { 
   getFirestore, 
@@ -85,25 +86,44 @@ try {
 
 async function startServer() {
   const app = express();
+  app.set("trust proxy", 1);
   app.use(compression());
   app.use(cors()); // Enable CORS for Headless API access
   
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
+    path: "/cms/socket.io",
     cors: {
       origin: "*",
       methods: ["GET", "POST"]
     }
   });
 
-  // Set up WebSocket server for Gemini Live API on /live
-  const wss = new WebSocketServer({ server: httpServer, path: "/live" });
+  // Set up WebSocket server for Gemini Live API on /cms/live
+  const wss = new WebSocketServer({ server: httpServer, path: "/cms/live" });
   setupLiveApiBridge(wss);
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3002;
 
   // Middleware for JSON parsing
   app.use(express.json({ limit: '50mb' }));
+
+  // Support both /api/* and /cms/api/* so reverse proxies under /cms work seamlessly
+  app.use((req, _res, next) => {
+    if (req.url === '/cms/api' || req.url.startsWith('/cms/api/')) {
+      req.url = req.url.replace(/^\/cms/, '');
+    }
+    next();
+  });
+
+  // Redirect root and bare /cms (without trailing slash) to /cms/
+  app.get("/", (_req, res) => res.redirect(302, "/cms/"));
+  app.use((req, res, next) => {
+    if (req.method === "GET" && req.originalUrl === "/cms") {
+      return res.redirect(302, "/cms/");
+    }
+    next();
+  });
 
   // Debug logging for API
   app.use((req, res, next) => {
@@ -114,7 +134,221 @@ async function startServer() {
   });
 
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+    res.json({
+      status: "ok",
+      env: process.env.NODE_ENV || "development",
+      time: new Date().toISOString(),
+    });
+  });
+
+  app.get("/api/i18n/detect", (req, res) => {
+    const tz = typeof req.query.timezone === "string" ? req.query.timezone : "";
+    const tzCountryMap: Record<string, string> = {
+      "Asia/Kolkata": "IN",
+      "Asia/Calcutta": "IN",
+      "Europe/Paris": "FR",
+      "Europe/Berlin": "DE",
+      "Europe/Madrid": "ES",
+      "Asia/Tokyo": "JP",
+      "Asia/Riyadh": "SA",
+      "Asia/Dubai": "AE",
+      "America/Sao_Paulo": "BR",
+      "America/New_York": "US",
+      "Europe/London": "GB",
+    };
+    const headerCountry =
+      (req.headers["cf-ipcountry"] as string) ||
+      (req.headers["x-vercel-ip-country"] as string) ||
+      (req.headers["cloudfront-viewer-country"] as string) ||
+      (req.headers["x-country-code"] as string) ||
+      "";
+    const queryCountry = typeof req.query.country === "string" ? req.query.country : "";
+    const country = (queryCountry || headerCountry || tzCountryMap[tz] || "").toUpperCase();
+    const acceptLanguage = (req.headers["accept-language"] as string) || "";
+    res.json({
+      success: true,
+      country: country || null,
+      timezone: tz || null,
+      acceptLanguage,
+    });
+  });
+
+  // --- Multi-Domain & Hosting Connection Endpoints ---
+  const hostingConfigFile = path.join(process.cwd(), ".local-hosting-config.json");
+
+  const readHostingStore = () => {
+    if (!fs.existsSync(hostingConfigFile)) {
+      return { domains: [] as any[], activeDomainId: "" };
+    }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(hostingConfigFile, "utf-8"));
+      if (Array.isArray(parsed?.domains)) {
+        return {
+          domains: parsed.domains,
+          activeDomainId: parsed.activeDomainId || parsed.domains[0]?.id || "",
+        };
+      }
+      // Migrate legacy single-domain format
+      if (parsed?.customDomain) {
+        const legacy = {
+          id: `dom_${parsed.customDomain.replace(/[^a-z0-9]/g, "_")}`,
+          domain: parsed.customDomain,
+          hostingProvider: parsed.hostingProvider || "Hostinger",
+          siteName: parsed.siteName || parsed.customDomain,
+          baseUrl: parsed.baseUrl || `https://${parsed.customDomain}`,
+          connected: true,
+          dnsVerified: Boolean(parsed.dnsVerified),
+          resolvedIps: parsed.resolvedIps || [],
+          verifiedAt: parsed.verifiedAt || new Date().toISOString(),
+        };
+        return { domains: [legacy], activeDomainId: legacy.id };
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return { domains: [] as any[], activeDomainId: "" };
+  };
+
+  const writeHostingStore = (store: { domains: any[]; activeDomainId: string }) => {
+    fs.writeFileSync(hostingConfigFile, JSON.stringify(store, null, 2), "utf-8");
+  };
+
+  app.get("/api/hosting/status", async (_req, res) => {
+    try {
+      const store = readHostingStore();
+      const activeDomain =
+        store.domains.find((d: any) => d.id === store.activeDomainId) || store.domains[0] || null;
+      return res.json({
+        success: true,
+        data: {
+          domains: store.domains,
+          activeDomainId: activeDomain?.id || "",
+          activeDomain,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/hosting/connect", async (req, res) => {
+    try {
+      const { domain, hostingProvider, siteName } = req.body || {};
+      const cleanDomain = String(domain || "")
+        .trim()
+        .replace(/^https?:\/\//i, "")
+        .replace(/\/.*$/, "")
+        .toLowerCase();
+
+      if (!cleanDomain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleanDomain)) {
+        return res.status(400).json({
+          success: false,
+          error: "Please enter a valid domain name (e.g., devinquire.com).",
+        });
+      }
+
+      let resolvedIps: string[] = [];
+      let dnsVerified = false;
+      try {
+        const dns = await import("dns");
+        const lookupPromise = dns.promises.resolve4(cleanDomain);
+        const timeoutPromise = new Promise<string[]>((resolve) =>
+          setTimeout(() => resolve([]), 2500)
+        );
+        resolvedIps = await Promise.race([lookupPromise, timeoutPromise]);
+        dnsVerified = Array.isArray(resolvedIps) && resolvedIps.length > 0;
+      } catch {
+        dnsVerified = false;
+      }
+
+      const store = readHostingStore();
+      const existingIdx = store.domains.findIndex((d: any) => d.domain === cleanDomain);
+      const id =
+        existingIdx >= 0
+          ? store.domains[existingIdx].id
+          : `dom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+      const entry = {
+        id,
+        domain: cleanDomain,
+        hostingProvider: String(hostingProvider || "Hostinger").trim(),
+        siteName: String(siteName || cleanDomain).trim(),
+        baseUrl: `https://${cleanDomain}`,
+        connected: true,
+        dnsVerified,
+        resolvedIps,
+        verifiedAt: new Date().toISOString(),
+      };
+
+      if (existingIdx >= 0) {
+        store.domains[existingIdx] = entry;
+      } else {
+        store.domains.push(entry);
+      }
+      store.activeDomainId = id;
+      writeHostingStore(store);
+
+      return res.json({
+        success: true,
+        data: {
+          domains: store.domains,
+          activeDomainId: id,
+          activeDomain: entry,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Failed to connect domain and hosting.",
+      });
+    }
+  });
+
+  app.post("/api/hosting/select", async (req, res) => {
+    try {
+      const { domainId } = req.body || {};
+      const store = readHostingStore();
+      const found = store.domains.find((d: any) => d.id === domainId);
+      if (!found) {
+        return res.status(404).json({ success: false, error: "Domain not found." });
+      }
+      store.activeDomainId = found.id;
+      writeHostingStore(store);
+      return res.json({
+        success: true,
+        data: {
+          domains: store.domains,
+          activeDomainId: found.id,
+          activeDomain: found,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/hosting/delete", async (req, res) => {
+    try {
+      const { domainId } = req.body || {};
+      const store = readHostingStore();
+      store.domains = store.domains.filter((d: any) => d.id !== domainId);
+      if (store.activeDomainId === domainId) {
+        store.activeDomainId = store.domains[0]?.id || "";
+      }
+      writeHostingStore(store);
+      const activeDomain =
+        store.domains.find((d: any) => d.id === store.activeDomainId) || null;
+      return res.json({
+        success: true,
+        data: {
+          domains: store.domains,
+          activeDomainId: store.activeDomainId,
+          activeDomain,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   // --- Gemini AI Server Endpoints ---
@@ -516,21 +750,30 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath, {
+    app.use("/cms", express.static(distPath, {
       maxAge: '1d',
-      setHeaders: (res, path) => {
-        if (path.endsWith('.html')) {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
           res.setHeader('Cache-Control', 'no-cache');
         }
       }
     }));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.use((req, res, next) => {
+      if (
+        req.method === "GET" &&
+        req.path.startsWith("/cms/") &&
+        !req.path.startsWith("/cms/api") &&
+        !req.path.startsWith("/cms/socket.io") &&
+        !req.path.startsWith("/cms/live")
+      ) {
+        return res.sendFile(path.join(distPath, "index.html"));
+      }
+      next();
     });
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}/cms/`);
   });
 }
 

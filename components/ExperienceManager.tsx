@@ -762,7 +762,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
           className={`group flex items-center justify-between gap-2 pr-2.5 py-2 rounded-lg cursor-pointer transition-colors text-left ${
             isSelected
               ? 'bg-slate-900 text-white'
-              : 'text-slate-700 hover:bg-slate-100'
+              : 'text-[#515154] dark:text-[#E5E5EA] hover:bg-black/[0.04] dark:bg-white/[0.06]'
           }`}
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -777,7 +777,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                   }));
                 }}
                 className={`p-0.5 rounded transition-colors ${
-                  isSelected ? 'text-slate-300 hover:text-white' : 'text-slate-400 hover:text-slate-700'
+                  isSelected ? 'text-slate-300 hover:text-white' : 'text-[#86868B] dark:text-[#98989D] hover:text-[#515154] dark:text-[#E5E5EA]'
                 }`}
               >
                 {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -785,19 +785,19 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             ) : node.depth > 0 ? (
               <CornerDownRight
                 size={12}
-                className={isSelected ? 'text-slate-400 shrink-0' : 'text-slate-300 shrink-0'}
+                className={isSelected ? 'text-[#86868B] dark:text-[#98989D] shrink-0' : 'text-slate-300 shrink-0'}
               />
             ) : null}
 
             {node.page.slug === 'home' ? (
               <Home
                 size={15}
-                className={isSelected ? 'text-blue-400 shrink-0' : 'text-blue-600 shrink-0'}
+                className={isSelected ? 'text-blue-400 shrink-0' : 'text-[#4e45e1] dark:text-[#6B63F2] shrink-0'}
               />
             ) : (
               <FileText
                 size={15}
-                className={isSelected ? 'text-slate-300 shrink-0' : 'text-slate-400 shrink-0'}
+                className={isSelected ? 'text-slate-300 shrink-0' : 'text-[#86868B] dark:text-[#98989D] shrink-0'}
               />
             )}
 
@@ -807,7 +807,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               </div>
               <div
                 className={`flex items-center gap-1.5 text-[11px] font-mono truncate ${
-                  isSelected ? 'text-slate-300' : 'text-slate-400'
+                  isSelected ? 'text-slate-300' : 'text-[#86868B] dark:text-[#98989D]'
                 }`}
               >
                 <span>/{node.page.slug}</span>
@@ -831,7 +831,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
 
           <span
             className={`text-[11px] font-mono tabular-nums shrink-0 ${
-              isSelected ? 'text-slate-300' : 'text-slate-400'
+              isSelected ? 'text-slate-300' : 'text-[#86868B] dark:text-[#98989D]'
             }`}
             title={`${sectionCount} sections`}
           >
@@ -849,12 +849,12 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               <div
                 key={rw.id}
                 onClick={() => handleSelectPage(node.page.id)}
-                className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-blue-600 cursor-pointer py-0.5 px-2 rounded"
+                className="flex items-center gap-1.5 text-[11px] text-[#86868B] dark:text-[#98989D] hover:text-[#4e45e1] dark:text-[#6B63F2] cursor-pointer py-0.5 px-2 rounded"
               >
                 <Repeat size={10} className="text-indigo-500 shrink-0" />
                 <span className="font-mono truncate">{rw.source}</span>
                 <span aria-hidden="true">→</span>
-                <span className="text-[10px] text-slate-400">{rw.type}</span>
+                <span className="text-[10px] text-[#86868B] dark:text-[#98989D]">{rw.type}</span>
               </div>
             ))}
           </div>
@@ -864,10 +864,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
         {isSelected && !node.page.isCustomSite && (draftPage?.layoutJSON?.sections?.length || 0) > 0 && (
           <div
             style={{ marginLeft: `${Math.min(node.depth * 14 + 22, 56)}px` }}
-            className="my-1.5 pl-2.5 border-l border-slate-200 space-y-1"
+            className="my-1.5 pl-2.5 border-l border-black/[0.07] dark:border-white/[0.08] space-y-1"
           >
             <div className="flex items-center justify-between pr-2 py-0.5">
-              <span className="text-[10px] font-semibold text-slate-400">
+              <span className="text-[10px] font-semibold text-[#86868B] dark:text-[#98989D]">
                 Page Sections ({draftPage?.layoutJSON?.sections?.length || 0})
               </span>
               {canEdit && (
@@ -877,7 +877,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                     e.stopPropagation();
                     handleAddSection('content');
                   }}
-                  className="text-[10px] font-semibold text-blue-600 hover:underline flex items-center gap-0.5"
+                  className="text-[10px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline flex items-center gap-0.5"
                 >
                   <Plus size={10} /> Add
                 </button>
@@ -910,17 +910,17 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                   }}
                   className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded text-left text-[11px] transition-colors ${
                     isSecSelected
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#8179FF] font-semibold'
+                      : 'text-[#515154] dark:text-[#98989D] hover:bg-black/[0.04] dark:bg-white/[0.06]'
                   }`}
                 >
                   <span className="truncate">
-                    <span className="font-mono tabular-nums text-slate-400 mr-1.5">
+                    <span className="font-mono tabular-nums text-[#86868B] dark:text-[#98989D] mr-1.5">
                       {String(idx + 1).padStart(2, '0')}
                     </span>
                     {rawLabel || `Section ${idx + 1}`}
                   </span>
-                  <span className="text-[10px] font-mono tabular-nums text-slate-400 shrink-0">
+                  <span className="text-[10px] font-mono tabular-nums text-[#86868B] dark:text-[#98989D] shrink-0">
                     {sec.columns.reduce((acc, c) => acc + c.blocks.length, 0)}b
                   </span>
                 </button>
@@ -946,28 +946,28 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
         : 'w-full';
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col min-h-[760px]">
+    <div className="apple-card rounded-[24px] overflow-hidden flex flex-col min-h-[780px] transition-all duration-300">
       {/* Top Experience Manager Control Bar */}
-      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 py-3 apple-glass-header flex flex-wrap items-center justify-between gap-3">
         {/* Left: Sitemap Toggle + Workspace Layout Switcher */}
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setShowLeftSitemap(prev => !prev)}
-            className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+            className="apple-secondary-btn p-2 rounded-[11px] text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white transition-all cursor-pointer"
             title={showLeftSitemap ? 'Hide Sitemap Panel' : 'Show Sitemap Panel'}
           >
             {showLeftSitemap ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
 
-          <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-lg">
+          <div className="flex items-center gap-1 p-1 bg-black/[0.05] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.08] rounded-[12px]">
             <button
               type="button"
               onClick={() => setWorkspaceLayout('split')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-[9px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                 workspaceLayout === 'split'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                  : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
               }`}
             >
               <Layout size={14} />
@@ -976,10 +976,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             <button
               type="button"
               onClick={() => setWorkspaceLayout('sitemap-map')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-[9px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                 workspaceLayout === 'sitemap-map'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                  : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
               }`}
             >
               <FolderTree size={14} />
@@ -991,25 +991,25 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
         {/* Center: Simulated Browser Address Bar & Quick Sitemap Navigator */}
         {activePage && (
           <div className="relative flex-1 max-w-xl min-w-[260px]">
-            <div className="flex items-center bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs gap-2">
-              <Globe size={14} className="text-slate-400 shrink-0" />
+            <div className="flex items-center bg-white/90 dark:bg-[#1C1C1E]/85 border border-black/[0.08] dark:border-white/[0.1] rounded-full px-3.5 py-1.5 text-xs gap-2 shadow-2xs">
+              <Globe size={14} className="text-[#4e45e1] dark:text-[#6B63F2] shrink-0" />
               <button
                 type="button"
                 onClick={() => setIsUrlSwitcherOpen(prev => !prev)}
-                className="flex-1 flex items-center justify-between gap-2 text-left font-mono text-slate-700 hover:text-blue-600 truncate"
+                className="flex-1 flex items-center justify-between gap-2 text-left font-mono text-[#515154] dark:text-[#98989D] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] truncate cursor-pointer"
                 title="Click to switch page via Sitemap"
               >
                 <span className="truncate">
                   {(siteConfig.baseUrl || 'https://devinquire.app').replace(/\/+$/, '')}/
-                  <strong className="text-slate-900">{draftPage?.slug || activePage.slug}</strong>
+                  <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{draftPage?.slug || activePage.slug}</strong>
                 </span>
-                <ChevronDown size={13} className="text-slate-400 shrink-0" />
+                <ChevronDown size={13} className="text-[#86868B] shrink-0" />
               </button>
               <a
-                href={`/#/p/${draftPage?.slug || activePage.slug}`}
+                href={`/cms/p/${draftPage?.slug || activePage.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-slate-400 hover:text-blue-600 p-0.5 shrink-0"
+                className="text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] p-0.5 shrink-0"
                 title="Open live page in new tab"
               >
                 <ExternalLink size={13} />
@@ -1017,8 +1017,8 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             </div>
 
             {isUrlSwitcherOpen && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-72 overflow-y-auto p-1.5">
-                <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 flex items-center justify-between">
+              <div className="absolute left-0 right-0 top-full mt-2 apple-card rounded-[18px] shadow-2xl z-40 max-h-72 overflow-y-auto p-1.5 animate-in">
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold text-[#86868B] flex items-center justify-between">
                   <span>Quick Sitemap Jump</span>
                   <span className="font-mono tabular-nums">{pages.length} routes</span>
                 </div>
@@ -1027,22 +1027,22 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                     key={p.id}
                     type="button"
                     onClick={() => handleSelectPage(p.id)}
-                    className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-lg text-left text-xs transition-colors ${
+                    className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-[11px] text-left text-xs transition-colors cursor-pointer ${
                       p.id === activePage.id
-                        ? 'bg-blue-50 text-blue-700 font-semibold'
-                        : 'text-slate-700 hover:bg-slate-50'
+                        ? 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#6B63F2] font-semibold'
+                        : 'text-[#1D1D1F] dark:text-[#F5F5F7] hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       {p.slug === 'home' ? (
-                        <Home size={14} className="text-blue-600 shrink-0" />
+                        <Home size={14} className="text-[#4e45e1] dark:text-[#6B63F2] shrink-0" />
                       ) : (
-                        <FileText size={14} className="text-slate-400 shrink-0" />
+                        <FileText size={14} className="text-[#86868B] shrink-0" />
                       )}
                       <span className="truncate">{p.title}</span>
-                      <span className="font-mono text-slate-400 truncate">/{p.slug}</span>
+                      <span className="font-mono text-[#86868B] truncate">/{p.slug}</span>
                     </div>
-                    <span className="text-[11px] text-slate-400 shrink-0">
+                    <span className="text-[11px] text-[#86868B] shrink-0">
                       {p.status === 'published' ? 'Published' : 'Draft'}
                     </span>
                   </button>
@@ -1053,18 +1053,18 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
         )}
 
         {/* Right: Device Viewport, Edit/Preview Mode, Save & Full Studio */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {workspaceLayout !== 'sitemap-map' && (
             <>
               {/* Device Switcher */}
-              <div className="hidden sm:flex items-center gap-0.5 p-1 bg-slate-200/70 rounded-lg">
+              <div className="hidden sm:flex items-center gap-0.5 p-1 bg-black/[0.05] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.08] rounded-[11px]">
                 <button
                   type="button"
                   onClick={() => setViewport('desktop')}
-                  className={`p-1.5 rounded-md transition-colors ${
+                  className={`p-1.5 rounded-[8px] transition-all cursor-pointer ${
                     viewport === 'desktop'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                      : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
                   }`}
                   title="Desktop Viewport"
                 >
@@ -1073,10 +1073,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewport('tablet')}
-                  className={`p-1.5 rounded-md transition-colors ${
+                  className={`p-1.5 rounded-[8px] transition-all cursor-pointer ${
                     viewport === 'tablet'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                      : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
                   }`}
                   title="Tablet Viewport (768px)"
                 >
@@ -1085,10 +1085,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewport('mobile')}
-                  className={`p-1.5 rounded-md transition-colors ${
+                  className={`p-1.5 rounded-[8px] transition-all cursor-pointer ${
                     viewport === 'mobile'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                      : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
                   }`}
                   title="Mobile Viewport (375px)"
                 >
@@ -1097,15 +1097,15 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               </div>
 
               {/* Edit vs Preview Mode */}
-              <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-lg">
+              <div className="flex items-center gap-1 p-1 bg-black/[0.05] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.08] rounded-[11px]">
                 <button
                   type="button"
                   disabled={!canEdit}
                   onClick={() => setMode('edit')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-[8px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1 cursor-pointer ${
                     mode === 'edit'
-                      ? 'bg-white text-blue-600 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 disabled:opacity-40'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                      : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white disabled:opacity-40'
                   }`}
                 >
                   <Edit3 size={13} />
@@ -1119,10 +1119,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                     setSelectedSectionId(null);
                     setSelectedBlockId(null);
                   }}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-[8px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1 cursor-pointer ${
                     mode === 'preview'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                      : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
                   }`}
                 >
                   <Eye size={13} />
@@ -1136,12 +1136,12 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             <button
               type="button"
               onClick={() => setShowVersionHistory(true)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-200 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+              className="apple-secondary-btn px-3 py-1.5 rounded-[11px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer"
               title="Page Version History & Snapshots"
             >
-              <History size={14} className="text-blue-600" />
+              <History size={14} className="text-[#4e45e1] dark:text-[#6B63F2]" />
               <span>History</span>
-              <span className="px-1.5 py-0.2 rounded bg-slate-100 text-[10px] font-mono text-slate-600">
+              <span className="px-1.5 py-0.2 rounded-md bg-black/[0.06] dark:bg-white/[0.08] text-[10px] font-mono text-[#86868B]">
                 {draftPage?.versions?.length || activePage.versions?.length || 0}
               </span>
             </button>
@@ -1152,10 +1152,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               type="button"
               onClick={handleSaveCurrentPage}
               disabled={isSaving || !hasUnsavedChanges}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-[11px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                 hasUnsavedChanges
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-white border border-slate-200 text-slate-400'
+                  ? 'apple-pill-btn'
+                  : 'apple-secondary-btn text-[#86868B] opacity-70'
               }`}
             >
               <Check size={14} />
@@ -1172,7 +1172,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 }
                 onOpenFullEditor(activePage.id);
               }}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+              className="apple-pill-btn px-3.5 py-1.5 rounded-[11px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer"
               title="Open in Full Studio Editor"
             >
               <Maximize2 size={13} />
@@ -1186,18 +1186,18 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
       <div className="flex-1 flex min-h-0">
         {/* Left Sitemap & Page Hierarchy Navigator */}
         {showLeftSitemap && (
-          <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
-            <div className="p-3.5 border-b border-slate-100 space-y-2.5">
+          <aside className="w-72 border-r border-black/[0.06] dark:border-white/[0.08] bg-white/55 dark:bg-[#141416]/55 backdrop-blur-xl flex flex-col shrink-0">
+            <div className="p-3.5 border-b border-black/[0.06] dark:border-white/[0.08] space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FolderTree size={16} className="text-blue-600" />
-                  <h3 className="text-xs font-bold text-slate-900">Site Sitemap & Hierarchy</h3>
+                  <FolderTree size={16} className="text-[#4e45e1] dark:text-[#6B63F2]" />
+                  <h3 className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">Site Sitemap & Hierarchy</h3>
                 </div>
                 {canEdit && (
                   <button
                     type="button"
                     onClick={() => onCreatePage()}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    className="text-xs font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:opacity-80 flex items-center gap-1 cursor-pointer"
                   >
                     <Plus size={13} />
                     <span>New Page</span>
@@ -1209,19 +1209,19 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               <div className="relative">
                 <Search
                   size={13}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#86868B] dark:text-[#98989D]"
                 />
                 <input
                   type="text"
                   value={sitemapSearch}
                   onChange={e => setSitemapSearch(e.target.value)}
                   placeholder="Filter sitemap routes..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 outline-none transition-colors"
+                  className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#515154] dark:text-[#E5E5EA] placeholder:text-[#86868B] dark:text-[#98989D] focus:bg-white focus:border-[#4e45e1] dark:border-[#6B63F2] outline-none transition-colors"
                 />
               </div>
 
               {/* Status Filter */}
-              <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-100 rounded-lg text-[11px] font-semibold">
+              <div className="grid grid-cols-3 gap-1 p-0.5 bg-black/[0.04] dark:bg-white/[0.06] rounded-lg text-[11px] font-semibold">
                 {(['all', 'published', 'draft'] as const).map(st => (
                   <button
                     key={st}
@@ -1229,8 +1229,8 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                     onClick={() => setSitemapStatusFilter(st)}
                     className={`py-1 rounded-md capitalize transition-colors ${
                       sitemapStatusFilter === st
-                        ? 'bg-white text-slate-900 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white text-[#1D1D1F] dark:text-[#F5F5F7] shadow-2xs'
+                        : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:text-[#F5F5F7]'
                     }`}
                   >
                     {st}
@@ -1243,7 +1243,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
               {sitemapTree.length === 0 ? (
                 <div className="py-12 px-4 text-center">
-                  <p className="text-xs text-slate-400">No pages match your sitemap filter.</p>
+                  <p className="text-xs text-[#86868B] dark:text-[#98989D]">No pages match your sitemap filter.</p>
                 </div>
               ) : (
                 sitemapTree.map(node => renderSitemapTreeNode(node))
@@ -1251,18 +1251,18 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             </div>
 
             {/* Sitemap Footer Actions */}
-            <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
+            <div className="p-3 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.03] dark:bg-white/[0.04]/50 space-y-2">
               {canEdit && draftPage && !draftPage.isCustomSite && (
                 <button
                   type="button"
                   onClick={() => handleAddSection('sitemap')}
-                  className="w-full py-2 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full py-2 px-3 rounded-lg bg-[#4e45e1]/12 hover:bg-blue-100 text-[#4e45e1] dark:text-[#8179FF] text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Plus size={14} />
                   <span>Insert Sitemap Block on Page</span>
                 </button>
               )}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+              <div className="flex items-center justify-between text-[11px] text-[#86868B] dark:text-[#98989D] px-1">
                 <span className="tabular-nums">
                   {pages.filter(p => p.status === 'published').length} live ·{' '}
                   {pages.filter(p => p.status === 'draft').length} draft
@@ -1270,7 +1270,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyXmlSitemap}
-                  className="font-semibold text-slate-700 hover:text-blue-600 transition-colors"
+                  className="font-semibold text-[#515154] dark:text-[#E5E5EA] hover:text-[#4e45e1] dark:text-[#6B63F2] transition-colors"
                 >
                   Copy XML
                 </button>
@@ -1281,14 +1281,14 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
 
         {/* Center Viewport: Either Interactive Sitemap Architecture Map OR Visual Page Canvas */}
         {workspaceLayout === 'sitemap-map' ? (
-          <div className="flex-1 bg-slate-50 p-6 overflow-y-auto">
+          <div className="flex-1 bg-black/[0.03] dark:bg-white/[0.04] p-6 overflow-y-auto">
             <div className="max-w-5xl mx-auto space-y-6">
-              <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
+              <div className="bg-white rounded-xl border border-black/[0.07] dark:border-white/[0.08] p-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">
+                  <h2 className="text-lg font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
                     Visual Sitemap & Architecture Navigator
                   </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-0.5">
                     Click any page node to preview or visually edit it, inspect route hierarchy, or manage URL redirects.
                   </p>
                 </div>
@@ -1296,7 +1296,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                   <button
                     type="button"
                     onClick={handleCopyXmlSitemap}
-                    className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors flex items-center gap-1.5"
+                    className="px-3.5 py-2 rounded-lg border border-black/[0.07] dark:border-white/[0.08] bg-white hover:bg-black/[0.03] dark:bg-white/[0.04] text-xs font-semibold text-[#515154] dark:text-[#E5E5EA] transition-colors flex items-center gap-1.5"
                   >
                     <Copy size={14} />
                     <span>Copy sitemap.xml</span>
@@ -1305,7 +1305,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                     <button
                       type="button"
                       onClick={() => onCreatePage()}
-                      className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-lg bg-[#4e45e1] dark:bg-[#6B63F2] hover:bg-[#4139BF] dark:hover:bg-[#5850EB] text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
                     >
                       <Plus size={14} />
                       <span>Add Page to Sitemap</span>
@@ -1319,7 +1319,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 {sitemapTree.map(rootNode => (
                   <div
                     key={rootNode.page.id}
-                    className="bg-white rounded-xl border border-slate-200 p-5 space-y-4"
+                    className="bg-white rounded-xl border border-black/[0.07] dark:border-white/[0.08] p-5 space-y-4"
                   >
                     {/* Root / Primary Node */}
                     <div
@@ -1329,12 +1329,12 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                       }}
                       className={`p-4 rounded-xl border transition-colors cursor-pointer flex flex-wrap items-center justify-between gap-4 ${
                         activePage?.id === rootNode.page.id
-                          ? 'border-blue-600 bg-blue-50/30'
-                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/40'
+                          ? 'border-[#4e45e1] dark:border-[#6B63F2] bg-[#4e45e1]/12/30'
+                          : 'border-black/[0.07] dark:border-white/[0.08] hover:border-slate-300 bg-black/[0.03] dark:bg-white/[0.04]/40'
                       }`}
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-[#4e45e1] dark:bg-[#6B63F2] text-white flex items-center justify-center shrink-0">
                           {rootNode.page.slug === 'home' ? (
                             <Home size={18} />
                           ) : (
@@ -1343,10 +1343,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-bold text-slate-900 truncate">
+                            <h3 className="text-sm font-bold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">
                               {rootNode.page.title}
                             </h3>
-                            <span className="text-xs text-slate-400">·</span>
+                            <span className="text-xs text-[#86868B] dark:text-[#98989D]">·</span>
                             <span
                               className={`text-xs font-semibold ${
                                 rootNode.page.status === 'published'
@@ -1357,7 +1357,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                               {rootNode.page.status === 'published' ? 'Published' : 'Draft'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 font-mono">
+                          <div className="flex items-center gap-2 text-xs text-[#86868B] dark:text-[#98989D] mt-0.5 font-mono">
                             <span>/{rootNode.page.slug}</span>
                             <span aria-hidden="true">·</span>
                             <span className="font-sans tabular-nums">
@@ -1383,7 +1383,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                             setMode('preview');
                             setWorkspaceLayout('split');
                           }}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-lg border border-black/[0.07] dark:border-white/[0.08] bg-white hover:bg-black/[0.03] dark:bg-white/[0.04] text-xs font-semibold text-[#515154] dark:text-[#E5E5EA] transition-colors flex items-center gap-1"
                         >
                           <Eye size={13} />
                           <span>Preview</span>
@@ -1405,7 +1405,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
 
                     {/* Child Routes in Sitemap */}
                     {rootNode.children.length > 0 && (
-                      <div className="pl-6 border-l-2 border-slate-200 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="pl-6 border-l-2 border-black/[0.07] dark:border-white/[0.08] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {rootNode.children.map(child => (
                           <div
                             key={child.page.id}
@@ -1415,13 +1415,13 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                             }}
                             className={`p-3.5 rounded-xl border transition-colors cursor-pointer flex flex-col justify-between gap-3 ${
                               activePage?.id === child.page.id
-                                ? 'border-blue-600 bg-blue-50/30'
-                                : 'border-slate-200 hover:border-blue-300 bg-white'
+                                ? 'border-[#4e45e1] dark:border-[#6B63F2] bg-[#4e45e1]/12/30'
+                                : 'border-black/[0.07] dark:border-white/[0.08] hover:border-blue-300 bg-white'
                             }`}
                           >
                             <div>
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-bold text-slate-900 truncate">
+                                <span className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">
                                   {child.page.title}
                                 </span>
                                 <span
@@ -1434,16 +1434,16 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                                   {child.page.status === 'published' ? 'Live' : 'Draft'}
                                 </span>
                               </div>
-                              <p className="text-xs font-mono text-slate-500 mt-0.5 truncate">
+                              <p className="text-xs font-mono text-[#86868B] dark:text-[#98989D] mt-0.5 truncate">
                                 /{child.page.slug}
                               </p>
                             </div>
 
-                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                            <div className="flex items-center justify-between pt-2 border-t border-black/[0.05] dark:border-white/[0.06] text-[11px] text-[#86868B] dark:text-[#98989D]">
                               <span className="tabular-nums">
                                 {child.page.layoutJSON?.sections?.length || 0} sections
                               </span>
-                              <span className="font-semibold text-blue-600 flex items-center gap-0.5">
+                              <span className="font-semibold text-[#4e45e1] dark:text-[#6B63F2] flex items-center gap-0.5">
                                 Open in Experience Manager <ChevronRight size={12} />
                               </span>
                             </div>
@@ -1464,23 +1464,23 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               setSelectedSectionId(null);
               setSelectedBlockId(null);
             }}
-            className="flex-1 bg-slate-100/80 p-4 sm:p-6 overflow-y-auto flex flex-col items-center"
+            className="flex-1 bg-black/[0.04] dark:bg-white/[0.06]/80 p-4 sm:p-6 overflow-y-auto flex flex-col items-center"
           >
             {!draftPage ? (
               <div
                 onClick={e => e.stopPropagation()}
-                className="my-auto text-center p-12 bg-white rounded-2xl border border-slate-200 max-w-md"
+                className="my-auto text-center p-12 bg-white rounded-2xl border border-black/[0.07] dark:border-white/[0.08] max-w-md"
               >
                 <FileText size={36} className="text-slate-300 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-slate-800 mb-1">No Page Selected</h3>
-                <p className="text-xs text-slate-500 mb-4">
+                <h3 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">No Page Selected</h3>
+                <p className="text-xs text-[#86868B] dark:text-[#98989D] mb-4">
                   Select a page from the Sitemap on the left or create a new page to start designing visually.
                 </p>
                 {canEdit && (
                   <button
                     type="button"
                     onClick={() => onCreatePage()}
-                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-[#4e45e1] dark:bg-[#6B63F2] text-white text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-colors"
                   >
                     Create First Page
                   </button>
@@ -1489,7 +1489,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
             ) : (
               <div
                 onClick={e => e.stopPropagation()}
-                className={`${viewportWidthClass} w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-200`}
+                className={`${viewportWidthClass} w-full bg-white rounded-xl border border-black/[0.07] dark:border-white/[0.08] shadow-sm overflow-hidden transition-all duration-200`}
                 style={{
                   backgroundColor: globalStyles.backgroundColor,
                   color: globalStyles.textColor,
@@ -1517,7 +1517,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                       <button
                         type="button"
                         onClick={() => handleAddSection('sitemap')}
-                        className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors flex items-center gap-1"
+                        className="px-2.5 py-1 rounded bg-[#4e45e1] dark:bg-[#6B63F2] hover:bg-[#4e45e1]/120 text-white font-semibold transition-colors flex items-center gap-1"
                       >
                         <FolderTree size={12} />
                         <span>Add Sitemap Section</span>
@@ -1530,7 +1530,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 {draftPage.isCustomSite ? (
                   <div className="p-6">
                     {mode === 'edit' && canEdit && (
-                      <div className="mb-4 p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                      <div className="mb-4 p-3 rounded-lg bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] flex items-center justify-between text-xs text-[#515154] dark:text-[#98989D]">
                         <div className="flex items-center gap-2">
                           <Code size={15} className="text-purple-600" />
                           <span>Custom HTML/CSS Page — Open Full Studio to edit raw code</span>
@@ -1550,10 +1550,10 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                 ) : (draftPage.layoutJSON?.sections || []).length === 0 ? (
                   <div className="py-24 px-6 text-center">
                     <Layout size={40} className="text-slate-300 mx-auto mb-3" />
-                    <h3 className="text-base font-bold text-slate-800 mb-1">
+                    <h3 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">
                       This page has no sections yet
                     </h3>
-                    <p className="text-xs text-slate-500 mb-6 max-w-sm mx-auto">
+                    <p className="text-xs text-[#86868B] dark:text-[#98989D] mb-6 max-w-sm mx-auto">
                       Add a content section, a two-column layout, or an interactive Sitemap section to start building this page visually.
                     </p>
                     {canEdit && (
@@ -1561,7 +1561,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => handleAddSection('content')}
-                          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-lg bg-[#4e45e1] dark:bg-[#6B63F2] text-white text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-colors flex items-center gap-1.5"
                         >
                           <Plus size={14} />
                           <span>Add Content Section</span>
@@ -1569,14 +1569,14 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => handleAddSection('two-column')}
-                          className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                          className="px-4 py-2 rounded-lg border border-black/[0.07] dark:border-white/[0.08] bg-white text-[#515154] dark:text-[#E5E5EA] text-xs font-semibold hover:bg-black/[0.03] dark:bg-white/[0.04] transition-colors"
                         >
                           Add 2-Column Section
                         </button>
                         <button
                           type="button"
                           onClick={() => handleAddSection('sitemap')}
-                          className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-lg border border-black/[0.07] dark:border-white/[0.08] bg-white text-[#515154] dark:text-[#E5E5EA] text-xs font-semibold hover:bg-black/[0.03] dark:bg-white/[0.04] transition-colors flex items-center gap-1.5"
                         >
                           <FolderTree size={14} />
                           <span>Add Sitemap Section</span>
@@ -1738,22 +1738,22 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                                         }}
                                         className={`relative group/exp-blk cursor-pointer ${
                                           isDraggingThis
-                                            ? 'opacity-40 ring-2 ring-dashed ring-blue-500 rounded-lg'
+                                            ? 'opacity-40 ring-2 ring-dashed ring-[#4e45e1] rounded-lg'
                                             : mode === 'edit' && canEdit
                                               ? isBlockSelected
-                                                ? 'rounded-lg ring-2 ring-blue-600 bg-blue-50/10 p-1 -m-1 transition-all'
+                                                ? 'rounded-lg ring-2 ring-blue-600 bg-[#4e45e1]/12/10 p-1 -m-1 transition-all'
                                                 : 'rounded-lg hover:ring-1 hover:ring-blue-400/60 p-1 -m-1 transition-all'
                                               : ''
                                         }`}
                                       >
                                         {showBefore && (
-                                          <div className="h-1 bg-blue-600 rounded-full mb-2 shadow-sm" />
+                                          <div className="h-1 bg-[#4e45e1] dark:bg-[#6B63F2] rounded-full mb-2 shadow-sm" />
                                         )}
                                         {mode === 'edit' && canEdit && (
                                           <div
-                                            className={`absolute -top-2.5 right-1 z-10 transition-opacity flex items-center gap-1 bg-white border border-slate-200 shadow-xs rounded px-1.5 py-0.5 text-[10px] text-slate-500 ${
+                                            className={`absolute -top-2.5 right-1 z-10 transition-opacity flex items-center gap-1 bg-white border border-black/[0.07] dark:border-white/[0.08] shadow-xs rounded px-1.5 py-0.5 text-[10px] text-[#86868B] dark:text-[#98989D] ${
                                               isBlockSelected
-                                                ? 'opacity-100 border-blue-300 text-blue-700'
+                                                ? 'opacity-100 border-blue-300 text-[#4e45e1] dark:text-[#8179FF]'
                                                 : 'opacity-0 group-hover/exp-blk:opacity-100'
                                             }`}
                                           >
@@ -1769,7 +1769,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                                                 setDraggedExpBlockId(null);
                                                 setExpDropTarget(null);
                                               }}
-                                              className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-blue-600 p-0.5"
+                                              className="cursor-grab active:cursor-grabbing text-[#86868B] dark:text-[#98989D] hover:text-[#4e45e1] dark:text-[#6B63F2] p-0.5"
                                               title="Drag to reorder block"
                                             >
                                               <GripVertical size={11} />
@@ -1787,7 +1787,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                                                   block.id
                                                 );
                                               }}
-                                              className="text-slate-400 hover:text-red-600 ml-1"
+                                              className="text-[#86868B] dark:text-[#98989D] hover:text-red-600 ml-1"
                                               title="Remove Block"
                                             >
                                               <Trash2 size={11} />
@@ -1817,7 +1817,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                                           }
                                         />
                                         {showAfter && (
-                                          <div className="h-1 bg-blue-600 rounded-full mt-2 shadow-sm" />
+                                          <div className="h-1 bg-[#4e45e1] dark:bg-[#6B63F2] rounded-full mt-2 shadow-sm" />
                                         )}
                                       </div>
                                     );
@@ -1830,9 +1830,9 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                             {mode === 'edit' && canEdit && isSectionSelected && (
                               <div
                                 onClick={e => e.stopPropagation()}
-                                className="mt-6 pt-4 border-t border-dashed border-slate-200 flex flex-wrap items-center justify-between gap-2"
+                                className="mt-6 pt-4 border-t border-dashed border-black/[0.07] dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2"
                               >
-                                <span className="text-xs font-semibold text-slate-500">
+                                <span className="text-xs font-semibold text-[#86868B] dark:text-[#98989D]">
                                   Insert block into section:
                                 </span>
                                 <div className="flex flex-wrap items-center gap-1.5">
@@ -1852,7 +1852,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                                       onClick={() =>
                                         handleAddBlockToSection(section.id, item.type)
                                       }
-                                      className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors"
+                                      className="px-2.5 py-1 rounded-md border border-black/[0.07] dark:border-white/[0.08] bg-white hover:bg-black/[0.03] dark:bg-white/[0.04] text-xs font-semibold text-[#515154] dark:text-[#E5E5EA] transition-colors"
                                     >
                                       {item.label}
                                     </button>
@@ -1876,11 +1876,11 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
           (selectedSectionId || selectedBlockId) &&
           workspaceLayout !== 'sitemap-map' &&
           draftPage && (
-            <aside className="w-80 border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-y-auto animate-in slide-in-from-right-4 duration-200">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-2">
+            <aside className="w-80 border-l border-black/[0.07] dark:border-white/[0.08] bg-white flex flex-col shrink-0 overflow-y-auto animate-in slide-in-from-right-4 duration-200">
+              <div className="p-4 border-b border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <Sliders size={15} className="text-blue-600 shrink-0" />
-                  <h3 className="text-xs font-bold text-slate-900 truncate">
+                  <Sliders size={15} className="text-[#4e45e1] dark:text-[#6B63F2] shrink-0" />
+                  <h3 className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">
                     {selectedBlockContext
                       ? `${selectedBlockContext.block.type.toUpperCase()} Component`
                       : 'Section Inspector'}
@@ -1906,7 +1906,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                       setSelectedSectionId(null);
                       setSelectedBlockId(null);
                     }}
-                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="p-1 rounded-lg text-[#86868B] dark:text-[#98989D] hover:text-[#515154] dark:text-[#E5E5EA] hover:bg-black/[0.04] dark:bg-white/[0.06] transition-colors"
                     title="Close Inspector"
                   >
                     <X size={15} />
@@ -1917,9 +1917,9 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
               <div className="p-4 space-y-6 flex-1">
                 {/* Selected Component (Block) Inspector */}
                 {selectedBlockContext && (
-                  <div className="space-y-3 pb-4 border-b border-slate-100">
+                  <div className="space-y-3 pb-4 border-b border-black/[0.05] dark:border-white/[0.06]">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-800 capitalize">
+                      <h4 className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] capitalize">
                         Selected {selectedBlockContext.block.type} Settings
                       </h4>
                       {canEdit && (
@@ -1941,7 +1941,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
 
                     {/* Text Alignment */}
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500">
+                      <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">
                         Alignment
                       </label>
                       <div className="grid grid-cols-3 gap-1.5">
@@ -1965,8 +1965,8 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                             }
                             className={`py-1.5 rounded-lg border text-xs font-semibold capitalize transition-colors ${
                               (selectedBlockContext.block.styles?.textAlign || 'left') === align
-                                ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                                ? 'border-[#4e45e1] dark:border-[#6B63F2] bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#8179FF]'
+                                : 'border-black/[0.07] dark:border-white/[0.08] text-[#515154] dark:text-[#98989D] hover:bg-black/[0.03] dark:bg-white/[0.04]'
                             }`}
                           >
                             {align}
@@ -1980,7 +1980,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                       selectedBlockContext.block.type === 'image' ||
                       selectedBlockContext.block.type === 'video') && (
                       <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-500">
+                        <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">
                           {selectedBlockContext.block.type === 'button'
                             ? 'Button Label'
                             : 'Media Source URL'}
@@ -2001,7 +2001,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                               { content: e.target.value }
                             )
                           }
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-blue-500 outline-none"
+                          className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white focus:border-[#4e45e1] dark:border-[#6B63F2] outline-none"
                         />
                       </div>
                     )}
@@ -2010,16 +2010,16 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
 
                 {/* Selected Section Styling */}
                 {selectedSection && !draftPage.isCustomSite && (
-                  <div className="space-y-3 pb-4 border-b border-slate-100">
+                  <div className="space-y-3 pb-4 border-b border-black/[0.05] dark:border-white/[0.06]">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-800">Selected Section Styling</h4>
-                      <span className="text-[11px] font-mono text-slate-400">
+                      <h4 className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">Selected Section Styling</h4>
+                      <span className="text-[11px] font-mono text-[#86868B] dark:text-[#98989D]">
                         {selectedSection.columns.length} col(s)
                       </span>
                     </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-slate-500">
+                    <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">
                       Background Surface
                     </label>
                     <div className="flex items-center gap-2">
@@ -2043,7 +2043,7 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                           style={{ backgroundColor: swatch.color }}
                           className={`w-6 h-6 rounded-md border ${
                             selectedSection.styles?.backgroundColor === swatch.color
-                              ? 'ring-2 ring-blue-600 border-blue-600'
+                              ? 'ring-2 ring-blue-600 border-[#4e45e1] dark:border-[#6B63F2]'
                               : 'border-slate-300'
                           }`}
                           title={swatch.label}
@@ -2058,14 +2058,14 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                             backgroundColor: e.target.value,
                           })
                         }
-                        className="w-6 h-6 rounded cursor-pointer border border-slate-200"
+                        className="w-6 h-6 rounded cursor-pointer border border-black/[0.07] dark:border-white/[0.08]"
                         title="Custom Background Color"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-slate-500">
+                    <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">
                       Vertical Spacing
                     </label>
                     <div className="grid grid-cols-3 gap-1.5">
@@ -2085,8 +2085,8 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                           }
                           className={`py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                             (selectedSection.styles?.padding || '4rem 0') === pad.value
-                              ? 'border-blue-600 bg-blue-50 text-blue-700'
-                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                              ? 'border-[#4e45e1] dark:border-[#6B63F2] bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#8179FF]'
+                              : 'border-black/[0.07] dark:border-white/[0.08] text-[#515154] dark:text-[#98989D] hover:bg-black/[0.03] dark:bg-white/[0.04]'
                           }`}
                         >
                           {pad.label}
@@ -2099,9 +2099,9 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
 
               {/* Page Route & Identity */}
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-800">Page Identity & Sitemap Path</h4>
+                <h4 className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">Page Identity & Sitemap Path</h4>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500">Page Title</label>
+                  <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">Page Title</label>
                   <input
                     type="text"
                     disabled={!canEdit}
@@ -2109,15 +2109,15 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                     onChange={e =>
                       updateDraftPage(prev => ({ ...prev, title: e.target.value }))
                     }
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-blue-500 outline-none"
+                    className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white focus:border-[#4e45e1] dark:border-[#6B63F2] outline-none"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500">
+                  <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">
                     URL Slug (Use &quot;/&quot; for nested sitemap paths)
                   </label>
-                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono">
-                    <span className="text-slate-400">/</span>
+                  <div className="flex items-center bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs font-mono">
+                    <span className="text-[#86868B] dark:text-[#98989D]">/</span>
                     <input
                       type="text"
                       disabled={!canEdit}
@@ -2128,17 +2128,17 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                           slug: e.target.value.replace(/^\/+/, ''),
                         }))
                       }
-                      className="w-full bg-transparent text-slate-800 outline-none"
+                      className="w-full bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] outline-none"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Quick SEO Metadata */}
-              <div className="pt-4 border-t border-slate-100 space-y-3">
-                <h4 className="text-xs font-bold text-slate-800">SEO & Search Snippet</h4>
+              <div className="pt-4 border-t border-black/[0.05] dark:border-white/[0.06] space-y-3">
+                <h4 className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">SEO & Search Snippet</h4>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500">Meta Title</label>
+                  <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">Meta Title</label>
                   <input
                     type="text"
                     disabled={!canEdit}
@@ -2150,11 +2150,11 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                         seo: { ...prev.seo, metaTitle: e.target.value },
                       }))
                     }
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-blue-500 outline-none"
+                    className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white focus:border-[#4e45e1] dark:border-[#6B63F2] outline-none"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500">
+                  <label className="text-[11px] font-semibold text-[#86868B] dark:text-[#98989D]">
                     Meta Description
                   </label>
                   <textarea
@@ -2168,14 +2168,14 @@ export const ExperienceManager: React.FC<ExperienceManagerProps> = ({
                         seo: { ...prev.seo, metaDescription: e.target.value },
                       }))
                     }
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-blue-500 outline-none resize-none"
+                    className="w-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white focus:border-[#4e45e1] dark:border-[#6B63F2] outline-none resize-none"
                   />
                 </div>
               </div>
             </div>
 
             {/* Bottom Inspector Actions */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-2">
+            <div className="p-4 border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.03] dark:bg-white/[0.04]/50 flex items-center justify-between gap-2">
               {canEdit && (
                 <button
                   type="button"

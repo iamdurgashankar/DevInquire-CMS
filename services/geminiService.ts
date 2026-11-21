@@ -119,7 +119,8 @@ export const createLiveAudioSession = (callbacks: {
   onClose?: () => void;
 }) => {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const socketUrl = `${protocol}//${window.location.host}/live`;
+  const basePath = ((import.meta as any).env?.BASE_URL || '/cms/').replace(/\/+$/, '') || '/cms';
+  const socketUrl = `${protocol}//${window.location.host}${basePath}/live`;
   const ws = new WebSocket(socketUrl);
 
   ws.onmessage = (event) => {

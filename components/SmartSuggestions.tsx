@@ -74,13 +74,13 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ pages, onAction }) 
     return (
       <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2.5 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] rounded-xl">
+          <div className="p-2.5 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] rounded-xl">
             <Sparkles size={20} className="animate-pulse" />
           </div>
           <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">AI Growth Suggestions</h2>
         </div>
         <div className="flex flex-col items-center justify-center py-10 text-center">
-          <Loader2 className="w-9 h-9 text-[#007AFF] dark:text-[#0A84FF] animate-spin mb-4" />
+          <Loader2 className="w-9 h-9 text-[#4e45e1] dark:text-[#6B63F2] animate-spin mb-4" />
           <p className="text-[#86868B] dark:text-[#98989D] text-sm font-medium">Analyzing your site structure...</p>
         </div>
       </div>
@@ -91,7 +91,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ pages, onAction }) 
      return (
       <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
         <div className="flex items-center gap-2.5 mb-4">
-          <Sparkles size={20} className="text-[#007AFF] dark:text-[#0A84FF]" />
+          <Sparkles size={20} className="text-[#4e45e1] dark:text-[#6B63F2]" />
           <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">AI Growth Suggestions</h2>
         </div>
         <div className="p-4 bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-[#FF3B30] dark:text-[#FF453A] rounded-2xl text-sm">
@@ -111,14 +111,14 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ pages, onAction }) 
     <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3.5">
-          <div className="p-2.5 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] rounded-2xl">
+          <div className="p-2.5 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] rounded-2xl">
             <Sparkles size={21} />
           </div>
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">AI Growth Strategy</h2>
-              <span className="px-2.5 py-0.5 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] text-[10px] font-semibold uppercase tracking-wider rounded-full flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-[#007AFF] dark:bg-[#0A84FF] rounded-full animate-ping" />
+              <span className="px-2.5 py-0.5 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] text-[10px] font-semibold uppercase tracking-wider rounded-full flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-[#4e45e1] dark:bg-[#6B63F2] rounded-full animate-ping" />
                 Live Feed
               </span>
             </div>
@@ -128,7 +128,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ pages, onAction }) 
         <div className="flex items-center gap-1.5">
           <button 
             onClick={() => setIsAutoPlaying(!isAutoPlaying)}
-            className="p-2 hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] rounded-full transition-colors text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] cursor-pointer"
+            className="p-2 hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] rounded-full transition-colors text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] cursor-pointer"
             title={isAutoPlaying ? "Pause Auto-play" : "Start Auto-play"}
           >
             {isAutoPlaying ? <Pause size={17} /> : <Play size={17} />}
@@ -136,7 +136,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ pages, onAction }) 
           <button 
             onClick={fetchSuggestions}
             disabled={isLoading}
-            className="p-2 hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] rounded-full transition-colors text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] disabled:opacity-50 cursor-pointer"
+            className="p-2 hover:bg-[#F5F5F7] dark:hover:bg-[#1C1C1E] rounded-full transition-colors text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] disabled:opacity-50 cursor-pointer"
             title="Refresh suggestions"
           >
             {isLoading ? <Loader2 className="animate-spin" size={17} /> : <Zap size={17} />}
@@ -144,146 +144,96 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ pages, onAction }) 
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 h-[500px] md:h-[340px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
         {suggestions.map((suggestion, index) => {
           const isActive = index === activeIndex;
-          const activeBg = isDark ? 'rgb(28, 28, 30)' : 'rgb(245, 245, 247)';
-          const inactiveBg = isDark ? 'rgb(44, 44, 46)' : 'rgb(255, 255, 255)';
-          const activeBorder = isDark ? 'rgba(10, 132, 255, 0.35)' : 'rgba(0, 122, 255, 0.25)';
-          const inactiveBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-          
+
           return (
-            <motion.div 
+            <div
               key={index}
-              layout
-              initial={false}
-              animate={{ 
-                flex: isActive ? 6 : 1,
-                backgroundColor: isActive ? activeBg : inactiveBg,
-                borderColor: isActive ? activeBorder : inactiveBorder
-              }}
               onClick={() => {
                 setActiveIndex(index);
                 setIsAutoPlaying(false);
               }}
-              className={`group relative flex flex-col p-6 rounded-[24px] border transition-all duration-500 cursor-pointer overflow-hidden ${
-                isActive ? 'shadow-xs' : 'hover:bg-[#F5F5F7]/60 dark:hover:bg-[#1C1C1E]/60'
+              className={`group relative flex flex-col p-6 rounded-[22px] border transition-all duration-300 cursor-pointer overflow-hidden ${
+                isActive
+                  ? 'bg-[#F5F5F7] dark:bg-[#1C1C1E] border-[#4e45e1]/40 dark:border-[#6B63F2]/45 shadow-sm'
+                  : 'apple-subcard border-black/[0.06] dark:border-white/[0.08] hover:border-[#4e45e1]/25'
               }`}
             >
-              {/* Progress Bar (Only for active item) */}
+              {/* Progress Bar (Only for active item during auto-play) */}
               {isActive && isAutoPlaying && (
                 <div className="absolute top-0 left-0 w-full h-1 bg-black/[0.05] dark:bg-white/[0.08]">
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: '100%' }}
-                    transition={{ duration: 5, ease: "linear" }}
-                    className="h-full bg-[#007AFF] dark:bg-[#0A84FF]"
+                    transition={{ duration: 5, ease: 'linear' }}
+                    className="h-full bg-[#4e45e1] dark:bg-[#6B63F2]"
                   />
                 </div>
               )}
 
-              <div className="flex items-start justify-between min-w-[200px]">
-                <motion.div 
-                  layout="position"
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+              <div className="flex items-start justify-between gap-3">
+                <div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300 shrink-0 ${
                     isActive
-                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] scale-105 shadow-xs border border-black/[0.06] dark:border-white/[0.08]'
-                      : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'
+                      ? 'bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white shadow-sm shadow-[#4e45e1]/25'
+                      : 'bg-white dark:bg-[#2C2C2E] text-[#86868B] border border-black/[0.06] dark:border-white/[0.08]'
                   }`}
                 >
-                  {iconMap[suggestion.icon] || <Sparkles size={20} />}
-                </motion.div>
-                
-                {isActive && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                  {iconMap[suggestion.icon] || <Sparkles size={19} />}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onAction) onAction(suggestion);
+                  }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                    isActive
+                      ? 'bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white shadow-sm shadow-[#4e45e1]/25 hover:opacity-90'
+                      : 'bg-black/[0.05] dark:bg-white/[0.08] text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2]'
+                  }`}
+                  title={suggestion.action}
+                >
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+
+              <div className="mt-5 flex-1 flex flex-col">
+                <div
+                  className={`inline-flex w-fit px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full mb-2.5 ${
+                    isActive
+                      ? 'bg-[#4e45e1]/12 dark:bg-[#6B63F2]/18 text-[#4e45e1] dark:text-[#6B63F2]'
+                      : 'bg-black/[0.05] dark:bg-white/[0.08] text-[#86868B]'
+                  }`}
+                >
+                  {suggestion.type}
+                </div>
+                <h3 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 leading-snug">
+                  {suggestion.title}
+                </h3>
+                <p className="text-[13px] text-[#86868B] dark:text-[#98989D] mb-5 leading-relaxed flex-1">
+                  {suggestion.description}
+                </p>
+
+                <div className="mt-auto pt-3.5 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-[#86868B] font-semibold uppercase tracking-wider">
+                    Action
+                  </span>
+                  <span
                     onClick={(e) => {
                       e.stopPropagation();
                       if (onAction) onAction(suggestion);
                     }}
-                    className="w-10 h-10 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-full flex items-center justify-center shadow-md shadow-[#007AFF]/25 hover:bg-[#0071E3] transition-colors cursor-pointer"
+                    className="text-xs font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline"
                   >
-                    <ArrowRight size={18} />
-                  </motion.button>
-                )}
+                    {suggestion.action}
+                  </span>
+                </div>
               </div>
-
-              <div className="mt-6 flex-1 flex flex-col overflow-hidden">
-                <motion.div layout="position" className="whitespace-nowrap overflow-hidden">
-                  <div className={`inline-flex px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full mb-2 ${
-                    isActive
-                      ? 'bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF]'
-                      : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B]'
-                  }`}>
-                    {suggestion.type}
-                  </div>
-                  <h3 className={`text-lg font-semibold transition-all duration-500 ${
-                    isActive ? 'text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 whitespace-normal' : 'text-[#86868B] truncate'
-                  }`}>
-                    {suggestion.title}
-                  </h3>
-                </motion.div>
-                
-                <AnimatePresence mode="wait">
-                  {isActive && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 10 }}
-                      transition={{ duration: 0.4, delay: 0.2 }}
-                      className="flex flex-col flex-1"
-                    >
-                      <p className="text-[13px] text-[#86868B] dark:text-[#98989D] mb-6 leading-relaxed">
-                        {suggestion.description}
-                      </p>
-                      
-                      <div className="mt-auto pt-4 border-t border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-[#86868B] font-semibold uppercase tracking-widest mb-1">Recommended Action</span>
-                          <span className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF]">
-                            {suggestion.action}
-                          </span>
-                        </div>
-                        <div className="flex gap-1.5">
-                          {suggestions.map((_, i) => (
-                            <button 
-                              key={i} 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveIndex(i);
-                                setIsAutoPlaying(false);
-                              }}
-                              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                                i === activeIndex
-                                  ? 'w-6 bg-[#007AFF] dark:bg-[#0A84FF]'
-                                  : 'w-1.5 bg-black/15 dark:bg-white/20 hover:bg-black/30'
-                              }`} 
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                
-                {!isActive && (
-                   <div className="mt-auto pt-4 flex flex-col items-center">
-                     <span className="text-[10px] font-semibold text-[#86868B] uppercase tracking-[0.22em] [writing-mode:vertical-lr] rotate-180 hidden md:block">
-                       Expand
-                     </span>
-                     <span className="md:hidden text-[10px] font-semibold text-[#86868B] uppercase tracking-widest">
-                       Tap to view
-                     </span>
-                   </div>
-                )}
-              </div>
-
-              {/* Continue indicator for background items */}
-              {!isActive && isAutoPlaying && (
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-black/[0.04] dark:bg-white/[0.05]" />
-              )}
-            </motion.div>
+            </div>
           );
         })}
       </div>

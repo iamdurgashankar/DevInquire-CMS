@@ -11,51 +11,83 @@
   --color-apple-light-card: #FFFFFF;
   --color-apple-light-text: #1D1D1F;
   --color-apple-light-muted: #86868B;
-  --color-apple-blue: #007AFF;
+  --color-apple-blue: #4e45e1;
 
-  --color-apple-dark-bg: #1C1C1E;
-  --color-apple-dark-card: #2C2C2E;
-  --color-apple-dark-elevated: #3A3A3C;
+  --color-apple-dark-bg: #050507;
+  --color-apple-dark-card: #1C1C1E;
+  --color-apple-dark-elevated: #2C2C2E;
   --color-apple-dark-text: #F5F5F7;
   --color-apple-dark-muted: #98989D;
-  --color-apple-dark-blue: #0A84FF;
+  --color-apple-dark-blue: #6B63F2;
 }
 
 :root {
   --apple-bg: #F5F5F7;
+  --apple-bg-gradient-1: rgba(78, 69, 225, 0.08);
+  --apple-bg-gradient-2: rgba(107, 99, 242, 0.07);
+  --apple-bg-gradient-3: rgba(175, 82, 222, 0.05);
   --apple-surface: #FFFFFF;
+  --apple-surface-sidebar: rgba(246, 246, 248, 0.84);
+  --apple-surface-header: rgba(255, 255, 255, 0.78);
+  --apple-surface-card-top: rgba(255, 255, 255, 0.92);
+  --apple-surface-card-bottom: rgba(255, 255, 255, 0.82);
+  --apple-surface-subcard: rgba(0, 0, 0, 0.03);
+  --apple-surface-subcard-hover: rgba(0, 0, 0, 0.055);
   --apple-surface-secondary: #F5F5F7;
   --apple-surface-tertiary: #E5E5EA;
   --apple-text: #1D1D1F;
   --apple-text-secondary: #86868B;
-  --apple-accent: #007AFF;
-  --apple-accent-hover: #0066D6;
+  --apple-accent: #4e45e1;
+  --apple-accent-hover: #6B63F2;
+  --apple-blue: #4e45e1;
+  --apple-blue-hover: #6B63F2;
+  --apple-indigo: #4139BF;
   --apple-border: rgba(0, 0, 0, 0.08);
-  --apple-glass: rgba(255, 255, 255, 0.78);
-  --apple-shadow: 0 2px 14px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --apple-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --apple-border-strong: rgba(0, 0, 0, 0.14);
+  --apple-specular: rgba(255, 255, 255, 0.9);
+  --apple-glass: rgba(255, 255, 255, 0.82);
+  --apple-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.07), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --apple-shadow-lg: 0 18px 38px -12px rgba(0, 0, 0, 0.11), 0 4px 12px -2px rgba(0, 0, 0, 0.05);
   color-scheme: light;
 }
 
 .dark {
-  --apple-bg: #1C1C1E;
-  --apple-surface: #2C2C2E;
-  --apple-surface-secondary: #1C1C1E;
-  --apple-surface-tertiary: #3A3A3C;
+  --apple-bg: #050507;
+  --apple-bg-gradient-1: rgba(78, 69, 225, 0.16);
+  --apple-bg-gradient-2: rgba(107, 99, 242, 0.14);
+  --apple-bg-gradient-3: rgba(191, 90, 242, 0.09);
+  --apple-surface: #1C1C1E;
+  --apple-surface-sidebar: rgba(20, 20, 22, 0.75);
+  --apple-surface-header: rgba(18, 18, 20, 0.68);
+  --apple-surface-card-top: rgba(38, 38, 42, 0.72);
+  --apple-surface-card-bottom: rgba(26, 26, 29, 0.72);
+  --apple-surface-subcard: rgba(255, 255, 255, 0.045);
+  --apple-surface-subcard-hover: rgba(255, 255, 255, 0.08);
+  --apple-surface-secondary: #141416;
+  --apple-surface-tertiary: #2C2C2E;
   --apple-text: #F5F5F7;
-  --apple-text-secondary: #98989D;
-  --apple-accent: #0A84FF;
-  --apple-accent-hover: #409CFF;
-  --apple-border: rgba(255, 255, 255, 0.10);
-  --apple-glass: rgba(28, 28, 30, 0.80);
-  --apple-shadow: 0 4px 20px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --apple-shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --apple-text-secondary: rgba(235, 235, 245, 0.66);
+  --apple-accent: #6B63F2;
+  --apple-accent-hover: #8179FF;
+  --apple-blue: #6B63F2;
+  --apple-blue-hover: #8179FF;
+  --apple-indigo: #4e45e1;
+  --apple-border: rgba(255, 255, 255, 0.085);
+  --apple-border-strong: rgba(255, 255, 255, 0.16);
+  --apple-specular: rgba(255, 255, 255, 0.11);
+  --apple-glass: rgba(28, 28, 30, 0.72);
+  --apple-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.5);
+  --apple-shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
 
 body {
   font-family: var(--font-sans);
   background-color: var(--apple-bg);
+  background-image:
+    radial-gradient(at 0% 0%, var(--apple-bg-gradient-1) 0px, transparent 52%),
+    radial-gradient(at 100% 0%, var(--apple-bg-gradient-2) 0px, transparent 52%),
+    radial-gradient(at 50% 100%, var(--apple-bg-gradient-3) 0px, transparent 58%);
   color: var(--apple-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -76,22 +108,68 @@ h1, h2, h3, h4, .font-display {
 }
 
 .dark .builder-canvas {
-  background-color: #141416;
-  background-image: radial-gradient(rgba(245, 245, 247, 0.10) 1px, transparent 0);
+  background-color: #050507;
+  background-image: radial-gradient(rgba(107, 99, 242, 0.14) 1px, transparent 0);
 }
 
 /* Apple Vibrancy / Glass utilities */
 .apple-glass {
   background-color: var(--apple-glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(28px);
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+}
+
+.apple-glass-sidebar {
+  background: var(--apple-surface-sidebar);
+  backdrop-filter: saturate(190%) blur(40px);
+  -webkit-backdrop-filter: saturate(190%) blur(40px);
+  border-right: 1px solid var(--apple-border);
+}
+
+.apple-glass-header {
+  background: var(--apple-surface-header);
+  backdrop-filter: saturate(180%) blur(32px);
+  -webkit-backdrop-filter: saturate(180%) blur(32px);
+  border-bottom: 1px solid var(--apple-border);
+}
+
+.apple-subcard {
+  background: var(--apple-surface-subcard);
+  border: 1px solid var(--apple-border);
+  transition: all 0.2s ease;
+}
+
+.apple-subcard:hover {
+  background: var(--apple-surface-subcard-hover);
+  border-color: var(--apple-border-strong);
 }
 
 .apple-card {
-  background-color: var(--apple-surface);
+  background: linear-gradient(180deg, var(--apple-surface-card-top) 0%, var(--apple-surface-card-bottom) 100%);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
   border: 1px solid var(--apple-border);
-  box-shadow: var(--apple-shadow);
-  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 0 var(--apple-specular),
+    var(--apple-shadow);
+  border-radius: 22px;
+}
+
+.apple-pill-btn {
+  background: linear-gradient(180deg, #6B63F2 0%, #4e45e1 100%);
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 6px 18px -4px rgba(78, 69, 225, 0.38);
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.apple-pill-btn:hover {
+  background: linear-gradient(180deg, #7C75F5 0%, #5850EB 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 22px -4px rgba(78, 69, 225, 0.5);
 }
 
 /* Refined macOS-style scrollbars */

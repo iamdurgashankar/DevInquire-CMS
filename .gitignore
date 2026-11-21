@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.local-hosting-config.json
+java-backend/data/
+java-backend/**/target/
 
 # Editor directories and files
 .vscode/*

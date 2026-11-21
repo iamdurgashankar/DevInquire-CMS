@@ -30,9 +30,10 @@ const HeadlessClientDemo: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      const apiBase = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
       const [pagesRes, configRes] = await Promise.all([
-        fetch('/api/v1/content/pages?includeDrafts=true'),
-        fetch('/api/v1/content/config')
+        fetch(`${apiBase}/api/v1/content/pages?includeDrafts=true`),
+        fetch(`${apiBase}/api/v1/content/config`)
       ]);
       
       if (!pagesRes.ok) {
@@ -55,7 +56,7 @@ const HeadlessClientDemo: React.FC = () => {
         setGlobalStyles(configData.data.styles);
       } else {
         setGlobalStyles({
-          primaryColor: '#007AFF',
+          primaryColor: '#4e45e1',
           textColor: '#1D1D1F',
           backgroundColor: '#FFFFFF',
           containerWidth: '1200px'
@@ -77,7 +78,8 @@ const HeadlessClientDemo: React.FC = () => {
   const fetchPageDetails = async (slug: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/content/pages/${slug}`);
+      const apiBase = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
+      const response = await fetch(`${apiBase}/api/v1/content/pages/${slug}`);
       const result = await response.json();
       
       if (result.success) {
@@ -183,7 +185,7 @@ const HeadlessClientDemo: React.FC = () => {
               <ArrowLeft size={18} />
             </Link>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] rounded-xl flex items-center justify-center text-white shadow-xs">
+              <div className="w-8 h-8 bg-[#4e45e1] dark:bg-[#6B63F2] rounded-xl flex items-center justify-center text-white shadow-xs">
                 <Terminal size={16} />
               </div>
               <h1 className="font-bold text-sm sm:text-base text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
@@ -220,7 +222,7 @@ const HeadlessClientDemo: React.FC = () => {
             
             <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
               <div className="px-4 py-3.5 bg-[#F5F5F7]/60 dark:bg-[#1C1C1E]/50 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center gap-2">
-                <Database size={15} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                <Database size={15} className="text-[#4e45e1] dark:text-[#6B63F2]" />
                 <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Available Page Endpoints</span>
               </div>
               <div className="p-3 space-y-1">
@@ -229,7 +231,7 @@ const HeadlessClientDemo: React.FC = () => {
                     <Database size={24} className="mx-auto text-[#86868B] mb-3" />
                     <p className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">No pages found</p>
                     <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-1 mb-4">Create and save a page in the CMS dashboard first.</p>
-                    <Link to="/" className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-xl text-xs font-semibold hover:opacity-90 transition-all">
+                    <Link to="/" className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#4e45e1] dark:bg-[#6B63F2] text-white rounded-xl text-xs font-semibold hover:opacity-90 transition-all">
                       Go to Dashboard
                       <ChevronRight size={13} />
                     </Link>
@@ -243,7 +245,7 @@ const HeadlessClientDemo: React.FC = () => {
                       onClick={() => fetchPageDetails(page.slug || page.id)}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center justify-between group transition-all ${
                         isSelected
-                          ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs' 
+                          ? 'bg-[#4e45e1] dark:bg-[#6B63F2] text-white shadow-xs' 
                           : 'hover:bg-[#F5F5F7] dark:hover:bg-[#3A3A3C] text-[#1D1D1F] dark:text-[#F5F5F7]'
                       }`}
                     >
@@ -269,7 +271,7 @@ const HeadlessClientDemo: React.FC = () => {
 
             <div className="bg-[#1C1C1E] dark:bg-[#141416] rounded-2xl p-5 text-[#F5F5F7] border border-black/[0.08] dark:border-white/[0.08] overflow-hidden relative shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-[#0A84FF] flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-[#6B63F2] flex items-center gap-1.5">
                   <Code size={14} />
                   <span>JSON Payload Inspector</span>
                 </span>
@@ -277,7 +279,7 @@ const HeadlessClientDemo: React.FC = () => {
               </div>
               {loading ? (
                 <div className="flex items-center gap-2 text-[#98989D] text-xs font-mono py-8">
-                  <div className="w-2 h-2 rounded-full bg-[#0A84FF] animate-pulse" />
+                  <div className="w-2 h-2 rounded-full bg-[#6B63F2] animate-pulse" />
                   Fetching response...
                 </div>
               ) : (
@@ -293,7 +295,7 @@ const HeadlessClientDemo: React.FC = () => {
             <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs flex-1 flex flex-col min-h-[600px]">
               <div className="px-5 py-3.5 bg-[#F5F5F7]/60 dark:bg-[#1C1C1E]/50 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Globe size={15} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                  <Globe size={15} className="text-[#4e45e1] dark:text-[#6B63F2]" />
                   <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Live Headless Client Renderer</span>
                 </div>
                 {selectedPage && (
@@ -306,7 +308,7 @@ const HeadlessClientDemo: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-[#F5F5F7]/40 dark:bg-[#1C1C1E]/40">
                 {loading && !selectedPage ? (
                   <div className="h-full flex flex-col items-center justify-center text-[#86868B] dark:text-[#98989D]">
-                    <Zap size={36} className="mb-3 text-[#007AFF] dark:text-[#0A84FF] animate-pulse" />
+                    <Zap size={36} className="mb-3 text-[#4e45e1] dark:text-[#6B63F2] animate-pulse" />
                     <p className="text-sm font-medium">Hydrating content from REST API...</p>
                   </div>
                 ) : selectedPage ? (
@@ -349,7 +351,7 @@ const HeadlessClientDemo: React.FC = () => {
                 href="/api/v1/content/pages" 
                 target="_blank" 
                 rel="noreferrer"
-                className="bg-[#007AFF] hover:bg-[#0066D6] dark:bg-[#0A84FF] dark:hover:bg-[#409CFF] text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all active:scale-95"
+                className="bg-[#4e45e1] hover:bg-[#4139BF] dark:bg-[#6B63F2] dark:hover:bg-[#8179FF] text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all active:scale-95"
               >
                 <span>Open API Root</span>
                 <ExternalLink size={15} />

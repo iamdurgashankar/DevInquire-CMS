@@ -412,7 +412,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
           exists: parentExists
         });
         if (!parentExists) {
-          bp.validationWarnings.push(`Parent slug "/${bp.parentSlug}" is not in CSV or existing pages (will still link to /#/p/${bp.parentSlug}).`);
+          bp.validationWarnings.push(`Parent slug "/${bp.parentSlug}" is not in CSV or existing pages (will still link to /cms/p/${bp.parentSlug}).`);
         }
       }
 
@@ -451,13 +451,13 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
 
     // Build shared navigation links across the CSV batch + Home
     const navLinks: Array<{ label: string; url: string }> = [
-      { label: 'Home', url: '/#/p/home' }
+      { label: 'Home', url: '/cms/p/home' }
     ];
     allBlueprints.slice(0, 6).forEach(item => {
-      if (!navLinks.some(l => l.url === `/#/p/${item.slug}`)) {
+      if (!navLinks.some(l => l.url === `/cms/p/${item.slug}`)) {
         navLinks.push({
           label: item.title.length > 22 ? item.title.slice(0, 20) + '…' : item.title,
-          url: `/#/p/${item.slug}`
+          url: `/cms/p/${item.slug}`
         });
       }
     });
@@ -490,7 +490,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
       const targetBlueprint = allBlueprints.find(b => b.slug === targetSlug);
       const targetExistingPage = pages.find(p => p.slug === targetSlug);
       const targetTitle = targetBlueprint?.title || targetExistingPage?.title || targetSlug;
-      const targetHref = `/#/p/${targetSlug}`;
+      const targetHref = `/cms/p/${targetSlug}`;
 
       switch (spec.type) {
         case 'nav': {
@@ -518,7 +518,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
         case 'hero': {
           const parentBreadcrumbHtml = bp.parentSlug
             ? `<div style="margin-bottom:12px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">
-                 <a href="/#/p/${bp.parentSlug}" style="color:#2563eb;text-decoration:none;">← ${bp.parentSlug.toUpperCase()}</a>
+                 <a href="/cms/p/${bp.parentSlug}" style="color:#2563eb;text-decoration:none;">← ${bp.parentSlug.toUpperCase()}</a>
                  <span style="color:#94a3b8;margin:0 8px;">/</span>
                  <span style="color:#475569;">${bp.slug.toUpperCase()}</span>
                </div>`
@@ -545,7 +545,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
                   </a>
                   ${
                     bp.parentSlug
-                      ? `<a href="/#/p/${bp.parentSlug}" style="display:inline-flex;align-items:center;gap:8px;background:#ffffff;color:#0f172a;border:1px solid #cbd5e1;font-weight:700;font-size:14px;padding:12px 20px;border-radius:10px;text-decoration:none;">
+                      ? `<a href="/cms/p/${bp.parentSlug}" style="display:inline-flex;align-items:center;gap:8px;background:#ffffff;color:#0f172a;border:1px solid #cbd5e1;font-weight:700;font-size:14px;padding:12px 20px;border-radius:10px;text-decoration:none;">
                            <span>Parent: /${bp.parentSlug}</span>
                          </a>`
                       : ''
@@ -926,10 +926,10 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
       if (relatedItems.length > 0) {
         const cardsHtml = relatedItems
           .map(
-            item => `<a href="/#/p/${item.slug}" style="display:block;padding:16px;border-radius:12px;border:1px solid #e2e8f0;background:#ffffff;text-decoration:none;transition:all 0.2s;">
+            item => `<a href="/cms/p/${item.slug}" style="display:block;padding:16px;border-radius:12px;border:1px solid #e2e8f0;background:#ffffff;text-decoration:none;transition:all 0.2s;">
               <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#2563eb;margin-bottom:4px;">${item.badge}</div>
               <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;">${item.title}</div>
-              <div style="font-size:12px;font-family:monospace;color:#64748b;">/#/p/${item.slug} →</div>
+              <div style="font-size:12px;font-family:monospace;color:#64748b;">/cms/p/${item.slug} →</div>
             </a>`
           )
           .join('');
@@ -1334,7 +1334,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
                     <Monitor size={14} />
                   </button>
                   <a
-                    href={`/#/p/${pg.slug}`}
+                    href={`/cms/p/${pg.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Open Public Linked Page"
@@ -1634,7 +1634,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
                       >
                         <td className="py-3 px-4">
                           <div className="font-bold text-slate-900">{bp.title}</div>
-                          <div className="text-[11px] font-mono text-blue-600">/#/p/{bp.slug}</div>
+                          <div className="text-[11px] font-mono text-blue-600">/cms/p/{bp.slug}</div>
                         </td>
                         <td className="py-3 px-3 font-mono text-[11px]">
                           {bp.parentSlug ? (
@@ -1724,7 +1724,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
                   <h5 className="text-base font-bold text-slate-900 mt-0.5">
                     {activePreviewBlueprint.title}{' '}
                     <span className="font-mono text-xs font-normal text-slate-500">
-                      (/#/p/{activePreviewBlueprint.slug})
+                      (/cms/p/{activePreviewBlueprint.slug})
                     </span>
                   </h5>
                 </div>
@@ -1764,7 +1764,7 @@ export const CsvPageAutomation: React.FC<CsvPageAutomationProps> = ({
                         <div className="pt-1 flex items-center gap-1.5 text-[11px] font-mono text-blue-600">
                           <LinkIcon size={11} />
                           <span>
-                            CTA "{comp.ctaLabel}" → /#/p/{comp.linkToSlug}
+                            CTA "{comp.ctaLabel}" → /cms/p/{comp.linkToSlug}
                           </span>
                         </div>
                       )}

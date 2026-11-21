@@ -5,7 +5,7 @@ import { Joyride, Step, STATUS } from 'react-joyride';
 import { useCMS } from '../App';
 import { 
   Plus, Search, Edit3, Trash2, Globe, FileText, 
-  Copy, Eye, Upload, Download, Layout, Settings, BarChart3, 
+  Copy, Eye, Upload, Download, Layout, LayoutDashboard, Settings, BarChart3, 
   FolderOpen, Clock, Filter, Palette, Type,
   ChevronRight, ExternalLink, Activity, Repeat, X,
   ChevronUp, ChevronDown, TrendingUp, Users, Zap, LogOut, Lock, Sparkles, Loader2,
@@ -226,8 +226,8 @@ const Dashboard: React.FC = () => {
     }
   };
   const [activeFilter, setActiveFilter] = useState<'all' | 'published' | 'draft'>('all');
-  const [isConfigExpanded, setIsConfigExpanded] = useState(true);
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'site' | 'styles' | 'pages' | 'hosting' | 'users' | 'automation'>('site');
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'site' | 'hosting' | 'styles' | 'pages' | 'automation'>('site');
   const [isSaving, setIsSaving] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -255,6 +255,28 @@ const Dashboard: React.FC = () => {
     onConfirm: () => {}
   });
 
+  const getCookie = (name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  };
+
+  const setCookie = (name: string, value: string, days = 365) => {
+    if (typeof document === 'undefined') return;
+    const maxAge = days * 24 * 60 * 60;
+    document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; SameSite=Lax`;
+  };
+
+  const [cookieConsentAccepted, setCookieConsentAccepted] = useState<boolean>(() => {
+    return getCookie('devinquire_cms_cookie_consent') === '1';
+  });
+
+  const handleAcceptCookies = () => {
+    setCookie('devinquire_cms_cookie_consent', '1', 365);
+    setCookieConsentAccepted(true);
+    toast.success('Preferences saved.');
+  };
+
   const [runTour, setRunTour] = useState(false);
 
   const startTourGuide = () => {
@@ -266,13 +288,22 @@ const Dashboard: React.FC = () => {
     }, 150);
   };
 
-  // Launch tour guide automatically for new users who logged in for the 1st time
+  // Launch startup navigation tour ONLY for newly created accounts (marked on signup)
   useEffect(() => {
-    const userKey = user?.email || user?.name || 'default_user';
-    const userTourKey = `hasSeenOnboardingTour_${userKey}`;
-    const hasSeenUserTour = localStorage.getItem(userTourKey);
-    
-    if (!hasSeenUserTour) {
+    const rawKey = user?.email || user?.name || 'default_user';
+    const safeUserKey = rawKey.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    const cookieKey = `devinquire_cms_tour_seen_${safeUserKey}`;
+    const hasSeenTourCookie =
+      getCookie('devinquire_cms_tour_seen') === '1' ||
+      getCookie(cookieKey) === '1';
+    const hasSeenUserTour =
+      localStorage.getItem(`hasSeenOnboardingTour_${rawKey}`) === 'true' ||
+      localStorage.getItem('hasSeenOnboardingTour') === 'true';
+    const isNewAccount =
+      getCookie('devinquire_cms_new_account') === '1' ||
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('devinquire_cms_new_account') === '1');
+
+    if (isNewAccount && !hasSeenTourCookie && !hasSeenUserTour) {
       const timer = setTimeout(() => {
         setRunTour(true);
       }, 700);
@@ -319,13 +350,24 @@ const Dashboard: React.FC = () => {
   ];
 
   const handleTourCallback = (data: any) => {
-    const { status } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
+    const { status, action } = data;
+    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any) || action === 'close') {
       setRunTour(false);
-      const userKey = user?.email || user?.name || 'default_user';
-      localStorage.setItem(`hasSeenOnboardingTour_${userKey}`, 'true');
+      const rawKey = user?.email || user?.name || 'default_user';
+      const safeUserKey = rawKey.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      setCookie('devinquire_cms_tour_seen', '1', 365);
+      setCookie(`devinquire_cms_tour_seen_${safeUserKey}`, '1', 365);
+      if (typeof document !== 'undefined') {
+        document.cookie = 'devinquire_cms_new_account=; max-age=0; path=/; SameSite=Lax';
+      }
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('devinquire_cms_new_account');
+      }
+      localStorage.setItem(`hasSeenOnboardingTour_${rawKey}`, 'true');
       localStorage.setItem('hasSeenOnboardingTour', 'true');
-      toast.success('Tour completed! You can restart the tour anytime from Help or Profile.');
+      if (status === STATUS.FINISHED) {
+        toast.success('Tour completed! You can replay it anytime from Quick Actions.');
+      }
     }
   };
 
@@ -467,14 +509,14 @@ const Dashboard: React.FC = () => {
             <div className="ml-auto flex gap-3 bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button 
                 onClick={() => setActiveCollectionTab('entries')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeCollectionTab === 'entries' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeCollectionTab === 'entries' ? 'bg-white text-[#4e45e1] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <Database size={14} />
                 Entries
               </button>
               <button 
                 onClick={() => setActiveCollectionTab('schema')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeCollectionTab === 'schema' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeCollectionTab === 'schema' ? 'bg-white text-[#4e45e1] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <Settings size={14} />
                 Schema
@@ -482,7 +524,7 @@ const Dashboard: React.FC = () => {
               </button>
               <button 
                 onClick={() => setActiveCollectionTab('api')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeCollectionTab === 'api' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeCollectionTab === 'api' ? 'bg-white text-[#4e45e1] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <Code size={14} />
                 API
@@ -511,7 +553,7 @@ const Dashboard: React.FC = () => {
                   }}
                   className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
                     canEditEntries
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/10'
+                      ? 'bg-[#4e45e1] text-white hover:bg-[#4139BF] shadow-lg shadow-blue-500/10'
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   }`}
                 >
@@ -572,7 +614,7 @@ const Dashboard: React.FC = () => {
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               {canEditEntries && (
-                                <button onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); setIsEditingEntry(true); }} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-all"><Edit3 size={16} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); setIsEditingEntry(true); }} className="p-2 text-slate-400 hover:text-[#4e45e1] rounded-lg hover:bg-[#4e45e1]/10 transition-all"><Edit3 size={16} /></button>
                               )}
                               {canDeleteCollections && (
                                 <button onClick={(e) => { e.stopPropagation(); handleDeleteEntry(entry.id); }} className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"><Trash2 size={16} /></button>
@@ -635,7 +677,7 @@ const Dashboard: React.FC = () => {
                         };
                         setSelectedCollection({ ...selectedCollection, fields: [...selectedCollection.fields, newField] });
                       }}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="text-xs font-bold text-[#4e45e1] hover:text-[#4139BF] flex items-center gap-1"
                     >
                       <Plus size={14} /> Add Field
                     </button>
@@ -676,7 +718,7 @@ const Dashboard: React.FC = () => {
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input 
                                 type="checkbox" 
-                                className="w-4 h-4 rounded border-slate-300 text-blue-600"
+                                className="w-4 h-4 rounded border-slate-300 text-[#4e45e1]"
                                 checked={field.required}
                                 onChange={(e) => {
                                   const updatedFields = [...selectedCollection.fields];
@@ -711,7 +753,7 @@ const Dashboard: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => handleSaveCollection(selectedCollection)}
-                    className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20"
+                    className="px-8 py-3 bg-[#4e45e1] text-white rounded-xl font-bold hover:bg-[#4139BF] transition-all shadow-xl shadow-blue-500/20"
                   >
                     Save Collection Schema
                   </button>
@@ -726,7 +768,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="relative z-10 space-y-8">
                     <div className="space-y-2">
-                       <div className="flex items-center gap-3 text-blue-400">
+                       <div className="flex items-center gap-3 text-[#6B63F2]">
                           <Code size={24} />
                           <span className="text-xs font-black uppercase tracking-widest">Headless API v1</span>
                        </div>
@@ -737,9 +779,9 @@ const Dashboard: React.FC = () => {
                     <div className="space-y-6">
                       <div className="space-y-3">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Primary Endpoint</label>
-                        <div className="flex bg-black/40 border border-slate-700 rounded-2xl overflow-hidden group hover:border-blue-500/50 transition-all">
-                           <div className="bg-blue-600 text-white px-5 py-4 text-xs font-black flex items-center">GET</div>
-                           <div className="flex-1 px-5 py-4 font-mono text-xs text-blue-300 truncate">
+                        <div className="flex bg-black/40 border border-slate-700 rounded-2xl overflow-hidden group hover:border-[#4e45e1]/50 transition-all">
+                           <div className="bg-[#4e45e1] text-white px-5 py-4 text-xs font-black flex items-center">GET</div>
+                           <div className="flex-1 px-5 py-4 font-mono text-xs text-[#8179FF] truncate">
                               {window.location.origin}/api/v1/content/collections/{selectedCollection.slug}/items
                            </div>
                            <button 
@@ -813,7 +855,7 @@ const Dashboard: React.FC = () => {
                         {field.type === 'boolean' && (
                            <div 
                             onClick={() => setSelectedEntry({ ...selectedEntry, data: { ...selectedEntry.data, [field.slug]: !selectedEntry.data[field.slug] } })}
-                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${selectedEntry.data[field.slug] ? 'bg-blue-600' : 'bg-slate-200'}`}
+                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${selectedEntry.data[field.slug] ? 'bg-[#4e45e1]' : 'bg-slate-200'}`}
                            >
                              <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all ${selectedEntry.data[field.slug] ? 'translate-x-6' : 'translate-x-0'}`} />
                            </div>
@@ -885,7 +927,7 @@ const Dashboard: React.FC = () => {
                     </button>
                     <button 
                       onClick={() => handleSaveEntry(selectedEntry)}
-                      className="px-10 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 text-sm"
+                      className="px-10 py-2.5 bg-[#4e45e1] text-white rounded-xl font-bold hover:bg-[#4139BF] transition-all shadow-lg shadow-blue-500/20 text-sm"
                     >
                       Save Entry
                     </button>
@@ -902,7 +944,7 @@ const Dashboard: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <Database className="text-blue-600" size={24} />
+              <Database className="text-[#4e45e1]" size={24} />
               <h2 className="text-2xl font-black text-slate-900 tracking-tight">Content Collections</h2>
               <AccessLevelPill level={activePermissions.collections.level} />
             </div>
@@ -931,12 +973,12 @@ const Dashboard: React.FC = () => {
               }}
               className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all group ${
                 canEditSchema
-                  ? 'bg-white border-2 border-slate-100 text-slate-600 hover:border-blue-500 hover:text-blue-600'
+                  ? 'bg-white border-2 border-slate-100 text-slate-600 hover:border-[#4e45e1] hover:text-[#4e45e1]'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
               }`}
             >
               {canEditSchema ? (
-                <Sparkles size={18} className="text-blue-400 group-hover:scale-110 transition-transform" />
+                <Sparkles size={18} className="text-[#6B63F2] group-hover:scale-110 transition-transform" />
               ) : (
                 <Lock size={16} />
               )}
@@ -952,7 +994,7 @@ const Dashboard: React.FC = () => {
               }}
               className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${
                 canEditSchema
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95'
+                  ? 'bg-[#4e45e1] text-white shadow-lg shadow-blue-500/20 hover:bg-[#4139BF] active:scale-95'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
               }`}
             >
@@ -973,7 +1015,7 @@ const Dashboard: React.FC = () => {
               {canEditSchema && (
                 <button 
                   onClick={handleCreateCollection}
-                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/10"
+                  className="inline-flex items-center gap-2 bg-[#4e45e1] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#4139BF] transition-all shadow-xl shadow-blue-500/10"
                 >
                   <Plus size={20} />
                   Get Started
@@ -984,14 +1026,14 @@ const Dashboard: React.FC = () => {
             collections.map(collection => (
               <div key={collection.id} className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col group hover:border-blue-400 hover:shadow-xl transition-all relative overflow-hidden h-fit">
                 <div className="flex items-start justify-between mb-6">
-                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <div className="w-14 h-14 bg-[#4e45e1]/10 text-[#4e45e1] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
                     <Layers size={28} />
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {canEditSchema && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); setSelectedCollection(collection); setIsEditingCollection(true); setActiveCollectionTab('schema'); }}
-                        className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                        className="p-2 text-slate-400 hover:text-[#4e45e1] rounded-lg hover:bg-[#4e45e1]/10"
                         title="Settings"
                       >
                         <Settings size={16} />
@@ -1010,7 +1052,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 
                 <div className="cursor-pointer" onClick={() => setSelectedCollection(collection)}>
-                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{collection.name}</h3>
+                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#4139BF] transition-colors">{collection.name}</h3>
                   <p className="text-xs text-slate-400 mt-1 mb-6 leading-relaxed line-clamp-2">{collection.description}</p>
                 </div>
                 
@@ -1021,7 +1063,7 @@ const Dashboard: React.FC = () => {
                    </div>
                    <button 
                     onClick={() => setSelectedCollection(collection)}
-                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-blue-600 transition-all"
+                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-[#4e45e1] transition-all"
                    >
                      Manage <ChevronRight size={14} />
                    </button>
@@ -1201,6 +1243,154 @@ const Dashboard: React.FC = () => {
     e.target.value = '';
   };
 
+  const [newDomainInput, setNewDomainInput] = useState('');
+  const [newProviderInput, setNewProviderInput] = useState('Hostinger');
+  const [newDomainSiteName, setNewDomainSiteName] = useState('');
+
+  const connectedDomains = siteConfig.domains || [];
+  const activeDomain =
+    connectedDomains.find((d) => d.id === siteConfig.activeDomainId) ||
+    connectedDomains[0] ||
+    null;
+  const isDomainHostingConnected = Boolean(activeDomain || siteConfig.hostingConnected);
+
+  const API_BASE = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/hosting/status`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json?.success && json.data) {
+          const { domains = [], activeDomainId = '', activeDomain: srvActive } = json.data;
+          if (domains.length > 0) {
+            setSiteConfig((prev) => ({
+              ...prev,
+              domains,
+              activeDomainId,
+              customDomain: srvActive?.domain || prev.customDomain,
+              baseUrl: srvActive?.baseUrl || prev.baseUrl,
+              hostingProvider: srvActive?.hostingProvider || prev.hostingProvider,
+              hostingConnected: true,
+              resolvedIps: srvActive?.resolvedIps || [],
+              verifiedAt: srvActive?.verifiedAt,
+            }));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleConnectDomainAndHosting = async (e?: React.FormEvent, customOverride?: { domain?: string; provider?: string; siteName?: string }) => {
+    if (e) e.preventDefault();
+    const rawInput = (customOverride?.domain || newDomainInput || siteConfig.customDomain || '')
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .toLowerCase();
+
+    if (!rawInput || (rawInput !== 'localhost' && !rawInput.startsWith('localhost:') && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(rawInput))) {
+      toast.error('Please enter a valid domain name (e.g., devinquire.com or localhost).');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/hosting/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: rawInput,
+          hostingProvider: customOverride?.provider || newProviderInput || siteConfig.hostingProvider || 'Hostinger',
+          siteName: customOverride?.siteName || newDomainSiteName || rawInput,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Could not connect domain and hosting.');
+      }
+
+      const { domains = [], activeDomainId = '', activeDomain: srvActive } = json.data || {};
+      const nextConfig = {
+        ...siteConfig,
+        domains,
+        activeDomainId,
+        customDomain: srvActive?.domain || rawInput,
+        baseUrl: srvActive?.baseUrl || `https://${rawInput}`,
+        hostingProvider: srvActive?.hostingProvider || newProviderInput,
+        hostingConnected: true,
+        resolvedIps: srvActive?.resolvedIps || [],
+        verifiedAt: srvActive?.verifiedAt,
+      };
+      setSiteConfig(nextConfig);
+      await syncSiteConfig(nextConfig);
+      setNewDomainInput('');
+      setNewDomainSiteName('');
+      toast.success(
+        `Connected ${nextConfig.customDomain} (${nextConfig.hostingProvider})! You can now build pages for this domain.`
+      );
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect domain & hosting.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSelectDomain = async (domainId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/hosting/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domainId }),
+      });
+      const json = await res.json().catch(() => null);
+      if (json?.success && json.data) {
+        const { domains = [], activeDomainId = '', activeDomain: srvActive } = json.data;
+        const nextConfig = {
+          ...siteConfig,
+          domains,
+          activeDomainId,
+          customDomain: srvActive?.domain || siteConfig.customDomain,
+          baseUrl: srvActive?.baseUrl || siteConfig.baseUrl,
+          hostingProvider: srvActive?.hostingProvider || siteConfig.hostingProvider,
+          hostingConnected: true,
+        };
+        setSiteConfig(nextConfig);
+        await syncSiteConfig(nextConfig);
+        toast.success(`Switched active website to ${srvActive?.domain}`);
+      }
+    } catch {
+      toast.error('Failed to switch active domain.');
+    }
+  };
+
+  const handleDeleteDomain = async (domainId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/hosting/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domainId }),
+      });
+      const json = await res.json().catch(() => null);
+      if (json?.success && json.data) {
+        const { domains = [], activeDomainId = '', activeDomain: srvActive } = json.data;
+        const nextConfig = {
+          ...siteConfig,
+          domains,
+          activeDomainId,
+          customDomain: srvActive?.domain || '',
+          baseUrl: srvActive?.baseUrl || 'https://devinquire.com',
+          hostingProvider: srvActive?.hostingProvider || 'Hostinger',
+          hostingConnected: domains.length > 0,
+        };
+        setSiteConfig(nextConfig);
+        await syncSiteConfig(nextConfig);
+        toast.success('Domain removed.');
+      }
+    } catch {
+      toast.error('Failed to remove domain.');
+    }
+  };
+
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
@@ -1309,6 +1499,11 @@ const Dashboard: React.FC = () => {
   };
 
   const createPage = (template?: Template) => {
+    if (!isDomainHostingConnected) {
+      toast.error('Connect your domain and hosting first to start creating websites.');
+      setActiveView('dashboard');
+      return;
+    }
     // Defensive check: if template is an event object (has target/currentTarget), ignore it
     const isEvent = template && (template as any).target && (template as any).preventDefault;
     const actualTemplate = isEvent ? undefined : template;
@@ -1326,6 +1521,8 @@ const Dashboard: React.FC = () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       author: 'Admin',
+      domainId: activeDomain?.id,
+      domain: activeDomain?.domain,
       isCustomSite: !!actualTemplate?.isCustomSite,
       ...(actualTemplate?.customHTML ? { customHTML: actualTemplate.customHTML } : {}),
       ...(actualTemplate?.customCSS ? { customCSS: actualTemplate.customCSS } : {}),
@@ -1647,7 +1844,11 @@ const Dashboard: React.FC = () => {
     navigate(`/editor/${id}`);
   };
 
-  const filteredPages = pages.filter(p => {
+  const domainPages = activeDomain
+    ? pages.filter((p) => p.domainId === activeDomain.id)
+    : pages;
+
+  const filteredPages = domainPages.filter(p => {
     const title = (p.title || '').toLowerCase();
     const slug = (p.slug || '').toLowerCase();
     const content = getPageTextContent(p);
@@ -1667,10 +1868,10 @@ const Dashboard: React.FC = () => {
   });
 
   const stats = {
-    total: pages.length,
-    published: pages.filter(p => p.status === 'published').length,
-    drafts: pages.filter(p => p.status === 'draft').length,
-    views: pages.length * 124 
+    total: domainPages.length,
+    published: domainPages.filter(p => p.status === 'published').length,
+    drafts: domainPages.filter(p => p.status === 'draft').length,
+    views: domainPages.length * 124 
   };
 
   // View Components
@@ -1740,9 +1941,35 @@ const Dashboard: React.FC = () => {
     }
 
     if (activeView === 'experience') {
+      if (!isDomainHostingConnected) {
+        return (
+          <div className="apple-card rounded-[26px] p-10 text-center max-w-xl mx-auto my-8 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center mx-auto">
+              <Lock size={22} />
+            </div>
+            <h3 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              Connect Domain &amp; Hosting First
+            </h3>
+            <p className="text-sm text-[#86868B] dark:text-[#98989D]">
+              Connect a domain in Site Settings → Domain &amp; Hosting to manage its visual experience and sitemap.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('settings');
+                setActiveSettingsTab('hosting');
+              }}
+              className="apple-pill-btn px-6 py-2.5 rounded-full text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
+            >
+              <Globe size={14} />
+              <span>Connect Domain &amp; Hosting</span>
+            </button>
+          </div>
+        );
+      }
       return (
         <ExperienceManager
-          pages={pages}
+          pages={domainPages}
           rewrites={rewrites}
           globalStyles={globalStyles}
           siteConfig={siteConfig}
@@ -1779,103 +2006,8 @@ const Dashboard: React.FC = () => {
         );
       });
 
-      const hubTabs: Array<{
-        id: 'pages' | 'templates' | 'media';
-        label: string;
-        description: string;
-        count: number;
-        icon: React.ReactNode;
-        accessLevel: AccessLevel;
-      }> = [
-        {
-          id: 'pages',
-          label: 'Pages',
-          description: 'Site pages & list view',
-          count: pages.length,
-          icon: <FileText size={18} />,
-          accessLevel: activePermissions.pages,
-        },
-        {
-          id: 'templates',
-          label: 'Templates',
-          description: 'Reusable sections & layouts',
-          count: templates.length,
-          icon: <Layout size={18} />,
-          accessLevel: activePermissions.templates,
-        },
-        {
-          id: 'media',
-          label: 'Media Library',
-          description: 'Images & uploaded assets',
-          count: media.length,
-          icon: <FolderOpen size={18} />,
-          accessLevel: activePermissions.media.level,
-        },
-      ];
-
       return (
         <div className="space-y-8 animate-in fade-in duration-500">
-          {/* Unified Pages, Templates & Media Navigation Bar */}
-          <div className="bg-white dark:bg-[#2C2C2E] rounded-[22px] border border-black/[0.06] dark:border-white/[0.08] p-2 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
-              {hubTabs.map(tab => {
-                const isActive = activeView === tab.id;
-                const isRestricted = tab.accessLevel === 'none';
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveView(tab.id)}
-                    className={`flex items-center justify-between gap-3 px-4 py-3 rounded-[16px] text-left transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-md shadow-[#007AFF]/20'
-                        : 'bg-[#F5F5F7]/80 dark:bg-[#1C1C1E]/60 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] text-[#1D1D1F] dark:text-[#F5F5F7]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : 'bg-white dark:bg-[#2C2C2E] text-[#86868B] dark:text-[#98989D] border border-black/[0.06] dark:border-white/[0.08]'
-                        }`}
-                      >
-                        {tab.icon}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-sm truncate">{tab.label}</span>
-                          {isRestricted && (
-                            <Lock
-                              size={12}
-                              className={isActive ? 'text-white/80' : 'text-[#FF3B30]'}
-                            />
-                          )}
-                        </div>
-                        <p
-                          className={`text-[11px] truncate ${
-                            isActive ? 'text-white/80' : 'text-[#86868B] dark:text-[#98989D]'
-                          }`}
-                        >
-                          {tab.description}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold tabular-nums shrink-0 ${
-                        isActive
-                          ? 'bg-white/20 text-white'
-                          : 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] border border-black/[0.06] dark:border-white/[0.08]'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Per-Tab RBAC Access Check */}
           {currentSectionRule && currentSectionRule.level === 'none' ? (
             <SectionAccessDenied
@@ -1886,18 +2018,38 @@ const Dashboard: React.FC = () => {
               onExitSimulation={() => setSimulatedUser(null)}
               onBackToDashboard={() => setActiveView('dashboard')}
             />
+            ) : activeView === 'pages' && !isDomainHostingConnected ? (
+            <div className="apple-card rounded-[26px] p-10 text-center max-w-xl mx-auto my-8 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center mx-auto">
+                <Lock size={22} />
+              </div>
+              <h3 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                Connect Domain &amp; Hosting First
+              </h3>
+              <p className="text-sm text-[#86868B] dark:text-[#98989D]">
+                To start creating website pages, please verify and connect your domain and hosting provider first.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveView('dashboard')}
+                className="apple-pill-btn px-6 py-2.5 rounded-full text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Globe size={14} />
+                <span>Go to Domain &amp; Hosting Setup</span>
+              </button>
+            </div>
           ) : activeView === 'pages' ? (
             <div className="space-y-6">
               {/* Stats Overview */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                <StatCard label="Total Pages" value={stats.total} trend="+2 this week" icon={<FileText className="text-[#007AFF] dark:text-[#0A84FF]" size={20} />} />
+                <StatCard label="Total Pages" value={stats.total} trend="+2 this week" icon={<FileText className="text-[#4e45e1] dark:text-[#6B63F2]" size={20} />} />
                 <StatCard label="Published" value={stats.published} trend="Live" icon={<Globe className="text-[#34C759]" size={20} />} />
                 <StatCard label="Drafts" value={stats.drafts} trend="In Progress" icon={<Edit3 className="text-[#FF9500]" size={20} />} />
                 <StatCard label="Page Views" value={stats.views.toLocaleString()} trend="+12.5%" icon={<Eye className="text-[#AF52DE]" size={20} />} />
               </div>
 
               {/* Filters & View Controls */}
-              <div className="bg-white dark:bg-[#2C2C2E] rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-black/[0.06] dark:border-white/[0.08] p-2 flex flex-wrap items-center gap-2">
+              <div className="apple-card rounded-[18px] p-2 flex flex-wrap items-center gap-2">
                 <FilterTab active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} label="All Pages" count={stats.total} />
                 <FilterTab active={activeFilter === 'published'} onClick={() => setActiveFilter('published')} label="Published" count={stats.published} />
                 <FilterTab active={activeFilter === 'draft'} onClick={() => setActiveFilter('draft')} label="Drafts" count={stats.drafts} />
@@ -1916,7 +2068,7 @@ const Dashboard: React.FC = () => {
                 <div className="bg-[#1D1D1F] dark:bg-[#2C2C2E] text-white rounded-[20px] shadow-xl p-4 flex flex-wrap items-center justify-between gap-4 mb-6 animate-in fade-in slide-in-from-top-2 duration-300 border border-white/[0.1]">
                   <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-[#007AFF] dark:bg-[#0A84FF] flex items-center justify-center text-xs font-bold">
+                      <div className="w-8 h-8 rounded-xl bg-[#4e45e1] dark:bg-[#6B63F2] flex items-center justify-center text-xs font-bold">
                         {selectedPageIds.length}
                       </div>
                       <span className="text-sm font-semibold text-white">Pages Selected</span>
@@ -1939,7 +2091,7 @@ const Dashboard: React.FC = () => {
                       </button>
                       <button 
                         onClick={handleBulkDownload}
-                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl hover:bg-white/10 transition-all text-xs font-semibold text-[#0A84FF] cursor-pointer"
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl hover:bg-white/10 transition-all text-xs font-semibold text-[#6B63F2] cursor-pointer"
                       >
                         <Download size={14} />
                         Export
@@ -1977,7 +2129,7 @@ const Dashboard: React.FC = () => {
                     {!searchQuery && (
                       <button 
                         onClick={() => createPage()}
-                        className="inline-flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-7 py-3 rounded-full font-semibold hover:bg-[#0071E3] transition-all shadow-sm cursor-pointer"
+                        className="inline-flex items-center gap-2 bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-7 py-3 rounded-full font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-sm cursor-pointer"
                       >
                         <Plus size={18} />
                         Start Creating
@@ -1993,7 +2145,7 @@ const Dashboard: React.FC = () => {
                             <div className="flex items-center justify-center">
                               <input 
                                 type="checkbox" 
-                                className="w-4 h-4 rounded border-black/20 dark:border-white/20 text-[#007AFF] focus:ring-[#007AFF] cursor-pointer transition-all"
+                                className="w-4 h-4 rounded border-black/20 dark:border-white/20 text-[#4e45e1] focus:ring-[#4e45e1] cursor-pointer transition-all"
                                 checked={selectedPageIds.length === filteredPages.length && filteredPages.length > 0}
                                 onChange={() => toggleSelectAll(filteredPages)}
                               />
@@ -2009,14 +2161,14 @@ const Dashboard: React.FC = () => {
                         {filteredPages.map(page => (
                           <tr 
                             key={page.id} 
-                            className={`group hover:bg-[#007AFF]/[0.04] dark:hover:bg-[#0A84FF]/[0.08] transition-all duration-200 cursor-pointer relative ${selectedPageIds.includes(page.id) ? 'bg-[#007AFF]/[0.06] dark:bg-[#0A84FF]/[0.12]' : ''}`}
+                            className={`group hover:bg-[#4e45e1]/[0.04] dark:hover:bg-[#6B63F2]/[0.08] transition-all duration-200 cursor-pointer relative ${selectedPageIds.includes(page.id) ? 'bg-[#4e45e1]/[0.06] dark:bg-[#6B63F2]/[0.12]' : ''}`}
                             onClick={() => navigate(`/editor/${page.id}`)}
                           >
                             <td className="px-6 py-4 w-10" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center">
                                 <input 
                                   type="checkbox" 
-                                  className="w-4 h-4 rounded border-black/20 dark:border-white/20 text-[#007AFF] focus:ring-[#007AFF] cursor-pointer transition-all"
+                                  className="w-4 h-4 rounded border-black/20 dark:border-white/20 text-[#4e45e1] focus:ring-[#4e45e1] cursor-pointer transition-all"
                                   checked={selectedPageIds.includes(page.id)}
                                   onChange={() => toggleSelectPage(page.id)}
                                 />
@@ -2026,12 +2178,12 @@ const Dashboard: React.FC = () => {
                               <div className="flex items-center gap-4">
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover:scale-105 ${
                                   page.isCustomSite ? 'bg-[#AF52DE]/12 text-[#AF52DE]' :
-                                  page.status === 'published' ? 'bg-[#34C759]/12 text-[#34C759]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B] dark:text-[#98989D] group-hover:bg-[#007AFF]/12 group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF]'
+                                  page.status === 'published' ? 'bg-[#34C759]/12 text-[#34C759]' : 'bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#86868B] dark:text-[#98989D] group-hover:bg-[#4e45e1]/12 group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2]'
                                 }`}>
                                   {page.isCustomSite ? <Globe size={19} /> : <FileText size={19} />}
                                 </div>
                                 <div>
-                                  <span className="block font-semibold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-colors">{page.title}</span>
+                                  <span className="block font-semibold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-colors">{page.title}</span>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-[11px] text-[#86868B] dark:text-[#98989D] font-medium">
                                       By {page.author} • {page.isCustomSite ? 'Custom Code' : `${page.layoutJSON.sections.length} Sections`} • {page.versions?.length || 1} {(page.versions?.length || 1) === 1 ? 'Version' : 'Versions'}
@@ -2077,7 +2229,7 @@ const Dashboard: React.FC = () => {
                                   color="blue"
                                 />
                                 <ActionButton onClick={() => navigate(`/editor/${page.id}`)} icon={<Edit3 size={16} />} label="Edit" color="blue" />
-                                <ActionButton onClick={() => window.open(`/#/p/${page.slug}`, '_blank')} icon={<Eye size={16} />} label="View" color="blue" />
+                                <ActionButton onClick={() => window.open(`/cms/p/${page.slug}`, '_blank')} icon={<Eye size={16} />} label="View" color="blue" />
                                 <ActionButton onClick={() => duplicatePage(page)} icon={<Copy size={16} />} label="Copy" color="slate" />
                                 <ActionButton onClick={() => downloadPage(page)} icon={<Download size={16} />} label="Download" color="slate" />
                                 <ActionButton onClick={() => deletePage(page.id)} icon={<Trash2 size={16} />} label="Delete" color="red" />
@@ -2095,14 +2247,14 @@ const Dashboard: React.FC = () => {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {templates.map(template => (
-                  <div key={template.id} className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden group hover:shadow-xl transition-all hover:-translate-y-0.5">
+                  <div key={template.id} className="apple-card rounded-[24px] overflow-hidden group hover:shadow-xl transition-all hover:-translate-y-0.5">
                     <div className="aspect-video bg-[#F5F5F7] dark:bg-[#1C1C1E] flex items-center justify-center relative overflow-hidden">
                       <Layout size={44} className="text-[#86868B]/50 dark:text-[#98989D]/50 group-hover:scale-110 transition-transform" />
-                      <div className="absolute inset-0 bg-[#007AFF]/0 group-hover:bg-[#007AFF]/[0.05] transition-colors" />
+                      <div className="absolute inset-0 bg-[#4e45e1]/0 group-hover:bg-[#4e45e1]/[0.05] transition-colors" />
                     </div>
                     <div className="p-6">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-semibold text-[#007AFF] dark:text-[#0A84FF] uppercase tracking-wider">{template.type}</span>
+                        <span className="text-[10px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] uppercase tracking-wider">{template.type}</span>
                         <span className="text-[11px] text-[#86868B] dark:text-[#98989D] font-medium">By {template.createdBy}</span>
                       </div>
                       <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">{template.name}</h3>
@@ -2115,7 +2267,7 @@ const Dashboard: React.FC = () => {
                         </button>
                         <button 
                           onClick={() => navigate(`/editor/${template.id}`)}
-                          className="flex-1 bg-[#007AFF] dark:bg-[#0A84FF] text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-[#0071E3] transition-all cursor-pointer"
+                          className="flex-1 bg-[#4e45e1] dark:bg-[#6B63F2] text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all cursor-pointer"
                         >
                           Edit
                         </button>
@@ -2131,9 +2283,9 @@ const Dashboard: React.FC = () => {
                 ))}
                 <button 
                   onClick={() => setShowCreateTemplateModal(true)}
-                  className="border-2 border-dashed border-black/[0.12] dark:border-white/[0.14] rounded-[24px] flex flex-col items-center justify-center gap-4 p-8 hover:bg-white/60 dark:hover:bg-[#2C2C2E]/60 hover:border-[#007AFF] dark:hover:border-[#0A84FF] transition-all group cursor-pointer"
+                  className="border-2 border-dashed border-black/[0.12] dark:border-white/[0.14] rounded-[24px] flex flex-col items-center justify-center gap-4 p-8 hover:bg-white/60 dark:hover:bg-[#2C2C2E]/60 hover:border-[#4e45e1] dark:hover:border-[#6B63F2] transition-all group cursor-pointer"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#2C2C2E] shadow-xs flex items-center justify-center text-[#86868B] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-all">
+                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#2C2C2E] shadow-xs flex items-center justify-center text-[#86868B] group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-all">
                     <Plus size={24} />
                   </div>
                   <div className="text-center">
@@ -2156,7 +2308,7 @@ const Dashboard: React.FC = () => {
                         <label className="text-xs font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Template Name</label>
                         <input 
                           type="text" 
-                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#1C1C1E] focus:ring-2 focus:ring-[#007AFF] outline-none transition-all"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#1C1C1E] focus:ring-2 focus:ring-[#4e45e1] outline-none transition-all"
                           placeholder="e.g. My Custom Section"
                           value={newTemplateData.name}
                           onChange={(e) => setNewTemplateData(prev => ({ ...prev, name: e.target.value }))}
@@ -2167,13 +2319,13 @@ const Dashboard: React.FC = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <button 
                             onClick={() => setNewTemplateData(prev => ({ ...prev, type: 'section' }))}
-                            className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all cursor-pointer ${newTemplateData.type === 'section' ? 'border-[#007AFF] bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'border-black/[0.08] dark:border-white/[0.1] text-[#86868B] hover:border-black/20'}`}
+                            className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all cursor-pointer ${newTemplateData.type === 'section' ? 'border-[#4e45e1] bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]' : 'border-black/[0.08] dark:border-white/[0.1] text-[#86868B] hover:border-black/20'}`}
                           >
                             Section
                           </button>
                           <button 
                             onClick={() => setNewTemplateData(prev => ({ ...prev, type: 'page' }))}
-                            className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all cursor-pointer ${newTemplateData.type === 'page' ? 'border-[#007AFF] bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'border-black/[0.08] dark:border-white/[0.1] text-[#86868B] hover:border-black/20'}`}
+                            className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all cursor-pointer ${newTemplateData.type === 'page' ? 'border-[#4e45e1] bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]' : 'border-black/[0.08] dark:border-white/[0.1] text-[#86868B] hover:border-black/20'}`}
                           >
                             Full Page
                           </button>
@@ -2181,7 +2333,7 @@ const Dashboard: React.FC = () => {
                       </div>
                       <button 
                         onClick={handleCreateTemplate}
-                        className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-3.5 rounded-xl font-semibold hover:bg-[#0071E3] transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
+                        className="w-full bg-[#4e45e1] dark:bg-[#6B63F2] text-white py-3.5 rounded-xl font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-md shadow-[#4e45e1]/20 cursor-pointer"
                       >
                         Create Template
                       </button>
@@ -2218,7 +2370,7 @@ const Dashboard: React.FC = () => {
                   {canUploadMedia && (
                     <button 
                       onClick={() => mediaInputRef.current?.click()}
-                      className="text-[#007AFF] dark:text-[#0A84FF] font-semibold text-sm hover:underline cursor-pointer"
+                      className="text-[#4e45e1] dark:text-[#6B63F2] font-semibold text-sm hover:underline cursor-pointer"
                     >
                       Click here to upload
                     </button>
@@ -2232,7 +2384,7 @@ const Dashboard: React.FC = () => {
                       key={item.id}
                       className={`group relative bg-white dark:bg-[#2C2C2E] rounded-[20px] border overflow-hidden hover:shadow-xl transition-all hover:-translate-y-0.5 ${
                         highlightedMediaId === item.id
-                          ? 'border-[#007AFF] ring-4 ring-[#007AFF]/25 shadow-xl'
+                          ? 'border-[#4e45e1] ring-4 ring-[#4e45e1]/25 shadow-xl'
                           : 'border-black/[0.06] dark:border-white/[0.08]'
                       }`}
                     >
@@ -2249,7 +2401,7 @@ const Dashboard: React.FC = () => {
                               navigator.clipboard.writeText(item.url);
                               toast.success('Media URL copied to clipboard!');
                             }}
-                            className="p-2.5 bg-white/95 rounded-xl text-[#1D1D1F] hover:text-[#007AFF] transition-all cursor-pointer"
+                            className="p-2.5 bg-white/95 rounded-xl text-[#1D1D1F] hover:text-[#4e45e1] transition-all cursor-pointer"
                             title="Copy URL"
                           >
                             <Copy size={15} />
@@ -2283,60 +2435,163 @@ const Dashboard: React.FC = () => {
       case 'dashboard':
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-3 duration-500">
-            {/* Apple Studio Hero Banner */}
-            <section className="bg-white dark:bg-[#2C2C2E] rounded-[32px] p-8 sm:p-10 border border-black/[0.06] dark:border-white/[0.08] relative overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.04)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.3)]">
-              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#007AFF]/[0.08] dark:bg-[#0A84FF]/[0.15] blur-3xl pointer-events-none" />
-              <div className="relative z-10 max-w-4xl">
-                <span className="text-[11px] font-mono uppercase tracking-[0.18em] text-[#007AFF] dark:text-[#0A84FF] font-semibold block mb-2.5">
-                  Apple Studio Workspace
-                </span>
-                <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight">
-                  Ready to craft something extraordinary, {user.name.split(' ')[0]}?
-                </h1>
-                <p className="text-[#86868B] dark:text-[#98989D] text-base mb-8 max-w-xl leading-relaxed">
-                  Design visual pages, manage structured content collections, or orchestrate your site hierarchy with precision.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div 
-                    id="tour-create-page"
-                    onClick={() => createPage()}
-                    className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.08] p-6 rounded-[24px] hover:border-[#007AFF]/50 dark:hover:border-[#0A84FF]/50 hover:shadow-md transition-all cursor-pointer group"
-                  >
-                    <div className="w-11 h-11 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
-                      <Zap size={22} />
+            {/* Premium DevInquire Studio Hero */}
+            <section className="apple-card rounded-[28px] p-7 sm:p-9 relative overflow-hidden">
+              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#4e45e1]/[0.10] dark:bg-[#6B63F2]/[0.18] blur-3xl pointer-events-none" />
+              <div className="relative z-10 space-y-6">
+                {!isDomainHostingConnected ? (
+                  <form onSubmit={handleConnectDomainAndHosting} className="space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[#4e45e1] dark:text-[#6B63F2] font-semibold">
+                          <span className="w-2 h-2 rounded-full bg-[#FF9500]" />
+                          Step 1 · Connect Domain &amp; Hosting Required
+                        </span>
+                        <h1 className="text-3xl sm:text-4xl font-bold mt-2 mb-2 tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight">
+                          Connect Domain &amp; Hosting to Start
+                        </h1>
+                        <p className="text-[#86868B] dark:text-[#98989D] text-sm sm:text-base max-w-2xl leading-relaxed">
+                          Link your domain and hosting provider first. Once connected, website creation, templates, and Experience Manager unlock automatically.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={startTourGuide}
+                        className="apple-secondary-btn h-10 px-4 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 self-start cursor-pointer"
+                      >
+                        <HelpCircle size={14} className="text-[#4e45e1] dark:text-[#6B63F2]" />
+                        <span>Startup Guide</span>
+                      </button>
                     </div>
-                    <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Instant Page</h3>
-                    <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">Launch a blank canvas or start from a curated layout.</p>
-                  </div>
 
-                  <div 
-                    onClick={() => setActiveView('templates')}
-                    className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.08] p-6 rounded-[24px] hover:border-[#5856D6]/50 hover:shadow-md transition-all cursor-pointer group"
-                  >
-                    <div className="w-11 h-11 bg-[#5856D6] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
-                      <Layout size={22} />
+                    <div className="apple-subcard rounded-[22px] p-5 grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
+                      <div className="md:col-span-5 space-y-1.5">
+                        <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Domain Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., devinquire.com"
+                          value={siteConfig.customDomain || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, customDomain: e.target.value.toLowerCase() }))}
+                          className="w-full bg-white dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
+                        />
+                      </div>
+                      <div className="md:col-span-4 space-y-1.5">
+                        <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Hosting Provider</label>
+                        <select
+                          value={siteConfig.hostingProvider || 'Hostinger'}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, hostingProvider: e.target.value }))}
+                          className="w-full bg-white dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
+                        >
+                          <option value="Hostinger">Hostinger</option>
+                          <option value="Vercel">Vercel</option>
+                          <option value="Netlify">Netlify</option>
+                          <option value="Cloudflare Pages">Cloudflare Pages</option>
+                          <option value="Custom Node.js / VPS">Custom Node.js / VPS</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-3">
+                        <button
+                          type="submit"
+                          disabled={isSaving}
+                          className="w-full apple-pill-btn h-[42px] px-5 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+                          <span>Verify &amp; Connect</span>
+                        </button>
+                      </div>
                     </div>
-                    <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Browse Templates</h3>
-                    <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">Explore reusable sections and page blueprints.</p>
-                  </div>
 
-                  <div 
-                    onClick={() => setActiveView('collections')}
-                    className="bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.05] dark:border-white/[0.08] p-6 rounded-[24px] hover:border-[#34C759]/50 hover:shadow-md transition-all cursor-pointer group"
-                  >
-                    <div className="w-11 h-11 bg-[#34C759] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
-                      <Layers size={22} />
+                    <div className="flex items-center gap-2 text-xs text-[#86868B]">
+                      <Lock size={13} className="text-[#FF9500]" />
+                      <span>Website creation (Pages, Templates &amp; Experience Manager) is locked until domain &amp; hosting are connected.</span>
                     </div>
-                    <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Content Collections</h3>
-                    <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed">Architect structured schemas & headless endpoints.</p>
-                  </div>
-                </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[#4e45e1] dark:text-[#6B63F2] font-semibold">
+                          <span className="w-2 h-2 rounded-full bg-[#34C759]" />
+                          Connected: {siteConfig.customDomain || siteConfig.baseUrl.replace(/^https?:\/\//, '')} · {siteConfig.hostingProvider || 'Hostinger'}
+                        </span>
+                        <h1 className="text-3xl sm:text-4xl font-bold mt-2 mb-2 tracking-tight text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight">
+                          Ready to craft something extraordinary, {user.name.split(' ')[0]}?
+                        </h1>
+                        <p className="text-[#86868B] dark:text-[#98989D] text-sm sm:text-base max-w-2xl leading-relaxed">
+                          Your domain &amp; hosting are connected. Create visual pages, organize your site hierarchy, and publish effortlessly.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2.5 shrink-0 self-start flex-wrap">
+                        <button
+                          type="button"
+                          onClick={startTourGuide}
+                          className="apple-secondary-btn h-10 px-4 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <HelpCircle size={14} className="text-[#4e45e1] dark:text-[#6B63F2]" />
+                          <span>Startup Guide</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => createPage()}
+                          className="apple-pill-btn h-10 px-5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Plus size={15} />
+                          <span>New Page</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div 
+                        id="tour-create-page"
+                        onClick={() => createPage()}
+                        className="apple-subcard p-6 rounded-[22px] hover:-translate-y-0.5 hover:border-[#4e45e1]/45 transition-all cursor-pointer group"
+                      >
+                        <div className="w-11 h-11 bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm shadow-[#4e45e1]/25">
+                          <Zap size={22} />
+                        </div>
+                        <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Instant Page</h3>
+                        <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed mb-3">Launch a blank canvas or start from a curated layout.</p>
+                        <span className="text-[11px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] inline-flex items-center gap-1">
+                          Create Page <ChevronRight size={13} />
+                        </span>
+                      </div>
+
+                      <div 
+                        onClick={() => setActiveView('templates')}
+                        className="apple-subcard p-6 rounded-[22px] hover:-translate-y-0.5 hover:border-[#4e45e1]/45 transition-all cursor-pointer group"
+                      >
+                        <div className="w-11 h-11 bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm shadow-[#4e45e1]/25">
+                          <Layout size={22} />
+                        </div>
+                        <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Browse Templates</h3>
+                        <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed mb-3">Explore reusable sections and page blueprints.</p>
+                        <span className="text-[11px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] inline-flex items-center gap-1">
+                          Open Templates <ChevronRight size={13} />
+                        </span>
+                      </div>
+
+                      <div 
+                        onClick={() => setActiveView('experience')}
+                        className="apple-subcard p-6 rounded-[22px] hover:-translate-y-0.5 hover:border-[#4e45e1]/45 transition-all cursor-pointer group"
+                      >
+                        <div className="w-11 h-11 bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm shadow-[#4e45e1]/25">
+                          <FolderTree size={22} />
+                        </div>
+                        <h3 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">Experience Manager</h3>
+                        <p className="text-xs text-[#86868B] dark:text-[#98989D] leading-relaxed mb-3">Manage your sitemap hierarchy and live page preview.</p>
+                        <span className="text-[11px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] inline-flex items-center gap-1">
+                          Open Experience <ChevronRight size={13} />
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </section>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              <StatCard label="Live Pages" value={stats.published} trend="+12%" icon={<Globe className="text-[#007AFF] dark:text-[#0A84FF]" size={20} />} />
+              <StatCard label="Live Pages" value={stats.published} trend="+12%" icon={<Globe className="text-[#4e45e1] dark:text-[#6B63F2]" size={20} />} />
               <StatCard label="Monthly Visitors" value="4,290" trend="+5.4%" icon={<Users className="text-[#5856D6]" size={20} />} />
               <StatCard label="Media Assets" value={media.length} trend="Active" icon={<Eye className="text-[#AF52DE]" size={20} />} />
               <StatCard label="API Requests" value="1.2k" trend="Stable" icon={<Activity className="text-[#34C759]" size={20} />} />
@@ -2360,7 +2615,7 @@ const Dashboard: React.FC = () => {
               <div className="p-8 sm:p-10 space-y-6">
                  <div className="flex justify-between items-start">
                     <div className="space-y-1.5">
-                       <div className="flex items-center gap-2 text-[#007AFF] dark:text-[#0A84FF]">
+                       <div className="flex items-center gap-2 text-[#4e45e1] dark:text-[#6B63F2]">
                           <Sparkles size={20} />
                           <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.18em]">AI Content Architect</span>
                        </div>
@@ -2375,7 +2630,7 @@ const Dashboard: React.FC = () => {
                        <textarea 
                           rows={4}
                           placeholder="e.g., A blog with title, featured image, content, and categories..."
-                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-2xl p-5 text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#1C1C1E] focus:ring-2 focus:ring-[#007AFF] transition-all outline-none resize-none text-sm leading-relaxed"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-2xl p-5 text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#1C1C1E] focus:ring-2 focus:ring-[#4e45e1] transition-all outline-none resize-none text-sm leading-relaxed"
                           value={collectionPrompt}
                           onChange={(e) => setCollectionPrompt(e.target.value)}
                        />
@@ -2384,13 +2639,13 @@ const Dashboard: React.FC = () => {
                     <div className="flex flex-wrap gap-2.5">
                        <button 
                           onClick={() => setCollectionPrompt("A restaurant menu with dish name, price, ingredients, and dietary tags.")}
-                          className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:border-[#007AFF] transition-all cursor-pointer"
+                          className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:border-[#4e45e1] transition-all cursor-pointer"
                        >
                           Restaurant Menu
                        </button>
                        <button 
                           onClick={() => setCollectionPrompt("An e-commerce product catalog with name, price, stock level, and gallery.")}
-                          className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:border-[#007AFF] transition-all cursor-pointer"
+                          className="px-3.5 py-2 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] hover:border-[#4e45e1] transition-all cursor-pointer"
                        >
                           Product Catalog
                        </button>
@@ -2400,7 +2655,7 @@ const Dashboard: React.FC = () => {
                  <button 
                     disabled={!collectionPrompt || isArchitecting}
                     onClick={handleGenerateCollectionAI}
-                    className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-4 rounded-2xl font-semibold text-base flex items-center justify-center gap-2.5 hover:bg-[#0071E3] disabled:opacity-50 transition-all shadow-lg shadow-[#007AFF]/20 active:scale-[0.99] cursor-pointer"
+                    className="w-full bg-[#4e45e1] dark:bg-[#6B63F2] text-white py-4 rounded-2xl font-semibold text-base flex items-center justify-center gap-2.5 hover:bg-[#4139BF] dark:hover:bg-[#5850EB] disabled:opacity-50 transition-all shadow-lg shadow-[#4e45e1]/20 active:scale-[0.99] cursor-pointer"
                  >
                     {isArchitecting ? (
                        <>
@@ -2423,9 +2678,9 @@ const Dashboard: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Recent Pages</h2>
-                  <button onClick={() => setActiveView('pages')} className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline cursor-pointer">See All</button>
+                  <button onClick={() => setActiveView('pages')} className="text-xs font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline cursor-pointer">See All</button>
                 </div>
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+                <div className="apple-card rounded-[24px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
                   <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
                     {pages.slice(0, 4).map(page => (
                       <div 
@@ -2434,15 +2689,15 @@ const Dashboard: React.FC = () => {
                         className="p-4 flex items-center justify-between hover:bg-[#F5F5F7]/70 dark:hover:bg-white/[0.04] transition-colors cursor-pointer group"
                       >
                         <div className="flex items-center gap-3.5">
-                          <div className="w-10 h-10 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-xl flex items-center justify-center text-[#86868B] dark:text-[#98989D] group-hover:bg-[#007AFF]/12 group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-colors">
+                          <div className="w-10 h-10 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-xl flex items-center justify-center text-[#86868B] dark:text-[#98989D] group-hover:bg-[#4e45e1]/12 group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-colors">
                             <FileText size={18} />
                           </div>
                           <div>
-                            <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] text-sm group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] transition-colors">{page.title}</h4>
+                            <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] text-sm group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-colors">{page.title}</h4>
                             <p className="text-[11px] font-mono text-[#86868B] dark:text-[#98989D]">/{page.slug}</p>
                           </div>
                         </div>
-                        <ChevronRight size={16} className="text-[#86868B] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] group-hover:translate-x-0.5 transition-all" />
+                        <ChevronRight size={16} className="text-[#86868B] group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] group-hover:translate-x-0.5 transition-all" />
                       </div>
                     ))}
                     {pages.length === 0 && (
@@ -2461,10 +2716,10 @@ const Dashboard: React.FC = () => {
                 <div className="space-y-4">
                   <div 
                     onClick={() => setActiveView('experience')}
-                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#007AFF]/50 transition-all cursor-pointer group"
+                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#4e45e1]/50 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 rounded-2xl text-[#007AFF] dark:text-[#0A84FF]">
+                      <div className="p-3 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 rounded-2xl text-[#4e45e1] dark:text-[#6B63F2]">
                         <FolderTree size={22} />
                       </div>
                       <div>
@@ -2472,12 +2727,12 @@ const Dashboard: React.FC = () => {
                         <p className="text-xs text-[#86868B] dark:text-[#98989D]">Visual inline page canvas & interactive hierarchy</p>
                       </div>
                     </div>
-                    <ChevronRight size={18} className="text-[#86868B] group-hover:text-[#007AFF] group-hover:translate-x-0.5 transition-all" />
+                    <ChevronRight size={18} className="text-[#86868B] group-hover:text-[#4e45e1] group-hover:translate-x-0.5 transition-all" />
                   </div>
 
                   <div 
                     onClick={() => setActiveView('headless-api')}
-                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#007AFF]/50 transition-all cursor-pointer group"
+                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#4e45e1]/50 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center gap-4">
                       <div className="p-3 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl text-[#1D1D1F] dark:text-[#F5F5F7]">
@@ -2488,7 +2743,7 @@ const Dashboard: React.FC = () => {
                         <p className="text-xs text-[#86868B] dark:text-[#98989D]">REST endpoints & interactive JSON console</p>
                       </div>
                     </div>
-                    <ExternalLink size={18} className="text-[#86868B] group-hover:text-[#007AFF] transition-colors" />
+                    <ExternalLink size={18} className="text-[#86868B] group-hover:text-[#4e45e1] transition-colors" />
                   </div>
                 </div>
               </div>
@@ -2516,14 +2771,14 @@ const Dashboard: React.FC = () => {
                   setRewrites(prev => [newRewrite, ...prev]);
                   // We'll sync when they edit it
                 }}
-                className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full font-semibold text-xs flex items-center gap-2 shadow-sm shadow-[#007AFF]/20 hover:bg-[#0071E3] transition-all cursor-pointer"
+                className="bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-5 py-2.5 rounded-full font-semibold text-xs flex items-center gap-2 shadow-sm shadow-[#4e45e1]/20 hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all cursor-pointer"
               >
                 <Plus size={16} />
                 Add Rewrite Rule
               </button>
             </div>
 
-            <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
+            <div className="apple-card rounded-[24px] overflow-hidden shadow-xs">
               <table className="w-full text-left">
                 <thead className="bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60 border-b border-black/[0.06] dark:border-white/[0.08]">
                   <tr>
@@ -2547,7 +2802,7 @@ const Dashboard: React.FC = () => {
                         <td className="px-6 py-4">
                           <input 
                             type="text" 
-                            className="bg-transparent border-b border-transparent hover:border-black/15 dark:hover:border-white/20 focus:border-[#007AFF] outline-none text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] w-full"
+                            className="bg-transparent border-b border-transparent hover:border-black/15 dark:hover:border-white/20 focus:border-[#4e45e1] outline-none text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] w-full"
                             placeholder="/old-path"
                             value={rewrite.source}
                             onChange={(e) => {
@@ -2560,7 +2815,7 @@ const Dashboard: React.FC = () => {
                         <td className="px-6 py-4">
                           <input 
                             type="text" 
-                            className="bg-transparent border-b border-transparent hover:border-black/15 dark:hover:border-white/20 focus:border-[#007AFF] outline-none text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] w-full"
+                            className="bg-transparent border-b border-transparent hover:border-black/15 dark:hover:border-white/20 focus:border-[#4e45e1] outline-none text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7] w-full"
                             placeholder="new-slug or /new-path"
                             value={rewrite.target}
                             onChange={(e) => {
@@ -2623,10 +2878,10 @@ const Dashboard: React.FC = () => {
       case 'headless-api':
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
+            <div className="apple-card rounded-[24px] p-8 shadow-xs">
               <div className="flex items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF] rounded-2xl">
+                  <div className="p-3 bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2] rounded-2xl">
                     <Terminal size={24} />
                   </div>
                   <div>
@@ -2636,7 +2891,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <Link 
                   to="/headless-demo" 
-                  className="px-5 py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-full font-semibold text-xs flex items-center gap-2 hover:bg-[#0071E3] transition-all shadow-sm shadow-[#007AFF]/20"
+                  className="px-5 py-2.5 bg-[#4e45e1] dark:bg-[#6B63F2] text-white rounded-full font-semibold text-xs flex items-center gap-2 hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-sm shadow-[#4e45e1]/20"
                 >
                   <Globe size={16} />
                   View Live Demo
@@ -2646,7 +2901,7 @@ const Dashboard: React.FC = () => {
               <div className="space-y-8">
                 <section>
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-[#007AFF] dark:bg-[#0A84FF] rounded-full" />
+                    <div className="w-1.5 h-6 bg-[#4e45e1] dark:bg-[#6B63F2] rounded-full" />
                     <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Content Endpoints</h3>
                   </div>
                   
@@ -2716,18 +2971,8 @@ console.log('Posts:', posts.map(p => p.title));`}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Site Settings</h2>
-                <p className="text-sm text-[#86868B] dark:text-[#98989D]">Configure your global site preferences, styles, page SEO, team user management, and UTF-8 CSV page automation.</p>
+                <p className="text-sm text-[#86868B] dark:text-[#98989D]">Configure your global site preferences, styles, page SEO, and UTF-8 CSV page automation.</p>
               </div>
-              {activeSettingsTab === 'users' && activePermissions.users === 'manage' && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddUserModal(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white rounded-full text-xs font-semibold shadow-sm shadow-[#007AFF]/20 transition-all cursor-pointer"
-                >
-                  <Plus size={15} />
-                  <span>Quick Add Member</span>
-                </button>
-              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-1 bg-black/[0.05] dark:bg-white/[0.08] p-1 rounded-2xl w-fit">
@@ -2736,6 +2981,16 @@ console.log('Posts:', posts.map(p => p.title));`}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeSettingsTab === 'site' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
               >
                 Site Config
+              </button>
+              <button 
+                onClick={() => setActiveSettingsTab('hosting')}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${activeSettingsTab === 'hosting' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
+              >
+                <Globe size={13} />
+                <span>Domain &amp; Hosting</span>
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full font-semibold bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]">
+                  {connectedDomains.length}
+                </span>
               </button>
               <button 
                 onClick={() => setActiveSettingsTab('styles')}
@@ -2750,36 +3005,19 @@ console.log('Posts:', posts.map(p => p.title));`}
                 Page SEO
               </button>
               <button 
-                onClick={() => setActiveSettingsTab('hosting')}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeSettingsTab === 'hosting' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
-              >
-                Domain & Hosting
-              </button>
-              <button 
-                id="tab-settings-users"
-                onClick={() => setActiveSettingsTab('users')}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeSettingsTab === 'users' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
-              >
-                <Users size={14} />
-                <span>User Management</span>
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-semibold ${activeSettingsTab === 'users' ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'bg-black/[0.06] dark:bg-white/[0.08] text-[#86868B]'}`}>
-                  {users.length}
-                </span>
-              </button>
-              <button 
                 id="tab-settings-automation"
                 onClick={() => setActiveSettingsTab('automation')}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeSettingsTab === 'automation' ? 'bg-white dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-[#F5F5F7] shadow-xs' : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'}`}
               >
                 <Zap size={14} />
                 <span>CSV Page Automation</span>
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono font-semibold ${activeSettingsTab === 'automation' ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]' : 'bg-black/[0.06] dark:bg-white/[0.08] text-[#86868B]'}`}>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono font-semibold ${activeSettingsTab === 'automation' ? 'bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]' : 'bg-black/[0.06] dark:bg-white/[0.08] text-[#86868B]'}`}>
                   UTF-8
                 </span>
               </button>
             </div>
 
-            {activeSettingsTab !== 'users' && activePermissions.settings === 'none' ? (
+            {activePermissions.settings === 'none' ? (
               <SectionAccessDenied
                 sectionTitle="Site Settings & Global Styles"
                 requiredCapability="Site Settings: View or Manage"
@@ -2792,14 +3030,14 @@ console.log('Posts:', posts.map(p => p.title));`}
               <>
                 {activeSettingsTab === 'site' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="lg:col-span-7 bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
+                <div className="lg:col-span-7 apple-card rounded-[24px] p-8 shadow-xs">
                   <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-6">General Configuration</h2>
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Site Name</label>
                       <input 
                         type="text" 
-                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all" 
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all" 
                         value={siteConfig.siteName}
                         onChange={(e) => setSiteConfig(prev => ({ ...prev, siteName: e.target.value }))}
                       />
@@ -2808,7 +3046,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Base URL</label>
                       <input 
                         type="text" 
-                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all" 
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all" 
                         value={siteConfig.baseUrl}
                         onChange={(e) => setSiteConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
                       />
@@ -2816,21 +3054,21 @@ console.log('Posts:', posts.map(p => p.title));`}
                     <button 
                       onClick={handleSaveSettings}
                       disabled={isSaving}
-                      className="w-full bg-[#007AFF] dark:bg-[#0A84FF] text-white py-3.5 rounded-full font-semibold text-sm hover:bg-[#0071E3] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm shadow-[#007AFF]/20 cursor-pointer"
+                      className="w-full apple-pill-btn py-3.5 rounded-full font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                     >
                       {isSaving ? <Loader2 className="animate-spin" size={18} /> : 'Save Changes'}
                     </button>
                   </div>
                 </div>
 
-                <div className="lg:col-span-5 bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 flex flex-col justify-between space-y-6 shadow-xs">
+                <div className="lg:col-span-5 apple-card rounded-[24px] p-8 flex flex-col justify-between space-y-6 shadow-xs">
                   <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF] flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2] flex items-center justify-center">
                       <Zap size={20} />
                     </div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">UTF-8 CSV Page Automation</h3>
-                      <span className="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF]">
+                      <span className="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]">
                         Bulk Builder
                       </span>
                     </div>
@@ -2841,7 +3079,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                   <button
                     type="button"
                     onClick={() => setActiveSettingsTab('automation')}
-                    className="w-full py-3.5 px-4 rounded-full bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-[#007AFF]/20 cursor-pointer"
+                    className="w-full py-3.5 px-4 rounded-full bg-[#4e45e1] dark:bg-[#6B63F2] hover:bg-[#4139BF] dark:hover:bg-[#5850EB] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-[#4e45e1]/20 cursor-pointer"
                   >
                     <Zap size={15} />
                     <span>Open CSV Page Automation</span>
@@ -2853,9 +3091,9 @@ console.log('Posts:', posts.map(p => p.title));`}
             {activeSettingsTab === 'styles' && (
               <div className="max-w-4xl space-y-8 animate-in slide-in-from-bottom-4 duration-500">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6 shadow-xs">
+                  <div className="apple-card rounded-[24px] p-8 space-y-6 shadow-xs">
                     <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center gap-2">
-                      <Palette size={20} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                      <Palette size={20} className="text-[#4e45e1] dark:text-[#6B63F2]" />
                       Color Palette
                     </h2>
                     <div className="grid grid-cols-2 gap-6">
@@ -2887,16 +3125,16 @@ console.log('Posts:', posts.map(p => p.title));`}
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6 shadow-xs">
+                  <div className="apple-card rounded-[24px] p-8 space-y-6 shadow-xs">
                     <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center gap-2">
-                      <Type size={20} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                      <Type size={20} className="text-[#4e45e1] dark:text-[#6B63F2]" />
                       Typography
                     </h2>
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Primary Font (Headings)</label>
                         <select 
-                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/30"
                           value={globalStyles.headingFont}
                           onChange={(e) => setGlobalStyles(prev => ({ ...prev, headingFont: e.target.value }))}
                         >
@@ -2909,7 +3147,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       <div className="space-y-2">
                         <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Secondary Font (Body)</label>
                         <select 
-                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/30"
                           value={globalStyles.bodyFont}
                           onChange={(e) => setGlobalStyles(prev => ({ ...prev, bodyFont: e.target.value }))}
                         >
@@ -2923,14 +3161,14 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6 shadow-xs">
+                <div className="apple-card rounded-[24px] p-8 space-y-6 shadow-xs">
                   <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Layout & Spacing</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Max Container Width</label>
                       <input 
                         type="text" 
-                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/30"
                         value={globalStyles.containerWidth}
                         onChange={(e) => setGlobalStyles(prev => ({ ...prev, containerWidth: e.target.value }))}
                       />
@@ -2939,7 +3177,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Global Border Radius</label>
                       <input 
                         type="text" 
-                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/30"
                         value={globalStyles.borderRadius}
                         onChange={(e) => setGlobalStyles(prev => ({ ...prev, borderRadius: e.target.value }))}
                       />
@@ -2949,7 +3187,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                 
                 <div className="flex justify-end">
                   <button 
-                    className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#0071E3] transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
+                    className="bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-md shadow-[#4e45e1]/20 cursor-pointer"
                     onClick={() => {
                       syncGlobalStyles(globalStyles);
                       toast.success('Global styles saved successfully!');
@@ -2963,7 +3201,7 @@ console.log('Posts:', posts.map(p => p.title));`}
 
             {activeSettingsTab === 'pages' && (
               <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
+                <div className="apple-card rounded-[24px] overflow-hidden shadow-xs">
                   <div className="px-6 py-4 border-b border-black/[0.06] dark:border-white/[0.08] bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60">
                     <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">SEO Configuration</h2>
                     <p className="text-xs text-[#86868B] dark:text-[#98989D]">Manage meta titles and descriptions for all your pages.</p>
@@ -2983,7 +3221,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                             <div className="mt-4">
                               <button 
                                 onClick={() => navigate(`/editor/${page.id}`)}
-                                className="text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                className="text-[11px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                               >
                                 <Edit3 size={12} />
                                 Open in Editor
@@ -2999,7 +3237,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                                   <span className="text-xs text-[#86868B] mr-1">/</span>
                                   <input 
                                     type="text" 
-                                    className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
+                                    className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all"
                                     placeholder="page-url-slug"
                                     value={page.slug}
                                     onChange={(e) => {
@@ -3018,7 +3256,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                                 <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">Meta Title</label>
                                 <input 
                                   type="text" 
-                                  className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
+                                  className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all"
                                   placeholder="Enter meta title..."
                                   value={page.seo?.metaTitle || ''}
                                   onChange={(e) => {
@@ -3036,7 +3274,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                                 <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">Keywords</label>
                                 <input 
                                   type="text" 
-                                  className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
+                                  className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all"
                                   placeholder="e.g. design, portfolio, cms"
                                   value={page.seo?.keywords || ''}
                                   onChange={(e) => {
@@ -3055,7 +3293,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                             <div className="space-y-2">
                               <label className="text-[10px] font-semibold text-[#86868B] uppercase tracking-wider">Meta Description</label>
                               <textarea 
-                                className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all min-h-[80px] resize-none"
+                                className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-2 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all min-h-[80px] resize-none"
                                 placeholder="Enter meta description..."
                                 value={page.seo?.metaDescription || ''}
                                 onChange={(e) => {
@@ -3078,113 +3316,154 @@ console.log('Posts:', posts.map(p => p.title));`}
               </div>
             )}
 
-            {activeSettingsTab === 'hosting' && (
-              <div className="max-w-4xl space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[28px] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-xs">
-                  <div className="p-8 sm:p-10 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between bg-[#F5F5F7]/70 dark:bg-[#1C1C1E]/60">
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Custom Domain Control</h2>
-                      <p className="text-sm text-[#86868B] dark:text-[#98989D]">Point your own domain name to this CMS project.</p>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-[#34C759]/15 text-[#34C759] rounded-full">
-                       <Globe size={16} />
-                       <span className="text-xs font-semibold uppercase tracking-wider leading-none">SSL Active</span>
-                    </div>
-                  </div>
-                  
-                  <div className="p-8 sm:p-10 space-y-10">
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Enter Custom Domain</label>
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          <input 
-                            type="text" 
-                            className="flex-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl px-6 py-4 text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
-                            placeholder="e.g., www.mycoolsite.com"
-                            value={siteConfig.customDomain || ''}
-                            onChange={(e) => setSiteConfig(prev => ({ ...prev, customDomain: e.target.value.toLowerCase() }))}
-                          />
-                          <button 
-                            onClick={handleSaveSettings}
-                            className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-8 py-4 rounded-2xl font-semibold hover:bg-[#0071E3] transition-all active:scale-95 shadow-md shadow-[#007AFF]/20 cursor-pointer"
-                          >
-                            Verify & Connect
-                          </button>
+                {activeSettingsTab === 'hosting' && (
+                  <div className="max-w-5xl space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+                    <form onSubmit={(e) => handleConnectDomainAndHosting(e)} className="apple-card rounded-[24px] p-7 space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Add Domain &amp; Hosting</h3>
+                          <p className="text-xs text-[#86868B] dark:text-[#98989D] mt-0.5">
+                            Connect multiple domains and hosting providers. Each connected domain gets its own isolated website &amp; pages.
+                          </p>
                         </div>
-                        <p className="text-[11px] text-[#86868B] font-medium">Domain verification may take up to 24-48 hours to propagate globally.</p>
+                        <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-[#4e45e1]/10 text-[#4e45e1] dark:text-[#6B63F2]">
+                          {connectedDomains.length} Connected
+                        </span>
                       </div>
 
-                      {siteConfig.customDomain && (
-                        <div className="bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 space-y-6">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-xl flex items-center justify-center">
-                               <Settings size={18} />
-                            </div>
-                            <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] text-lg">Required DNS Records</h3>
-                          </div>
-                           <p className="text-sm text-[#86868B] dark:text-[#98989D]">Update your domain's DNS settings at your registrar (e.g., Namecheap, GoDaddy) with the following values:</p>
-                           
-                           <div className="space-y-3">
-                              <div className="grid grid-cols-12 gap-4 text-[10px] font-semibold text-[#86868B] uppercase tracking-wider px-4">
-                                 <div className="col-span-2">Type</div>
-                                 <div className="col-span-3">Host</div>
-                                 <div className="col-span-5">Value / Target</div>
-                                 <div className="col-span-2 text-right">TTL</div>
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
+                        <div className="md:col-span-4 space-y-1.5">
+                          <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Domain Name</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., clientwebsite.com"
+                            value={newDomainInput}
+                            onChange={(e) => setNewDomainInput(e.target.value.toLowerCase())}
+                            className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
+                          />
+                        </div>
+                        <div className="md:col-span-3 space-y-1.5">
+                          <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Website Label</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., Client Brand"
+                            value={newDomainSiteName}
+                            onChange={(e) => setNewDomainSiteName(e.target.value)}
+                            className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
+                          />
+                        </div>
+                        <div className="md:col-span-3 space-y-1.5">
+                          <label className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Hosting Provider</label>
+                          <select
+                            value={newProviderInput}
+                            onChange={(e) => setNewProviderInput(e.target.value)}
+                            className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
+                          >
+                            <option value="Hostinger">Hostinger</option>
+                            <option value="Vercel">Vercel</option>
+                            <option value="Netlify">Netlify</option>
+                            <option value="Cloudflare Pages">Cloudflare Pages</option>
+                            <option value="Custom Node.js / VPS">Custom Node.js / VPS</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="w-full apple-pill-btn h-[42px] px-4 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                            <span>Verify &amp; Add</span>
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+
+                    <div className="apple-card rounded-[24px] p-7 space-y-4">
+                      <h3 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                        Connected Domains &amp; Websites
+                      </h3>
+                      {connectedDomains.length === 0 ? (
+                        <p className="text-xs text-[#86868B] py-4">
+                          No domains connected yet. Add your first domain above to start creating websites.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {connectedDomains.map((dom) => {
+                            const isActive = activeDomain?.id === dom.id;
+                            const countForDomain = pages.filter((p) => p.domainId === dom.id).length;
+                            return (
+                              <div
+                                key={dom.id}
+                                className={`apple-subcard rounded-[18px] p-4 flex flex-wrap items-center justify-between gap-4 border ${
+                                  isActive ? 'border-[#4e45e1]/45 bg-[#4e45e1]/[0.06]' : 'border-transparent'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-10 h-10 rounded-xl bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white flex items-center justify-center shrink-0">
+                                    <Globe size={18} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">
+                                        {dom.domain}
+                                      </span>
+                                      {isActive && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#34C759]/15 text-[#248A3D] dark:text-[#30D158]">
+                                          Active
+                                        </span>
+                                      )}
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/[0.05] dark:bg-white/[0.08] text-[#86868B]">
+                                        {dom.hostingProvider}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-[#86868B] mt-0.5">
+                                      {countForDomain} page{countForDomain === 1 ? '' : 's'} ·{' '}
+                                      {dom.resolvedIps && dom.resolvedIps.length > 0
+                                        ? `DNS ${dom.resolvedIps[0]}`
+                                        : 'Connected'}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {!isActive && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSelectDomain(dom.id)}
+                                      className="apple-secondary-btn px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
+                                    >
+                                      Switch Here
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleSelectDomain(dom.id);
+                                      setActiveView('pages');
+                                    }}
+                                    className="apple-pill-btn px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
+                                  >
+                                    Manage Pages
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDomain(dom.id)}
+                                    className="p-2 rounded-xl text-[#86868B] hover:text-[#FF3B30] hover:bg-[#FF3B30]/10 transition-colors cursor-pointer"
+                                    title="Remove domain"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </div>
-                              <DnsRecordRow type="A" host="@" value="34.102.215.118" />
-                              <DnsRecordRow type="CNAME" host="www" value="cname.devinquire-cms.cloud" />
-                           </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
-
-                    <div className="pt-10 border-t border-black/[0.06] dark:border-white/[0.08]">
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                          <div className="space-y-4">
-                             <div className="p-3 bg-[#FF9500]/15 text-[#FF9500] rounded-2xl w-fit">
-                                <Zap size={24} />
-                             </div>
-                             <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Headless Edge Delivery</h4>
-                             <p className="text-sm text-[#86868B] dark:text-[#98989D] leading-relaxed">Your content is globally distributed via our CDN. Accessing your custom domain automatically routes requests to the nearest edge node for sub-100ms latency.</p>
-                          </div>
-                          <div className="space-y-4">
-                             <div className="p-3 bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] rounded-2xl w-fit">
-                                <Activity size={24} />
-                             </div>
-                             <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Automatic SSL/TLS</h4>
-                             <p className="text-sm text-[#86868B] dark:text-[#98989D] leading-relaxed">We automatically provision and renew Let's Encrypt certificates for every custom domain connected to our platform at no extra cost.</p>
-                          </div>
-                       </div>
-                    </div>
                   </div>
-                </div>
-              </div>
                 )}
-                {activeSettingsTab === 'users' && (
-                  activePermissions.users === 'none' && !simulatedUser ? (
-                    <SectionAccessDenied
-                      sectionTitle="User Management & RBAC"
-                      requiredCapability="User Management: View or Manage"
-                      activeRoleName={activeRoleLabel}
-                      isSimulating={Boolean(simulatedUser)}
-                      onExitSimulation={() => setSimulatedUser(null)}
-                      onBackToDashboard={() => setActiveView('dashboard')}
-                    />
-                  ) : (
-                    <div className="animate-in slide-in-from-bottom-4 duration-500">
-                      <UserManagementView
-                        users={users}
-                        setUsers={setUsers}
-                        syncUserManagement={syncUserManagement}
-                        deleteUserOnServer={deleteUserOnServer}
-                        simulatedUser={simulatedUser}
-                        onSimulateUser={setSimulatedUser}
-                        openAddModalTrigger={showAddUserModal}
-                        onCloseAddModalTrigger={() => setShowAddUserModal(false)}
-                      />
-                    </div>
-                  )
-                )}
+
                 {activeSettingsTab === 'automation' && (
                   <CsvPageAutomation
                     pages={pages}
@@ -3214,8 +3493,8 @@ console.log('Posts:', posts.map(p => p.title));`}
       case 'seo':
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
-             <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
-                <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 flex items-center gap-2"><Activity size={20} className="text-[#007AFF] dark:text-[#0A84FF]" /> SEO Health</h2>
+             <div className="apple-card rounded-[24px] p-8 shadow-xs">
+                <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 flex items-center gap-2"><Activity size={20} className="text-[#4e45e1] dark:text-[#6B63F2]" /> SEO Health</h2>
                 <div className="flex items-center gap-4 py-6 border-b border-black/[0.06] dark:border-white/[0.08]">
                    <div className="text-4xl font-semibold text-[#34C759]">88</div>
                    <div className="text-sm font-medium text-[#86868B] dark:text-[#98989D]">Site-wide SEO score based on content analysis and metadata completeness.</div>
@@ -3231,7 +3510,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                 <p className="text-[#86868B] dark:text-[#98989D] text-sm mb-8">Connect your site to track impressions and search ranking data directly in your CMS.</p>
                 <button 
                   onClick={() => setShowConnectModal(true)}
-                  className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-6 py-2.5 rounded-full font-semibold text-sm hover:bg-[#0071E3] transition-all cursor-pointer"
+                  className="bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-6 py-2.5 rounded-full font-semibold text-sm hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all cursor-pointer"
                 >
                   Connect Site
                 </button>
@@ -3239,25 +3518,52 @@ console.log('Posts:', posts.map(p => p.title));`}
           </div>
         );
       case 'users':
-        return (
-          <UserManagementView
-            users={users}
-            setUsers={setUsers}
-            syncUserManagement={syncUserManagement}
-            deleteUserOnServer={deleteUserOnServer}
-            simulatedUser={simulatedUser}
-            onSimulateUser={setSimulatedUser}
-            openAddModalTrigger={showAddUserModal}
-            onCloseAddModalTrigger={() => setShowAddUserModal(false)}
+        return activePermissions.users === 'none' && !simulatedUser ? (
+          <SectionAccessDenied
+            sectionTitle="User Management & RBAC"
+            requiredCapability="User Management: View or Manage"
+            activeRoleName={activeRoleLabel}
+            isSimulating={Boolean(simulatedUser)}
+            onExitSimulation={() => setSimulatedUser(null)}
+            onBackToDashboard={() => setActiveView('dashboard')}
           />
+        ) : (
+          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">User Management</h2>
+                <p className="text-sm text-[#86868B] dark:text-[#98989D]">Manage team members, roles, and section-level access permissions.</p>
+              </div>
+              {activePermissions.users === 'manage' && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(true)}
+                  className="apple-pill-btn flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <Plus size={15} />
+                  <span>Quick Add Member</span>
+                </button>
+              )}
+            </div>
+            <UserManagementView
+              users={users}
+              setUsers={setUsers}
+              syncUserManagement={syncUserManagement}
+              deleteUserOnServer={deleteUserOnServer}
+              simulatedUser={simulatedUser}
+              onSimulateUser={setSimulatedUser}
+              openAddModalTrigger={showAddUserModal}
+              onCloseAddModalTrigger={() => setShowAddUserModal(false)}
+            />
+          </div>
         );
       case 'profile':
         return (
           <div className="max-w-4xl animate-in fade-in duration-500">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="col-span-1 space-y-6">
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 text-center shadow-xs">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-[#007AFF] to-[#5856D6] mx-auto flex items-center justify-center text-white text-3xl font-semibold shadow-lg mb-4 overflow-hidden">
+                <div className="apple-card rounded-[24px] p-6 text-center shadow-xs">
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-[#4e45e1] to-[#5856D6] mx-auto flex items-center justify-center text-white text-3xl font-semibold shadow-lg mb-4 overflow-hidden">
                     {user.avatarUrl ? (
                       <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
@@ -3275,7 +3581,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       onChange={handleAvatarUpload} 
                     />
                     <button 
-                      className="w-full py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm shadow-[#007AFF]/20 cursor-pointer"
+                      className="w-full py-2.5 bg-[#4e45e1] dark:bg-[#6B63F2] text-white rounded-full text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-sm shadow-[#4e45e1]/20 cursor-pointer"
                       onClick={() => avatarInputRef.current?.click()}
                     >
                       Upload Image
@@ -3295,7 +3601,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       Set Initials
                     </button>
                     <button 
-                      className="w-full py-2 text-[10px] font-semibold text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-all uppercase tracking-widest cursor-pointer"
+                      className="w-full py-2 text-[10px] font-semibold text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] transition-all uppercase tracking-widest cursor-pointer"
                       onClick={() => {
                         const initials = profileData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
                         const updatedUser = { ...user, avatar: initials, avatarUrl: undefined };
@@ -3309,12 +3615,12 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 shadow-xs">
+                <div className="apple-card rounded-[24px] p-6 shadow-xs">
                   <h4 className="text-xs font-semibold text-[#86868B] uppercase tracking-wider mb-4">Account Status</h4>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-[#86868B] dark:text-[#98989D]">Plan</span>
-                      <span className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] bg-[#007AFF]/10 px-2.5 py-1 rounded-full">Professional</span>
+                      <span className="text-xs font-semibold text-[#4e45e1] dark:text-[#6B63F2] bg-[#4e45e1]/10 px-2.5 py-1 rounded-full">Professional</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-[#86868B] dark:text-[#98989D]">Member Since</span>
@@ -3323,9 +3629,9 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 shadow-xs">
+                <div className="apple-card rounded-[24px] p-6 shadow-xs">
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles size={16} className="text-[#007AFF] dark:text-[#0A84FF]" />
+                    <Sparkles size={16} className="text-[#4e45e1] dark:text-[#6B63F2]" />
                     <h4 className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] uppercase tracking-wider">CMS Tour Guide</h4>
                   </div>
                   <p className="text-xs text-[#86868B] dark:text-[#98989D] mb-4 leading-relaxed">
@@ -3333,7 +3639,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </p>
                   <button 
                     onClick={startTourGuide}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] text-white rounded-full text-xs font-semibold transition-all shadow-sm shadow-[#007AFF]/20 cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#4e45e1] dark:bg-[#6B63F2] hover:bg-[#4139BF] dark:hover:bg-[#5850EB] text-white rounded-full text-xs font-semibold transition-all shadow-sm shadow-[#4e45e1]/20 cursor-pointer"
                   >
                     <Sparkles size={14} />
                     Restart Tour Guide
@@ -3342,7 +3648,7 @@ console.log('Posts:', posts.map(p => p.title));`}
               </div>
 
               <div className="col-span-1 md:col-span-2 space-y-6">
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8 shadow-xs">
+                <div className="apple-card rounded-[24px] p-8 shadow-xs">
                   <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-8">Profile Details</h2>
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -3350,7 +3656,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                         <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Full Name</label>
                         <input 
                           type="text" 
-                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all"
                           value={profileData.name}
                           onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
                         />
@@ -3359,7 +3665,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                         <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Email Address</label>
                         <input 
                           type="email" 
-                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all"
                           value={profileData.email}
                           onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
                         />
@@ -3370,7 +3676,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Location</label>
                       <input 
                         type="text" 
-                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all"
                         value={profileData.location}
                         onChange={(e) => setProfileData(prev => ({ ...prev, location: e.target.value }))}
                       />
@@ -3379,7 +3685,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-[#86868B] uppercase tracking-wider">Bio</label>
                       <textarea 
-                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF]/30 outline-none transition-all min-h-[120px]"
+                        className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1]/30 outline-none transition-all min-h-[120px]"
                         value={profileData.bio}
                         onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
                       />
@@ -3387,7 +3693,7 @@ console.log('Posts:', posts.map(p => p.title));`}
 
                     <div className="pt-4">
                       <button 
-                        className="bg-[#007AFF] dark:bg-[#0A84FF] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#0071E3] transition-all shadow-md shadow-[#007AFF]/20 cursor-pointer"
+                        className="bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-md shadow-[#4e45e1]/20 cursor-pointer"
                         onClick={() => {
                           setUser(profileData);
                           syncUser(profileData);
@@ -3400,7 +3706,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-8">
+                <div className="apple-card rounded-[24px] p-8">
                   <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-6">Security</h2>
                   <div className="space-y-4">
                     <button 
@@ -3411,7 +3717,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       }}
                     >
                       <div className="flex items-center gap-4 text-left">
-                        <div className="w-10 h-10 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] dark:text-[#0A84FF]">
+                        <div className="w-10 h-10 rounded-full bg-[#4e45e1]/10 flex items-center justify-center text-[#4e45e1] dark:text-[#6B63F2]">
                           <Lock size={20} />
                         </div>
                         <div>
@@ -3429,7 +3735,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       }}
                     >
                       <div className="flex items-center gap-4 text-left">
-                        <div className="w-10 h-10 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] dark:text-[#0A84FF]">
+                        <div className="w-10 h-10 rounded-full bg-[#4e45e1]/10 flex items-center justify-center text-[#4e45e1] dark:text-[#6B63F2]">
                           <Repeat size={20} />
                         </div>
                         <div>
@@ -3446,7 +3752,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                       }}
                     >
                       <div className="flex items-center gap-4 text-left">
-                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-all">
+                        <div className="w-10 h-10 rounded-full bg-[#4e45e1]/10 flex items-center justify-center text-[#4e45e1] group-hover:bg-blue-100 transition-all">
                           <Zap size={20} />
                         </div>
                         <div>
@@ -3454,7 +3760,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                           <p className="text-xs text-slate-500">Add an extra layer of security to your account</p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded uppercase tracking-widest">Enable</span>
+                      <span className="text-[10px] font-bold text-[#4e45e1] bg-[#4e45e1]/10 px-2 py-1 rounded uppercase tracking-widest">Enable</span>
                     </button>
                   </div>
                 </div>
@@ -3470,7 +3776,7 @@ console.log('Posts:', posts.map(p => p.title));`}
   const JoyrideAny = Joyride as any;
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-[#F5F5F7] flex transition-colors duration-300">
+    <div className="min-h-screen bg-transparent text-[#1D1D1F] dark:text-[#F5F5F7] flex transition-colors duration-300">
       <JoyrideAny
         steps={tourSteps}
         run={runTour}
@@ -3482,7 +3788,7 @@ console.log('Posts:', posts.map(p => p.title));`}
         callback={handleTourCallback}
         styles={{
           options: {
-            primaryColor: '#007AFF',
+            primaryColor: '#4e45e1',
             textColor: theme === 'dark' ? '#F5F5F7' : '#1D1D1F',
             backgroundColor: theme === 'dark' ? '#2C2C2E' : '#FFFFFF',
             arrowColor: theme === 'dark' ? '#2C2C2E' : '#FFFFFF',
@@ -3510,7 +3816,7 @@ console.log('Posts:', posts.map(p => p.title));`}
             fontWeight: '600',
             fontSize: '13px',
             padding: '8px 18px',
-            backgroundColor: '#007AFF',
+            backgroundColor: '#4e45e1',
           },
           buttonBack: {
             fontWeight: '600',
@@ -3536,239 +3842,197 @@ console.log('Posts:', posts.map(p => p.title));`}
 
       {/* macOS Vibrancy Sidebar Navigation */}
       <aside 
-        className={`bg-white/85 dark:bg-[#2C2C2E]/90 backdrop-blur-2xl text-[#1D1D1F] dark:text-[#F5F5F7] flex flex-col fixed h-full z-40 transition-all duration-300 ease-in-out border-r border-black/[0.06] dark:border-white/[0.08] ${
-          isSidebarCollapsed ? 'w-20' : 'w-64'
+        className={`apple-glass-sidebar text-[#1D1D1F] dark:text-[#F5F5F7] flex flex-col fixed h-full z-40 transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? 'w-[76px]' : 'w-64'
         } ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Sidebar Header with macOS Branding & Collapse Button */}
+        {/* Fixed-position Collapse / Expand Edge Pill (Desktop) */}
+        <button
+          id="btn-collapse-sidebar-toggle"
+          type="button"
+          onClick={toggleSidebar}
+          className="hidden lg:flex absolute -right-3 top-5 z-50 w-6 h-6 rounded-full bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.14] shadow-md items-center justify-center text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] transition-all cursor-pointer"
+          title={isSidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
+          aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isSidebarCollapsed ? <ChevronsRight size={13} /> : <ChevronsLeft size={13} />}
+        </button>
+
+        {/* Sidebar Brand Header */}
         <div className={`px-4 h-16 flex items-center border-b border-black/[0.06] dark:border-white/[0.08] ${
-          isSidebarCollapsed ? 'justify-center' : 'justify-between'
+          isSidebarCollapsed ? 'justify-center' : 'justify-start'
         }`}>
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-[#007AFF] to-[#0051D5] flex items-center justify-center shadow-sm shadow-[#007AFF]/25 shrink-0">
-              <Globe className="text-white" size={18} />
+          <div
+            onClick={() => {
+              setActiveView('dashboard');
+              setIsMobileSidebarOpen(false);
+            }}
+            className="flex items-center gap-3 overflow-hidden cursor-pointer group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-[#4e45e1] flex items-center justify-center shrink-0 shadow-[0_6px_16px_rgba(78,69,225,0.35)] relative overflow-hidden transition-transform duration-200 group-hover:scale-105">
+              <div className="absolute inset-0 bg-white/20 opacity-50"></div>
+              <div className="relative z-10 flex items-center justify-center text-white font-bold text-[12px] tracking-tight">
+                <span className="text-white/80 mr-0.5 text-[11px]">&#123;</span>
+                <span className="text-white font-bold">DI</span>
+                <span className="text-white/80 ml-0.5 text-[11px]">&#125;</span>
+              </div>
             </div>
             {!isSidebarCollapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="text-[15px] font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight leading-none truncate">DevInquire</span>
-                <span className="text-[10px] text-[#86868B] dark:text-[#98989D] font-medium tracking-wider uppercase mt-1">Apple Studio CMS</span>
+                <span className="font-semibold text-[16px] tracking-tight text-[#4e45e1] dark:text-[#8179FF] leading-none truncate">
+                  DevInquire
+                </span>
+                <span className="text-[10px] text-[#86868B] dark:text-[#98989D] font-medium tracking-wider uppercase mt-1">
+                  Studio CMS
+                </span>
               </div>
             )}
           </div>
-          
-          {!isSidebarCollapsed && (
-            <button
-              id="btn-collapse-sidebar-toggle"
-              onClick={toggleSidebar}
-              className="p-1.5 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-lg transition-all shrink-0 cursor-pointer"
-              title="Collapse sidebar (Ctrl+B)"
-            >
-              <PanelLeftClose size={17} />
-            </button>
-          )}
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar overflow-x-hidden">
-          <div id="tour-dashboard">
-            <NavItem 
-              id="nav-dashboard"
-              icon={<BarChart3 size={18} />} 
-              label="Dashboard" 
-              active={activeView === 'dashboard'} 
-              onClick={() => {
-                setActiveView('dashboard');
-                setIsMobileSidebarOpen(false);
-              }}
-              collapsed={isSidebarCollapsed}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <NavItem 
-              id="nav-content-hub"
-              icon={<FileText size={18} />} 
-              label="Pages & Media" 
-              active={
-                activeView === 'pages' ||
-                activeView === 'templates' ||
-                activeView === 'media'
-              } 
-              onClick={() => {
-                if (
-                  activeView !== 'pages' &&
-                  activeView !== 'templates' &&
-                  activeView !== 'media'
-                ) {
-                  setActiveView('pages');
-                }
-                setIsMobileSidebarOpen(false);
-              }}
-              collapsed={isSidebarCollapsed}
-            />
+        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto custom-scrollbar overflow-x-hidden">
+          {/* Group 1: Workspace */}
+          <div className="space-y-1">
             {!isSidebarCollapsed && (
-              <div className="grid grid-cols-3 gap-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] p-1 rounded-xl border border-black/[0.05] dark:border-white/[0.06] mx-1">
-                <button
-                  id="tour-pages"
-                  type="button"
-                  onClick={() => {
-                    setActiveView('pages');
-                    setIsMobileSidebarOpen(false);
-                  }}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                    activeView === 'pages'
-                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] shadow-xs'
-                      : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
-                  }`}
-                  title="Pages"
-                >
-                  <FileText size={11} />
-                  <span className="truncate">Pages</span>
-                </button>
-                <button
-                  id="tour-templates"
-                  type="button"
-                  onClick={() => {
-                    setActiveView('templates');
-                    setIsMobileSidebarOpen(false);
-                  }}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                    activeView === 'templates'
-                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] shadow-xs'
-                      : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
-                  }`}
-                  title="Templates"
-                >
-                  <Layout size={11} />
-                  <span className="truncate">Templates</span>
-                </button>
-                <button
-                  id="tour-media"
-                  type="button"
-                  onClick={() => {
-                    setActiveView('media');
-                    setIsMobileSidebarOpen(false);
-                  }}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                    activeView === 'media'
-                      ? 'bg-white dark:bg-[#2C2C2E] text-[#007AFF] dark:text-[#0A84FF] shadow-xs'
-                      : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-white'
-                  }`}
-                  title="Media Library"
-                >
-                  <FolderOpen size={11} />
-                  <span className="truncate">Media</span>
-                </button>
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#86868B] dark:text-[#98989D]">
+                Workspace
               </div>
             )}
-          </div>
-          <NavItem 
-            id="nav-experience"
-            icon={<FolderTree size={18} />} 
-            label="Experience Manager" 
-            active={activeView === 'experience'} 
-            onClick={() => {
-              setActiveView('experience');
-              setIsMobileSidebarOpen(false);
-            }}
-            collapsed={isSidebarCollapsed}
-            accessLevel={activePermissions.pages}
-          />
-          <NavItem 
-            id="nav-rewrites"
-            icon={<Repeat size={18} />} 
-            label="URL Rewrites" 
-            active={activeView === 'rewrites'} 
-            onClick={() => {
-              setActiveView('rewrites');
-              setIsMobileSidebarOpen(false);
-            }}
-            collapsed={isSidebarCollapsed}
-            accessLevel={activePermissions.rewrites}
-          />
-          <NavItem 
-            id="nav-headless"
-            icon={<Database size={18} />} 
-            label="Headless API" 
-            active={activeView === 'headless-api'} 
-            onClick={() => {
-              setActiveView('headless-api');
-              setIsMobileSidebarOpen(false);
-            }}
-            collapsed={isSidebarCollapsed}
-            accessLevel={activePermissions.headlessApi}
-          />
-          <div id="tour-collections">
+            <div id="tour-dashboard">
+              <NavItem 
+                id="nav-dashboard"
+                icon={<LayoutDashboard size={18} />} 
+                label="Dashboard" 
+                active={activeView === 'dashboard'} 
+                onClick={() => {
+                  setActiveView('dashboard');
+                  setIsMobileSidebarOpen(false);
+                }}
+                collapsed={isSidebarCollapsed}
+              />
+            </div>
+            <div id="tour-pages">
+              <NavItem 
+                id="nav-content-studio"
+                icon={<FileText size={18} />} 
+                label="Content Studio" 
+                active={activeView === 'pages' || activeView === 'templates' || activeView === 'media'} 
+                onClick={() => {
+                  if (activeView !== 'pages' && activeView !== 'templates' && activeView !== 'media') {
+                    setActiveView('pages');
+                  }
+                  setIsMobileSidebarOpen(false);
+                }}
+                collapsed={isSidebarCollapsed}
+                accessLevel={activePermissions.pages}
+              />
+            </div>
             <NavItem 
-              id="nav-collections"
-              icon={<Layers size={18} />} 
-              label="Collections" 
-              active={activeView === 'collections'} 
+              id="nav-experience"
+              icon={<FolderTree size={18} />} 
+              label="Experience" 
+              active={activeView === 'experience'} 
               onClick={() => {
-                setActiveView('collections');
+                setActiveView('experience');
                 setIsMobileSidebarOpen(false);
               }}
               collapsed={isSidebarCollapsed}
-              accessLevel={activePermissions.collections.level}
+              accessLevel={activePermissions.pages}
             />
           </div>
-          
-          {/* Configuration Section */}
-          <div className="pt-4 pb-1">
-            {isSidebarCollapsed ? (
-              <div className="w-8 h-[1px] bg-black/[0.06] dark:bg-white/[0.08] mx-auto my-2" />
+
+          {/* Group 2: Manage */}
+          <div className="space-y-1">
+            {!isSidebarCollapsed ? (
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#86868B] dark:text-[#98989D]">
+                Manage
+              </div>
             ) : (
-              <button 
-                onClick={() => setIsConfigExpanded(!isConfigExpanded)}
-                className="w-full px-3 flex items-center justify-between group py-1 cursor-pointer"
-              >
-                <span className="text-[10px] font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider group-hover:text-[#1D1D1F] dark:group-hover:text-white transition-colors">System</span>
-                {isConfigExpanded ? <ChevronUp size={12} className="text-[#86868B]" /> : <ChevronDown size={12} className="text-[#86868B]" />}
-              </button>
+              <div className="w-8 h-[1px] bg-black/[0.06] dark:bg-white/[0.08] mx-auto my-2" />
             )}
-          </div>
-          
-          {(isConfigExpanded || isSidebarCollapsed) && (
-            <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+            <div id="tour-collections">
               <NavItem 
-                id="nav-site-settings"
-                icon={<Settings size={18} />} 
-                label="Site Settings" 
-                active={activeView === 'settings'} 
+                id="nav-data-api-seo"
+                icon={<Database size={18} />} 
+                label="Data, API & SEO" 
+                active={
+                  activeView === 'collections' ||
+                  activeView === 'headless-api' ||
+                  activeView === 'seo' ||
+                  activeView === 'rewrites'
+                } 
                 onClick={() => {
-                  setActiveView('settings');
+                  if (
+                    activeView !== 'collections' &&
+                    activeView !== 'headless-api' &&
+                    activeView !== 'seo' &&
+                    activeView !== 'rewrites'
+                  ) {
+                    setActiveView('collections');
+                  }
                   setIsMobileSidebarOpen(false);
                 }}
                 collapsed={isSidebarCollapsed}
-                accessLevel={activePermissions.settings === 'none' && activePermissions.users !== 'none' ? activePermissions.users : activePermissions.settings}
-              />
-              <NavItem 
-                id="nav-seo"
-                icon={<Activity size={18} />} 
-                label="SEO & Analytics" 
-                active={activeView === 'seo'} 
-                onClick={() => {
-                  setActiveView('seo');
-                  setIsMobileSidebarOpen(false);
-                }}
-                collapsed={isSidebarCollapsed}
-                accessLevel={activePermissions.seo}
+                accessLevel={activePermissions.collections.level}
               />
             </div>
-          )}
+            <NavItem 
+              id="nav-site-settings"
+              icon={<Globe size={18} />} 
+              label="Site Settings" 
+              active={activeView === 'settings'} 
+              onClick={() => {
+                setActiveView('settings');
+                setIsMobileSidebarOpen(false);
+              }}
+              collapsed={isSidebarCollapsed}
+              accessLevel={activePermissions.settings}
+            />
+            <NavItem 
+              id="nav-user-management"
+              icon={<Users size={18} />} 
+              label="User Management" 
+              active={activeView === 'users'} 
+              onClick={() => {
+                setActiveView('users');
+                setIsMobileSidebarOpen(false);
+              }}
+              collapsed={isSidebarCollapsed}
+              accessLevel={activePermissions.users}
+            />
+            {(user?.role === 'Administrator' || activePermissions.settings === 'manage') && (
+              <NavItem 
+                id="nav-admin-console"
+                icon={<Terminal size={18} />} 
+                label="System Console" 
+                active={false} 
+                onClick={() => {
+                  setIsMobileSidebarOpen(false);
+                  navigate('/console');
+                }}
+                collapsed={isSidebarCollapsed}
+              />
+            )}
+          </div>
         </nav>
 
-        {/* User Control Panel */}
-        <div className="px-3 py-3 border-t border-black/[0.06] dark:border-white/[0.08]">
-          <div className={`bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl p-2.5 border border-black/[0.05] dark:border-white/[0.06] transition-all ${
-            isSidebarCollapsed ? 'flex flex-col items-center' : ''
+        {/* Compact Bottom User Profile Bar */}
+        <div className="p-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+          <div className={`apple-subcard rounded-2xl p-2 flex items-center ${
+            isSidebarCollapsed ? 'flex-col gap-2 justify-center' : 'justify-between gap-2'
           }`}>
-            <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center mb-2' : 'mb-2.5'}`}>
-              <div 
-                className="relative cursor-pointer" 
-                onClick={() => setActiveView('profile')} 
-                title={isSidebarCollapsed ? `${user.name} (${user.role})` : undefined}
-              >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-b from-[#007AFF] to-[#0051D5] flex items-center justify-center text-white text-xs font-semibold shadow-sm overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('profile');
+                setIsMobileSidebarOpen(false);
+              }}
+              className="flex items-center gap-2.5 min-w-0 text-left flex-1 cursor-pointer group"
+              title="Open Profile Settings"
+            >
+              <div className="relative shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] flex items-center justify-center text-white text-xs font-semibold shadow-sm overflow-hidden">
                   {user.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -3778,68 +4042,34 @@ console.log('Posts:', posts.map(p => p.title));`}
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#34C759] border-2 border-white dark:border-[#1C1C1E] rounded-full"></div>
               </div>
               {!isSidebarCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">{user.name}</p>
-                  <p className="text-[10px] text-[#86868B] dark:text-[#98989D] truncate">{user.email}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-colors">
+                    {user.name}
+                  </p>
+                  <p className="text-[10px] text-[#86868B] dark:text-[#98989D] truncate">{user.role}</p>
                 </div>
               )}
-            </div>
+            </button>
 
-            {isSidebarCollapsed ? (
-              <div className="flex flex-col gap-1 w-full items-center">
-                <button 
-                  onClick={() => setActiveView('profile')}
-                  className={`p-2 rounded-xl transition-all cursor-pointer ${activeView === 'profile' ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'}`}
-                  title="Profile Settings"
-                >
-                  <Users size={14} />
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="p-2 rounded-xl text-[#86868B] hover:bg-[#FF3B30]/15 hover:text-[#FF3B30] transition-all cursor-pointer"
-                  title="Logout"
-                >
-                  <LogOut size={14} />
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1">
-                <button 
-                  onClick={() => setActiveView('profile')}
-                  className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${activeView === 'profile' ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'}`}
-                  title="Profile Settings"
-                >
-                  <Users size={13} />
-                  <span className="text-[9px] mt-1 font-semibold">Profile</span>
-                </button>
-                <button 
-                  onClick={() => setActiveView('settings')}
-                  className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${activeView === 'settings' ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'}`}
-                  title="Site Settings"
-                >
-                  <Settings size={13} />
-                  <span className="text-[9px] mt-1 font-semibold">Settings</span>
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="flex flex-col items-center justify-center p-2 rounded-xl text-[#86868B] hover:bg-[#FF3B30]/12 hover:text-[#FF3B30] transition-all cursor-pointer"
-                  title="Logout"
-                >
-                  <LogOut size={13} />
-                  <span className="text-[9px] mt-1 font-semibold">Sign Out</span>
-                </button>
-              </div>
-            )}
+            <button 
+              type="button"
+              onClick={handleLogout}
+              className="p-2 rounded-xl text-[#86868B] hover:bg-[#FF3B30]/12 hover:text-[#FF3B30] transition-all cursor-pointer shrink-0"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut size={15} />
+            </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
-        isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        isSidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-64'
       }`}>
         {/* macOS Frosted Top Header / Spotlight Search */}
-        <header className="h-16 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.08] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20">
+        <header className="h-16 apple-glass-header px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3 flex-1 max-w-xl">
             {/* Mobile Drawer Button */}
             <button
@@ -3851,16 +4081,26 @@ console.log('Posts:', posts.map(p => p.title));`}
               <Menu size={19} />
             </button>
 
-            {/* Desktop Header sidebar toggle button */}
-            <button
-              id="header-toggle-sidebar-btn"
-              onClick={toggleSidebar}
-              className="hidden lg:flex p-2 -ml-2 text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded-xl transition-all items-center justify-center shrink-0 cursor-pointer"
-              title={isSidebarCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
-              aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-            </button>
+            {/* Active Website / Domain Switcher */}
+            {connectedDomains.length > 0 && (
+              <div className="hidden md:flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-full px-3 py-1.5">
+                  <Globe size={13} className="text-[#4e45e1] dark:text-[#6B63F2] shrink-0" />
+                  <select
+                    value={activeDomain?.id || ''}
+                    onChange={(e) => handleSelectDomain(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] outline-none cursor-pointer pr-1"
+                    title="Switch active website domain"
+                  >
+                    {connectedDomains.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.domain}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div ref={headerSearchContainerRef} className="relative w-full flex items-center gap-2">
               <div className="relative flex-1">
@@ -3868,7 +4108,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                 <input 
                   type="text" 
                   placeholder="Spotlight search pages, media, or entries..." 
-                  className="w-full pl-9 pr-20 py-2 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.05] dark:border-white/[0.08] rounded-full text-xs sm:text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#007AFF] transition-all outline-none"
+                  className="w-full pl-9 pr-20 py-2 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-black/[0.05] dark:border-white/[0.08] rounded-full text-xs sm:text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B] focus:bg-white dark:focus:bg-[#2C2C2E] focus:ring-2 focus:ring-[#4e45e1] transition-all outline-none"
                   value={searchQuery}
                   onFocus={() => setIsHeaderSearchDropdownOpen(true)}
                   onChange={(e) => {
@@ -3942,7 +4182,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                             onClick={() => setHeaderSearchCategory(tab.id)}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
                               headerSearchCategory === tab.id
-                                ? 'bg-[#007AFF] text-white'
+                                ? 'bg-[#4e45e1] text-white'
                                 : 'text-[#86868B] hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'
                             }`}
                           >
@@ -3965,7 +4205,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                           setIsHeaderSearchDropdownOpen(false);
                           setIsGlobalSearchOpen(true);
                         }}
-                        className="text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] shrink-0 cursor-pointer"
+                        className="text-[11px] font-semibold text-[#4e45e1] dark:text-[#6B63F2] shrink-0 cursor-pointer"
                       >
                         Expand ⌘K
                       </button>
@@ -3987,7 +4227,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                           <div
                             key={result.id}
                             onClick={() => handleSelectGlobalSearchResult(result, 'primary')}
-                            className="px-4 py-3 hover:bg-[#007AFF]/[0.06] dark:hover:bg-[#0A84FF]/[0.12] cursor-pointer transition-colors flex items-start gap-3 group"
+                            className="px-4 py-3 hover:bg-[#4e45e1]/[0.06] dark:hover:bg-[#6B63F2]/[0.12] cursor-pointer transition-colors flex items-start gap-3 group"
                           >
                             {result.category === 'media' && result.thumbnailUrl ? (
                               <img
@@ -4000,7 +4240,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                               <div
                                 className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                                   result.category === 'pages'
-                                    ? 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]'
+                                    ? 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#6B63F2]'
                                     : result.category === 'media'
                                     ? 'bg-[#AF52DE]/12 text-[#AF52DE]'
                                     : 'bg-[#34C759]/12 text-[#34C759]'
@@ -4014,7 +4254,7 @@ console.log('Posts:', posts.map(p => p.title));`}
 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF]">
+                                <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2]">
                                   <HighlightMatch text={result.title} query={searchQuery} />
                                 </span>
                                 <span className="text-[10px] text-[#86868B]">·</span>
@@ -4031,7 +4271,7 @@ console.log('Posts:', posts.map(p => p.title));`}
 
                             <ChevronRight
                               size={15}
-                              className="text-[#86868B] group-hover:text-[#007AFF] self-center shrink-0 transition-colors"
+                              className="text-[#86868B] group-hover:text-[#4e45e1] self-center shrink-0 transition-colors"
                             />
                           </div>
                         ))
@@ -4050,7 +4290,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                           setIsHeaderSearchDropdownOpen(false);
                           setIsGlobalSearchOpen(true);
                         }}
-                        className="font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline cursor-pointer"
+                        className="font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline cursor-pointer"
                       >
                         View all in Spotlight →
                       </button>
@@ -4072,7 +4312,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                   {isSmartSearching ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Sparkles size={14} className={smartSearchResults ? 'text-white' : 'text-[#007AFF] dark:text-[#0A84FF]'} />
+                    <Sparkles size={14} className={smartSearchResults ? 'text-white' : 'text-[#4e45e1] dark:text-[#6B63F2]'} />
                   )}
                   <span>{smartSearchResults ? 'Smart Results' : 'Smart Search'}</span>
                 </button>
@@ -4087,25 +4327,12 @@ console.log('Posts:', posts.map(p => p.title));`}
             <button 
               id="btn-header-tour"
               onClick={startTourGuide}
-              className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 bg-[#007AFF]/10 hover:bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] text-xs font-semibold rounded-full transition-all cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 bg-[#4e45e1]/10 hover:bg-[#4e45e1]/15 text-[#4e45e1] dark:text-[#6B63F2] text-xs font-semibold rounded-full transition-all cursor-pointer"
               title="Start Interactive Tour Guide"
             >
               <Sparkles size={13} />
               <span>Tour</span>
             </button>
-
-            <div className="h-5 w-[1px] bg-black/[0.08] dark:bg-white/[0.1] mx-0.5 hidden sm:block"></div>
-
-            <div id="tour-profile" className="flex items-center gap-2.5 pl-1 cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/[0.06] p-1 rounded-full transition-all" onClick={() => setActiveView('profile')}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#007AFF] to-[#0051D5] flex items-center justify-center text-white text-xs font-semibold shadow-xs overflow-hidden">
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  user.avatar
-                )}
-              </div>
-              <span className="hidden xl:inline text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] pr-1">{user.name}</span>
-            </div>
           </div>
         </header>
 
@@ -4127,8 +4354,7 @@ console.log('Posts:', posts.map(p => p.title));`}
               <button
                 type="button"
                 onClick={() => {
-                  setActiveView('settings');
-                  setActiveSettingsTab('users');
+                  setActiveView('users');
                 }}
                 className="px-3 py-1 bg-black/15 hover:bg-black/25 rounded-full text-[11px] font-semibold transition-colors cursor-pointer"
               >
@@ -4155,30 +4381,61 @@ console.log('Posts:', posts.map(p => p.title));`}
               {activeView === 'pages' ||
               activeView === 'templates' ||
               activeView === 'media' ? (
-                <>
-                  <div className="flex items-center gap-3">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
-                      Pages, Templates & Media
+                      Content Studio
                     </h1>
-                    <span className="px-3 py-1 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] text-[11px] font-semibold">
-                      {activeView === 'pages'
-                        ? 'Pages'
-                        : activeView === 'templates'
-                          ? 'Templates'
-                          : 'Media Library'}
+                    <span className="px-3 py-1 rounded-full bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] text-[11px] font-semibold">
+                      Pages, Templates &amp; Media
                     </span>
                   </div>
-                  <p className="text-[#86868B] dark:text-[#98989D] text-sm mt-1">
-                    Unified workspace to manage your site pages, reusable templates, and media library in one place.
-                  </p>
-                </>
+                  <div className="inline-flex items-center gap-1 p-1 rounded-2xl bg-black/[0.05] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('pages')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'pages'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <FileText size={13} />
+                      <span>Pages ({domainPages.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('templates')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'templates'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <Layout size={13} />
+                      <span>Templates ({templates.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('media')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'media'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <FolderOpen size={13} />
+                      <span>Media Library ({media.length})</span>
+                    </button>
+                  </div>
+                </div>
               ) : activeView === 'experience' ? (
                 <>
                   <div className="flex items-center gap-3">
                     <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
                       Experience Manager
                     </h1>
-                    <span className="px-3 py-1 rounded-full bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] text-[11px] font-semibold">
+                    <span className="px-3 py-1 rounded-full bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] text-[11px] font-semibold">
                       Visual Editor & Sitemap
                     </span>
                   </div>
@@ -4186,6 +4443,70 @@ console.log('Posts:', posts.map(p => p.title));`}
                     Visually preview and edit pages inline or navigate your interactive site hierarchy.
                   </p>
                 </>
+              ) : activeView === 'collections' ||
+                activeView === 'headless-api' ||
+                activeView === 'seo' ||
+                activeView === 'rewrites' ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                      Data, API &amp; SEO
+                    </h1>
+                    <span className="px-3 py-1 rounded-full bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] text-[11px] font-semibold">
+                      Collections, Headless API &amp; Analytics
+                    </span>
+                  </div>
+                  <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-2xl bg-black/[0.05] dark:bg-white/[0.06] border border-black/[0.05] dark:border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('collections')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'collections'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <Layers size={13} />
+                      <span>Collections ({collections.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('headless-api')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'headless-api'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <Database size={13} />
+                      <span>Headless API</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('seo')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'seo'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <Activity size={13} />
+                      <span>SEO &amp; Analytics</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('rewrites')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                        activeView === 'rewrites'
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#4e45e1] dark:text-[#6B63F2] shadow-xs'
+                          : 'text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white'
+                      }`}
+                    >
+                      <Repeat size={13} />
+                      <span>URL Rewrites ({rewrites.length})</span>
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <h1 className="text-2xl sm:text-3xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight capitalize">{activeView.replace('-', ' ')}</h1>
@@ -4197,7 +4518,7 @@ console.log('Posts:', posts.map(p => p.title));`}
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => createPage()}
-                  className="flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center gap-2 bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
                   <Plus size={16} />
                   <span>Create Page</span>
@@ -4230,7 +4551,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                 <button 
                   id="tour-create-page"
                   onClick={() => createPage()}
-                  className="flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center gap-2 bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
                   <Plus size={16} />
                   <span>Create Page</span>
@@ -4262,7 +4583,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                 </button>
                 <button 
                   onClick={() => setShowCreateTemplateModal(true)}
-                  className="flex items-center gap-2 bg-[#007AFF] dark:bg-[#0A84FF] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#0071E3] transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center gap-2 bg-[#4e45e1] dark:bg-[#6B63F2] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:bg-[#4139BF] dark:hover:bg-[#5850EB] transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
                   <Plus size={16} />
                   <span>Create Template</span>
@@ -4291,7 +4612,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                   }}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                     activePermissions.media.level === 'manage' && activePermissions.media.canUpload
-                      ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-sm hover:bg-[#0071E3] active:scale-95'
+                      ? 'bg-[#4e45e1] dark:bg-[#6B63F2] text-white shadow-sm hover:bg-[#4139BF] dark:hover:bg-[#5850EB] active:scale-95'
                       : 'bg-black/[0.05] dark:bg-white/[0.08] text-[#86868B] cursor-not-allowed'
                   }`}
                 >
@@ -4385,7 +4706,7 @@ console.log('Posts:', posts.map(p => p.title));`}
                 </div>
                 <button 
                   onClick={handleAddUser}
-                  className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 mt-4"
+                  className="w-full bg-[#4e45e1] text-white py-4 rounded-xl font-bold hover:bg-[#4139BF] transition-all shadow-lg shadow-blue-500/20 mt-4"
                 >
                   Create User Account
                 </button>
@@ -4405,8 +4726,8 @@ console.log('Posts:', posts.map(p => p.title));`}
                 <button onClick={() => setShowConnectModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
               </div>
               <div className="text-center space-y-6">
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
-                  <Globe className="text-blue-600" size={32} />
+                <div className="w-16 h-16 bg-[#4e45e1]/10 rounded-full flex items-center justify-center mx-auto">
+                  <Globe className="text-[#4e45e1]" size={32} />
                 </div>
                 <p className="text-slate-500 text-sm">
                   Click the button below to authorize DevInquire CMS to access your Google Search Console data for <strong>https://devinquire.com</strong>.
@@ -4451,6 +4772,31 @@ console.log('Posts:', posts.map(p => p.title));`}
           }}
         />
       )}
+      {/* Cookie Preference Banner (collected once per browser) */}
+      {!cookieConsentAccepted && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm apple-card p-4 rounded-[20px] flex items-start gap-3 animate-in">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white flex items-center justify-center shrink-0 mt-0.5">
+            <Shield size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              Workspace Cookies
+            </p>
+            <p className="text-[11px] text-[#86868B] dark:text-[#98989D] mt-0.5 leading-relaxed">
+              We use essential cookies to remember your theme and show the startup guide only on your first visit.
+            </p>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAcceptCookies}
+                className="apple-pill-btn px-3 py-1 rounded-full text-[11px] font-semibold cursor-pointer"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -4474,7 +4820,7 @@ const NavItem: React.FC<{
       collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5'
     } rounded-[14px] text-[13px] font-semibold transition-all relative group ${
       active
-        ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-sm shadow-[#007AFF]/25'
+        ? 'bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_6px_18px_-4px_rgba(78,69,225,0.38)]'
         : accessLevel === 'none'
         ? 'text-[#86868B]/60 hover:text-[#1D1D1F] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
         : 'text-[#86868B] dark:text-[#98989D] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7] hover:bg-black/[0.05] dark:hover:bg-white/[0.06]'
@@ -4499,16 +4845,16 @@ const NavItem: React.FC<{
       <div className="fixed left-[74px] px-3 py-1.5 bg-[#1D1D1F] dark:bg-[#2C2C2E] text-white text-xs font-semibold rounded-xl shadow-xl border border-white/10 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:translate-x-1 -translate-x-1 transition-all duration-150 z-50 whitespace-nowrap flex items-center gap-2">
         <span>{label}</span>
         {accessLevel === 'none' && <Lock size={11} className="text-[#FF9500]" />}
-        {active && <span className="w-1.5 h-1.5 rounded-full bg-[#0A84FF]"></span>}
+        {active && <span className="w-1.5 h-1.5 rounded-full bg-[#6B63F2]"></span>}
       </div>
     )}
   </button>
 );
 
 const ApiEndpoint: React.FC<{ method: string; path: string; description: string }> = ({ method, path, description }) => (
-  <div className="bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-4 flex items-center gap-6 group hover:border-[#007AFF]/40 hover:shadow-xs transition-all">
+  <div className="apple-card rounded-[18px] p-4 flex items-center gap-6 group hover:border-[#4e45e1]/40 transition-all">
     <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-      method === 'GET' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]'
+      method === 'GET' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#6B63F2]'
     }`}>
       {method}
     </div>
@@ -4521,7 +4867,7 @@ const ApiEndpoint: React.FC<{ method: string; path: string; description: string 
         navigator.clipboard.writeText(`${window.location.origin}${path}`);
         toast.success('Endpoint URL copied!');
       }}
-      className="p-2 text-[#86868B] hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors cursor-pointer"
+      className="p-2 text-[#86868B] hover:text-[#4e45e1] dark:hover:text-[#6B63F2] transition-colors cursor-pointer"
       title="Copy Endpoint"
     >
       <LinkIcon size={16} />
@@ -4530,11 +4876,11 @@ const ApiEndpoint: React.FC<{ method: string; path: string; description: string 
 );
 
 const StatCard: React.FC<{ label: string; value: string | number; trend: string; icon: React.ReactNode }> = ({ label, value, trend, icon }) => (
-  <div className="bg-white dark:bg-[#2C2C2E] p-6 rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-black/[0.06] dark:border-white/[0.08] hover:shadow-md transition-all hover:-translate-y-0.5 group">
+  <div className="apple-card p-6 rounded-[22px] transition-all hover:-translate-y-0.5 group">
     <div className="flex items-center justify-between mb-4">
-      <div className="p-2.5 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl group-hover:scale-105 transition-all">{icon}</div>
+      <div className="p-2.5 apple-subcard rounded-2xl group-hover:scale-105 transition-all">{icon}</div>
       <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-        trend.startsWith('+') || trend === 'Live' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]'
+        trend.startsWith('+') || trend === 'Live' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' : 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#6B63F2]'
       }`}>
         {trend}
       </span>
@@ -4548,7 +4894,7 @@ const FilterTab: React.FC<{ active: boolean; onClick: () => void; label: string;
   <button 
     onClick={onClick}
     className={`px-4 py-2 text-xs font-semibold rounded-[12px] transition-all flex items-center gap-2 cursor-pointer ${
-      active ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white shadow-xs' : 'text-[#86868B] dark:text-[#98989D] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
+      active ? 'bg-gradient-to-b from-[#6B63F2] to-[#4e45e1] text-white shadow-sm shadow-[#4e45e1]/30' : 'text-[#86868B] dark:text-[#98989D] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[#1D1D1F] dark:hover:text-[#F5F5F7]'
     }`}
   >
     {label}
@@ -4573,7 +4919,7 @@ const DnsRecordRow: React.FC<{ type: string; host: string; value: string }> = ({
           navigator.clipboard.writeText(value);
           toast.success(`${type} value copied!`);
         }}
-        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-[#86868B] hover:text-[#007AFF] opacity-0 group-hover:opacity-100 transition-all bg-white dark:bg-[#2C2C2E] cursor-pointer"
+        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-[#86868B] hover:text-[#4e45e1] opacity-0 group-hover:opacity-100 transition-all bg-white dark:bg-[#2C2C2E] cursor-pointer"
        >
           <Copy size={14} />
        </button>
@@ -4596,7 +4942,7 @@ const ColorInput: React.FC<{ label: string; value: string; onChange: (val: strin
       />
       <input 
         type="text" 
-        className="flex-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-3 py-2 text-xs font-mono text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#007AFF]"
+        className="flex-1 bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-3 py-2 text-xs font-mono text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -4606,7 +4952,7 @@ const ColorInput: React.FC<{ label: string; value: string; onChange: (val: strin
 
 const ActionButton: React.FC<{ icon: React.ReactNode; label: string; color: 'blue' | 'red' | 'slate', onClick: (e: React.MouseEvent) => void }> = ({ icon, label, color, onClick }) => {
   const colors = {
-    blue: 'hover:bg-[#007AFF]/10 hover:text-[#007AFF] dark:hover:text-[#0A84FF]',
+    blue: 'hover:bg-[#4e45e1]/10 hover:text-[#4e45e1] dark:hover:text-[#6B63F2]',
     red: 'hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]',
     slate: 'hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[#1D1D1F] dark:hover:text-white'
   };
