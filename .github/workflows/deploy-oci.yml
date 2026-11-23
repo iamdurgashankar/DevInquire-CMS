@@ -10,6 +10,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate deployment configuration
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+        run: |
+          missing=0
+          for name in OCI_HOST OCI_USER OCI_SSH_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required repository secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -30,8 +45,10 @@ jobs:
           mvn -q -DskipTests package
 
       - name: Build Frontend
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
         run: |
-          echo "VITE_API_URL=http://${{ secrets.OCI_HOST }}" > .env.local
+          printf 'VITE_API_URL=http://%s\n' "$OCI_HOST" > .env.local
           npm install --no-audit --no-fund
           npm run build
 
