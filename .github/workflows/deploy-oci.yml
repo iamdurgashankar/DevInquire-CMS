@@ -10,17 +10,27 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH to Oracle Linux VM
+      - name: Bootstrap & Deploy over SSH to Oracle Linux VM
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
           port: 22
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
             set -e
 
+            # 1. One-time OS bootstrap (Java 21, Maven, Node 20, Git, Nginx)
+            if ! command -v java >/dev/null 2>&1 || ! command -v mvn >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1 || ! command -v nginx >/dev/null 2>&1; then
+              sudo dnf install -y git java-21-openjdk-devel maven nginx curl
+            fi
+            if ! command -v node >/dev/null 2>&1; then
+              curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+              sudo dnf install -y nodejs
+            fi
+
+            # 2. Clone or update repository
             if [ ! -d ~/DevInquire-CMS/.git ]; then
               git clone https://github.com/iamdurgashankar/DevInquire-CMS.git ~/DevInquire-CMS
             else
@@ -29,22 +39,86 @@ jobs:
               git reset --hard origin/main
             fi
 
+            # 3. Build Java backend
             cd ~/DevInquire-CMS/java-backend
             mvn -q -DskipTests package
 
+            # 4. Configure & build frontend
             cd ~/DevInquire-CMS
             if [ ! -f .env.local ]; then
               echo "VITE_API_URL=http://${{ secrets.OCI_HOST }}" > .env.local
             fi
-
             npm install --no-audit --no-fund
             npm run build
 
-            if systemctl list-unit-files | grep -q devinquire-java.service; then
-              sudo systemctl restart devinquire-java
+            # 5. Create systemd services if missing
+            if [ ! -f /etc/systemd/system/devinquire-java.service ]; then
+              sudo tee /etc/systemd/system/devinquire-java.service > /dev/null <<'EOF'
+            [Unit]
+            Description=DevInquire CMS Java Backend
+            After=network.target
+            [Service]
+            User=opc
+            WorkingDirectory=/home/opc/DevInquire-CMS/java-backend
+            ExecStart=/usr/bin/java -jar /home/opc/DevInquire-CMS/java-backend/devinquire-cms-server/target/devinquire-cms-server-1.0.0.jar
+            Restart=always
+            RestartSec=5
+            [Install]
+            WantedBy=multi-user.target
+            EOF
             fi
-            if systemctl list-unit-files | grep -q devinquire-web.service; then
-              sudo systemctl restart devinquire-web
+
+            if [ ! -f /etc/systemd/system/devinquire-web.service ]; then
+              sudo tee /etc/systemd/system/devinquire-web.service > /dev/null <<'EOF'
+            [Unit]
+            Description=DevInquire CMS Frontend Gateway
+            After=network.target devinquire-java.service
+            [Service]
+            User=opc
+            WorkingDirectory=/home/opc/DevInquire-CMS
+            Environment=NODE_ENV=production
+            ExecStart=/usr/bin/npm start
+            Restart=always
+            RestartSec=5
+            [Install]
+            WantedBy=multi-user.target
+            EOF
             fi
+
+            sudo systemctl daemon-reload
+            sudo systemctl enable devinquire-java devinquire-web
+            sudo systemctl restart devinquire-java devinquire-web
+
+            # 6. Configure Nginx reverse proxy, SELinux & firewall if missing
+            if [ ! -f /etc/nginx/conf.d/devinquire-cms.conf ]; then
+              sudo tee /etc/nginx/conf.d/devinquire-cms.conf > /dev/null <<'EOF'
+            server {
+                listen 80;
+                server_name _;
+                location = / { return 302 /cms/; }
+                location /cms/ {
+                    proxy_pass http://127.0.0.1:3002/cms/;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header CF-IPCountry $http_cf_ipcountry;
+                }
+                location /api/ {
+                    proxy_pass http://127.0.0.1:8080/api/;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                }
+            }
+            EOF
+              sudo setsebool -P httpd_can_network_connect 1 || true
+              sudo firewall-cmd --permanent --add-service=http --add-service=https || true
+              sudo firewall-cmd --reload || true
+            fi
+
+            sudo nginx -t
+            sudo systemctl enable --now nginx
+            sudo systemctl reload nginx
 
             echo "Deployment completed successfully!"
