@@ -1,0 +1,50 @@
+name: Deploy DevInquire CMS to Oracle Cloud
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH to Oracle Linux VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          port: 22
+          command_timeout: 15m
+          script: |
+            set -e
+
+            if [ ! -d ~/DevInquire-CMS/.git ]; then
+              git clone https://github.com/iamdurgashankar/DevInquire-CMS.git ~/DevInquire-CMS
+            else
+              cd ~/DevInquire-CMS
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+
+            cd ~/DevInquire-CMS/java-backend
+            mvn -q -DskipTests package
+
+            cd ~/DevInquire-CMS
+            if [ ! -f .env.local ]; then
+              echo "VITE_API_URL=http://${{ secrets.OCI_HOST }}" > .env.local
+            fi
+
+            npm install --no-audit --no-fund
+            npm run build
+
+            if systemctl list-unit-files | grep -q devinquire-java.service; then
+              sudo systemctl restart devinquire-java
+            fi
+            if systemctl list-unit-files | grep -q devinquire-web.service; then
+              sudo systemctl restart devinquire-web
+            fi
+
+            echo "Deployment completed successfully!"
