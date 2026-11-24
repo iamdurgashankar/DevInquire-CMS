@@ -45,10 +45,8 @@ jobs:
           mvn -q -DskipTests package
 
       - name: Build Frontend
-        env:
-          OCI_HOST: ${{ secrets.OCI_HOST }}
         run: |
-          printf 'VITE_API_URL=http://%s\n' "$OCI_HOST" > .env.local
+          echo "VITE_API_URL=" > .env.local
           npm install --no-audit --no-fund
           npm run build
 
@@ -138,12 +136,15 @@ jobs:
             sudo systemctl enable devinquire-java devinquire-web
             sudo systemctl restart devinquire-java devinquire-web
 
-            if [ ! -f /etc/nginx/conf.d/devinquire-cms.conf ]; then
-              sudo tee /etc/nginx/conf.d/devinquire-cms.conf > /dev/null <<'EOF'
+            sudo tee /etc/nginx/conf.d/devinquire-cms.conf > /dev/null <<'EOF'
             server {
                 listen 80;
                 server_name _;
+                client_max_body_size 50M;
+
                 location = / { return 302 /cms/; }
+                location = /cms { return 302 /cms/; }
+
                 location /cms/ {
                     proxy_pass http://127.0.0.1:3002/cms/;
                     proxy_http_version 1.1;
@@ -151,19 +152,29 @@ jobs:
                     proxy_set_header Connection "upgrade";
                     proxy_set_header Host $host;
                     proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-Proto $scheme;
                     proxy_set_header CF-IPCountry $http_cf_ipcountry;
                 }
+
                 location /api/ {
                     proxy_pass http://127.0.0.1:8080/api/;
                     proxy_set_header Host $host;
                     proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+
+                location / {
+                    proxy_pass http://127.0.0.1:3002;
+                    proxy_http_version 1.1;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-Proto $scheme;
                 }
             }
             EOF
-              sudo setsebool -P httpd_can_network_connect 1 || true
-              sudo firewall-cmd --permanent --add-service=http --add-service=https || true
-              sudo firewall-cmd --reload || true
-            fi
+            sudo setsebool -P httpd_can_network_connect 1 || true
+            sudo firewall-cmd --permanent --add-service=http --add-service=https || true
+            sudo firewall-cmd --reload || true
 
             sudo nginx -t
             sudo systemctl enable --now nginx

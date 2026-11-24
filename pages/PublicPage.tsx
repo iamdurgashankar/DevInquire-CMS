@@ -68,23 +68,27 @@ const PublicPage: React.FC = () => {
     }
 
     const apiBase = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
-    if (apiBase) {
-      fetch(`${apiBase}/api/v1/content/pages/${encodeURIComponent(currentSlug)}`)
-        .then(r => (r.ok ? r.json() : null))
-        .then(json => {
+    const endpoints = apiBase
+      ? [`${apiBase}/api/v1/content/pages/${encodeURIComponent(currentSlug)}`, `/cms/api/v1/content/pages/${encodeURIComponent(currentSlug)}`]
+      : [`/cms/api/v1/content/pages/${encodeURIComponent(currentSlug)}`];
+
+    (async () => {
+      for (const url of endpoints) {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) continue;
+          const json = await r.json();
           if (json?.success && json.data) {
-            setTargetPage(json.data);
+            setTargetPage((prev) => ({ ...(prev || {}), ...json.data }));
             setNotFound(false);
-          } else if (!localPage) {
-            setNotFound(true);
+            return;
           }
-        })
-        .catch(() => {
-          if (!localPage) setNotFound(true);
-        });
-    } else if (!localPage) {
-      setNotFound(true);
-    }
+        } catch {
+          // try next endpoint
+        }
+      }
+      if (!localPage) setNotFound(true);
+    })();
   }, [slug, pages, rewrites]);
 
   const activeLocaleObj = useMemo(

@@ -3,7 +3,7 @@ import { Page } from "../types";
 // Helper for calling server Gemini endpoints
 async function postToGeminiApi<T>(endpoint: string, body: Record<string, any>, defaultValue: T): Promise<T> {
   try {
-    const response = await fetch(`/api/gemini/${endpoint}`, {
+    const response = await fetch(`/cms/api/gemini/${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -62,7 +62,7 @@ export const streamGeminiContent = async (
   options?: { model?: string; config?: any }
 ): Promise<string> => {
   try {
-    const response = await fetch("/api/gemini/stream", {
+    const response = await fetch("/cms/api/gemini/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -70,6 +70,10 @@ public class ContentDeliveryController {
         entity.setAuthor(String.valueOf(body.getOrDefault("author", "Admin")));
         entity.setSeoJson(objectMapper.writeValueAsString(body.getOrDefault("seo", Map.of())));
         entity.setLayoutJson(objectMapper.writeValueAsString(body.getOrDefault("layoutJSON", Map.of("sections", List.of()))));
+        entity.setCustomSite(Boolean.TRUE.equals(body.get("isCustomSite")));
+        entity.setCustomHtml(body.get("customHTML") != null ? String.valueOf(body.get("customHTML")) : null);
+        entity.setCustomCss(body.get("customCSS") != null ? String.valueOf(body.get("customCSS")) : null);
+        entity.setCustomJs(body.get("customJS") != null ? String.valueOf(body.get("customJS")) : null);
         if (entity.getCreatedAt() == null) entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         pageRepository.save(entity);
@@ -176,6 +180,10 @@ public class ContentDeliveryController {
         map.put("author", p.getAuthor());
         map.put("seo", readJson(p.getSeoJson(), Map.of()));
         map.put("layoutJSON", readJson(p.getLayoutJson(), Map.of()));
+        map.put("isCustomSite", p.isCustomSite());
+        if (p.getCustomHtml() != null) map.put("customHTML", p.getCustomHtml());
+        if (p.getCustomCss() != null) map.put("customCSS", p.getCustomCss());
+        if (p.getCustomJs() != null) map.put("customJS", p.getCustomJs());
         map.put("createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null);
         map.put("updatedAt", p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : null);
         return map;

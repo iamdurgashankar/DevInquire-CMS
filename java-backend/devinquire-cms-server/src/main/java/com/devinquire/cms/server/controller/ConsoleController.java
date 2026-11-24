@@ -347,6 +347,10 @@ public class ConsoleController {
                     entity.setAuthor(pMap.get("author") != null ? String.valueOf(pMap.get("author")) : "Admin");
                     entity.setSeoJson(objectMapper.writeValueAsString(pMap.get("seo") != null ? pMap.get("seo") : Map.of()));
                     entity.setLayoutJson(objectMapper.writeValueAsString(pMap.get("layoutJSON") != null ? pMap.get("layoutJSON") : Map.of("sections", List.of())));
+                    entity.setCustomSite(Boolean.TRUE.equals(pMap.get("isCustomSite")));
+                    entity.setCustomHtml(pMap.get("customHTML") != null ? String.valueOf(pMap.get("customHTML")) : null);
+                    entity.setCustomCss(pMap.get("customCSS") != null ? String.valueOf(pMap.get("customCSS")) : null);
+                    entity.setCustomJs(pMap.get("customJS") != null ? String.valueOf(pMap.get("customJS")) : null);
                     if (entity.getCreatedAt() == null) entity.setCreatedAt(Instant.now());
                     entity.setUpdatedAt(Instant.now());
                     pageRepository.save(entity);
@@ -819,6 +823,10 @@ public class ConsoleController {
         map.put("author", p.getAuthor());
         map.put("seo", readJson(p.getSeoJson(), Map.of()));
         map.put("layoutJSON", readJson(p.getLayoutJson(), Map.of()));
+        map.put("isCustomSite", p.isCustomSite());
+        if (p.getCustomHtml() != null) map.put("customHTML", p.getCustomHtml());
+        if (p.getCustomCss() != null) map.put("customCSS", p.getCustomCss());
+        if (p.getCustomJs() != null) map.put("customJS", p.getCustomJs());
         map.put("createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null);
         map.put("updatedAt", p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : null);
         return map;

@@ -79,19 +79,17 @@ export function loadLocalI18nConfig(): I18nConfig {
 }
 
 export async function fetchI18nConfig(): Promise<I18nConfig> {
-  if (JAVA_API_BASE) {
-    try {
-      const res = await fetch(`${JAVA_API_BASE}/api/v1/console/i18n`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.data) {
-          saveLocalI18nConfig(json.data);
-          return json.data;
-        }
+  try {
+    const res = await fetch(`${JAVA_API_BASE}/api/v1/console/i18n`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.data) {
+        saveLocalI18nConfig(json.data);
+        return json.data;
       }
-    } catch {
-      // fallback to localStorage
     }
+  } catch {
+    // fallback to localStorage
   }
   return loadLocalI18nConfig();
 }

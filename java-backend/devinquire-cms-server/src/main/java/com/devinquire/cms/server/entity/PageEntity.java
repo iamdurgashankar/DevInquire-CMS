@@ -28,6 +28,20 @@ public class PageEntity {
     @Column(columnDefinition = "TEXT")
     private String layoutJson;
 
+    private boolean customSite;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String customHtml;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String customCss;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String customJs;
+
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -57,6 +71,18 @@ public class PageEntity {
 
     public String getLayoutJson() { return layoutJson; }
     public void setLayoutJson(String layoutJson) { this.layoutJson = layoutJson; }
+
+    public boolean isCustomSite() { return customSite; }
+    public void setCustomSite(boolean customSite) { this.customSite = customSite; }
+
+    public String getCustomHtml() { return customHtml; }
+    public void setCustomHtml(String customHtml) { this.customHtml = customHtml; }
+
+    public String getCustomCss() { return customCss; }
+    public void setCustomCss(String customCss) { this.customCss = customCss; }
+
+    public String getCustomJs() { return customJs; }
+    public void setCustomJs(String customJs) { this.customJs = customJs; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

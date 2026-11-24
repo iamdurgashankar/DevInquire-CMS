@@ -741,6 +741,26 @@ async function startServer() {
     });
   });
 
+  // Forward root-level published page slugs (e.g. /:slug) to /cms/p/:slug
+  // Placed before Vite/static middlewares so it works in both dev and production
+  app.get("/:slug", (req, res, next) => {
+    const slug = req.params.slug;
+    if (
+      !slug ||
+      slug === "cms" ||
+      slug === "api" ||
+      slug.startsWith("@") ||
+      slug === "src" ||
+      slug === "node_modules" ||
+      slug === "assets" ||
+      slug === "favicon.ico" ||
+      slug.includes(".")
+    ) {
+      return next();
+    }
+    return res.redirect(302, `/cms/p/${encodeURIComponent(slug)}`);
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -1268,8 +1268,20 @@ const Dashboard: React.FC = () => {
 
   const API_BASE = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
 
+  const fetchHostingApi = async (path: string, init?: RequestInit) => {
+    if (API_BASE) {
+      try {
+        const res = await fetch(`${API_BASE}${path}`, init);
+        if (res.ok || res.status < 500) return res;
+      } catch {
+        // Fall back to local Node /cms/api/hosting endpoint
+      }
+    }
+    return fetch(`/cms${path}`, init);
+  };
+
   useEffect(() => {
-    fetch(`${API_BASE}/api/hosting/status`)
+    fetchHostingApi('/api/hosting/status')
       .then((r) => r.json())
       .then((json) => {
         if (json?.success && json.data) {
@@ -1307,7 +1319,7 @@ const Dashboard: React.FC = () => {
 
     setIsSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/hosting/connect`, {
+      const res = await fetchHostingApi('/api/hosting/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1349,7 +1361,7 @@ const Dashboard: React.FC = () => {
 
   const handleSelectDomain = async (domainId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/hosting/select`, {
+      const res = await fetchHostingApi('/api/hosting/select', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domainId }),
@@ -1377,7 +1389,7 @@ const Dashboard: React.FC = () => {
 
   const handleDeleteDomain = async (domainId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/hosting/delete`, {
+      const res = await fetchHostingApi('/api/hosting/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domainId }),

@@ -97,13 +97,13 @@ const ConsolePage: React.FC = () => {
     setLoading(true);
     try {
       const [overviewRes, eventsRes, repoRes, replicationRes, webhookRes, i18nRes, dbStatusRes, nodeRes] = await Promise.all([
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/overview`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/events`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/repository`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/replication`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/replication/webhook`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/i18n`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
-        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/database/status`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/overview`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/events`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/repository`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/replication`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/replication/webhook`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/i18n`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch(`${JAVA_API_BASE}/api/v1/console/database/status`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch('/cms/api/health').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
 
@@ -162,7 +162,7 @@ const ConsolePage: React.FC = () => {
   );
 
   const handleUpdateEventStatus = async (id: string, status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED') => {
-    if (id.startsWith('local_') || !JAVA_API_BASE) {
+    if (id.startsWith('local_')) {
       setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, status } : e)));
       if (selectedEvent?.id === id) setSelectedEvent((prev) => (prev ? { ...prev, status } : null));
       toast.success(`Marked issue as ${status}`);
@@ -187,7 +187,6 @@ const ConsolePage: React.FC = () => {
   };
 
   const handlePurgeResolved = async () => {
-    if (!JAVA_API_BASE) return;
     try {
       const res = await fetch(`${JAVA_API_BASE}/api/v1/console/events/resolved`, { method: 'DELETE' });
       if (res.ok) {
@@ -213,27 +212,27 @@ const ConsolePage: React.FC = () => {
   const handleReplicateLive = async () => {
     setReplicating(true);
     try {
-      if (JAVA_API_BASE) {
-        const res = await fetch(`${JAVA_API_BASE}/api/v1/console/replication/replicate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            targetDomain: siteConfig?.baseUrl || 'all-connected-domains',
-            contentType: 'ALL',
-            contentPath: '/content/*',
-            actor: user?.email || user?.name || 'Administrator',
-          }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json?.data?.cacheCleared) {
-            await clearBrowserCaches();
-          }
-          toast.success('Content replicated to live website & cache updated');
-          await fetchConsoleData();
-          return;
+      const res = await fetch(`${JAVA_API_BASE}/api/v1/console/replication/replicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetDomain: siteConfig?.baseUrl || 'all-connected-domains',
+          contentType: 'ALL',
+          contentPath: '/content/*',
+          actor: user?.email || user?.name || 'Administrator',
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.data?.cacheCleared) {
+          await clearBrowserCaches();
         }
+        toast.success('Content replicated to live website & cache updated');
+        await fetchConsoleData();
+        return;
       }
+      toast.error('Replication failed: Java backend unreachable');
+    } catch {
       toast.error('Replication failed: Java backend unreachable');
     } finally {
       setReplicating(false);
@@ -244,19 +243,19 @@ const ConsolePage: React.FC = () => {
     setCleaningCache(true);
     try {
       await clearBrowserCaches();
-      if (JAVA_API_BASE) {
-        const res = await fetch(`${JAVA_API_BASE}/api/v1/console/cache/clean`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actor: user?.email || user?.name || 'Administrator' }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          toast.success(`Cache cleaned (epoch v${json?.data?.cacheEpoch || ''})`);
-          await fetchConsoleData();
-          return;
-        }
+      const res = await fetch(`${JAVA_API_BASE}/api/v1/console/cache/clean`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actor: user?.email || user?.name || 'Administrator' }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        toast.success(`Cache cleaned (epoch v${json?.data?.cacheEpoch || ''})`);
+        await fetchConsoleData();
+        return;
       }
+      toast.success('Browser cache cleared');
+    } catch {
       toast.success('Browser cache cleared');
     } finally {
       setCleaningCache(false);
@@ -264,7 +263,6 @@ const ConsolePage: React.FC = () => {
   };
 
   const handleToggleAutoCacheClean = async (enabled: boolean) => {
-    if (!JAVA_API_BASE) return;
     try {
       const res = await fetch(`${JAVA_API_BASE}/api/v1/console/cache/auto-clean`, {
         method: 'PATCH',
@@ -289,23 +287,23 @@ const ConsolePage: React.FC = () => {
     saveLocalI18nConfig(nextConfig);
     setSavingI18n(true);
     try {
-      if (JAVA_API_BASE) {
-        const res = await fetch(`${JAVA_API_BASE}/api/v1/console/i18n`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...nextConfig,
-            actor: user?.email || user?.name || 'Administrator',
-          }),
-        });
-        if (res.ok) {
-          toast.success(
-            `Multi-Language Websites ${nextConfig.multiLanguageEnabled ? 'enabled' : 'disabled'}`
-          );
-          fetchConsoleData();
-          return;
-        }
+      const res = await fetch(`${JAVA_API_BASE}/api/v1/console/i18n`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...nextConfig,
+          actor: user?.email || user?.name || 'Administrator',
+        }),
+      });
+      if (res.ok) {
+        toast.success(
+          `Multi-Language Websites ${nextConfig.multiLanguageEnabled ? 'enabled' : 'disabled'}`
+        );
+        fetchConsoleData();
+        return;
       }
+      toast.success('Multi-language settings saved locally');
+    } catch {
       toast.success('Multi-language settings saved locally');
     } finally {
       setSavingI18n(false);
@@ -319,7 +317,6 @@ const ConsolePage: React.FC = () => {
   };
 
   const handleSaveWebhook = async () => {
-    if (!JAVA_API_BASE) return;
     setSavingWebhook(true);
     try {
       const res = await fetch(`${JAVA_API_BASE}/api/v1/console/replication/webhook`, {
@@ -340,7 +337,6 @@ const ConsolePage: React.FC = () => {
   };
 
   const handleTestWebhook = async () => {
-    if (!JAVA_API_BASE) return;
     setTestingWebhook(true);
     try {
       const res = await fetch(`${JAVA_API_BASE}/api/v1/console/replication/webhook/test`, {
@@ -359,18 +355,18 @@ const ConsolePage: React.FC = () => {
   const handleRunDiagnostics = async () => {
     setRunningDiag(true);
     try {
-      if (JAVA_API_BASE) {
-        const res = await fetch(`${JAVA_API_BASE}/api/v1/console/diagnostics/run`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actor: user?.email || user?.name || 'Administrator' }),
-        });
-        if (res.ok) {
-          toast.success('System & repository diagnostics passed');
-          await fetchConsoleData();
-          return;
-        }
+      const res = await fetch(`${JAVA_API_BASE}/api/v1/console/diagnostics/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actor: user?.email || user?.name || 'Administrator' }),
+      });
+      if (res.ok) {
+        toast.success('System & repository diagnostics passed');
+        await fetchConsoleData();
+        return;
       }
+      toast.error('Java backend diagnostics endpoint unreachable');
+    } catch {
       toast.error('Java backend diagnostics endpoint unreachable');
     } finally {
       setRunningDiag(false);

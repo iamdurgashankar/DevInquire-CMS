@@ -49,11 +49,6 @@ export async function reportConsoleEvent(payload: ConsoleEventPayload): Promise<
     path: payload.path || (typeof window !== 'undefined' ? window.location.pathname : undefined),
   };
 
-  if (!JAVA_API_BASE) {
-    saveFallbackEvent(enriched);
-    return;
-  }
-
   try {
     const res = await fetch(`${JAVA_API_BASE}/api/v1/console/events`, {
       method: 'POST',

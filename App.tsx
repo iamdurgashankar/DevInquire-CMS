@@ -401,9 +401,8 @@ const App: React.FC = () => {
   useEffect(() => { saveToStorage('devinquire_activity_logs', activityLogs); }, [activityLogs]);
   useEffect(() => { saveToStorage('devinquire_users', users); }, [users]);
 
-  // Hydrate pages and active hosting domain from Java Spring Boot backend on startup
+  // Hydrate pages, collections, entries and active hosting domain from Java Spring Boot backend on startup
   useEffect(() => {
-    if (!JAVA_API_BASE) return;
     fetch(`${JAVA_API_BASE}/api/v1/content/pages?includeDrafts=true`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
@@ -641,28 +640,26 @@ const App: React.FC = () => {
       targetName: page.title || page.slug || 'Untitled Page',
       details: `/${page.slug} (${page.status})`,
     });
-    if (JAVA_API_BASE) {
-      try {
-        await fetch(`${JAVA_API_BASE}/api/v1/content/pages`, {
+    try {
+      await fetch(`${JAVA_API_BASE}/api/v1/content/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(page),
+      });
+      if (page.status === 'published') {
+        await fetch(`${JAVA_API_BASE}/api/v1/console/replication/replicate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(page),
+          body: JSON.stringify({
+            targetDomain: page.domain || siteConfig.baseUrl || 'all-connected-domains',
+            contentType: 'PAGE',
+            contentPath: `/content/pages/${page.slug}`,
+            actor: user?.email || user?.name || 'cms-publisher',
+          }),
         });
-        if (page.status === 'published') {
-          await fetch(`${JAVA_API_BASE}/api/v1/console/replication/replicate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              targetDomain: page.domain || siteConfig.baseUrl || 'all-connected-domains',
-              contentType: 'PAGE',
-              contentPath: `/content/pages/${page.slug}`,
-              actor: user?.email || user?.name || 'cms-publisher',
-            }),
-          });
-        }
-      } catch {
-        // ignore network errors so local state stays responsive
       }
+    } catch {
+      // ignore network errors so local state stays responsive
     }
     if (!canSyncFirestore()) return;
     try {
@@ -682,11 +679,9 @@ const App: React.FC = () => {
       targetName: target?.title || id,
       details: target?.slug ? `/${target.slug}` : undefined,
     });
-    if (JAVA_API_BASE) {
-      fetch(`${JAVA_API_BASE}/api/v1/content/pages/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }).catch(() => {});
-    }
+    fetch(`${JAVA_API_BASE}/api/v1/content/pages/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'pages', id));
@@ -921,13 +916,11 @@ const App: React.FC = () => {
       targetName: collectionData.name,
       details: `${collectionData.fields?.length || 0} fields`,
     });
-    if (JAVA_API_BASE) {
-      fetch(`${JAVA_API_BASE}/api/v1/content/collections`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(collectionData),
-      }).catch(() => {});
-    }
+    fetch(`${JAVA_API_BASE}/api/v1/content/collections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectionData),
+    }).catch(() => {});
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'collections', collectionData.id), cleanFirestoreData(collectionData));
@@ -945,11 +938,9 @@ const App: React.FC = () => {
       targetId: id,
       targetName: target?.name || id,
     });
-    if (JAVA_API_BASE) {
-      fetch(`${JAVA_API_BASE}/api/v1/content/collections/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }).catch(() => {});
-    }
+    fetch(`${JAVA_API_BASE}/api/v1/content/collections/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'collections', id));
@@ -980,13 +971,11 @@ const App: React.FC = () => {
       targetName: entryTitle,
       details: `${entry.status}`,
     });
-    if (JAVA_API_BASE) {
-      fetch(`${JAVA_API_BASE}/api/v1/content/entries`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry),
-      }).catch(() => {});
-    }
+    fetch(`${JAVA_API_BASE}/api/v1/content/entries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    }).catch(() => {});
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'entries', entry.id), cleanFirestoreData(entry));
@@ -1007,11 +996,9 @@ const App: React.FC = () => {
       targetId: id,
       targetName: targetLabel,
     });
-    if (JAVA_API_BASE) {
-      fetch(`${JAVA_API_BASE}/api/v1/content/entries/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }).catch(() => {});
-    }
+    fetch(`${JAVA_API_BASE}/api/v1/content/entries/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'entries', id));
@@ -1023,9 +1010,6 @@ const App: React.FC = () => {
   const resyncWithDatabase = async (
     mode: 'MERGE' | 'PUSH' | 'PULL' = 'MERGE'
   ): Promise<{ success: boolean; data?: any; error?: string }> => {
-    if (!JAVA_API_BASE) {
-      return { success: false, error: 'Java backend URL (VITE_API_URL) is not configured' };
-    }
     try {
       const res = await fetch(`${JAVA_API_BASE}/api/v1/console/database/resync`, {
         method: 'POST',
