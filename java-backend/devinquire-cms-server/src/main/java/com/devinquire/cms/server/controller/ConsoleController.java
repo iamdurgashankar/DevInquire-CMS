@@ -2,6 +2,7 @@ package com.devinquire.cms.server.controller;
 
 import com.devinquire.cms.server.entity.*;
 import com.devinquire.cms.server.repository.*;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -273,6 +274,173 @@ public class ConsoleController {
                         )
                 )
         );
+    }
+
+    @GetMapping("/database/status")
+    public Map<String, Object> getDatabaseStatus() {
+        long start = System.currentTimeMillis();
+        long pageCount = pageRepository.count();
+        long collectionCount = collectionRepository.count();
+        long entryCount = entryRepository.count();
+        long domainCount = domainRepository.count();
+        long eventCount = consoleEventRepository.count();
+        long replicationCount = replicationRecordRepository.count();
+        long latencyMs = System.currentTimeMillis() - start;
+
+        String lastResyncAt = consoleEventRepository.findTop250ByOrderByCreatedAtDesc().stream()
+                .filter(e -> "DB_RESYNC".equalsIgnoreCase(e.getCategory()))
+                .map(ConsoleEventEntity::getCreatedAt)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .map(Instant::toString)
+                .orElse(null);
+
+        Map<String, Object> counts = new LinkedHashMap<>();
+        counts.put("pages", pageCount);
+        counts.put("collections", collectionCount);
+        counts.put("entries", entryCount);
+        counts.put("domains", domainCount);
+        counts.put("events", eventCount);
+        counts.put("replications", replicationCount);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("connected", true);
+        data.put("engine", "H2 Embedded (JPA / Hibernate)");
+        data.put("latencyMs", latencyMs);
+        data.put("lastResyncAt", lastResyncAt);
+        data.put("counts", counts);
+
+        return Map.of("success", true, "data", data);
+    }
+
+    @PostMapping("/database/resync")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> resyncDatabase(@RequestBody(required = false) Map<String, Object> body) throws Exception {
+        long start = System.currentTimeMillis();
+        String mode = body != null && body.get("mode") != null
+                ? String.valueOf(body.get("mode")).toUpperCase(Locale.ROOT)
+                : "MERGE";
+        if (!List.of("MERGE", "PUSH", "PULL").contains(mode)) {
+            mode = "MERGE";
+        }
+        String actor = body != null && body.get("actor") != null
+                ? String.valueOf(body.get("actor"))
+                : "admin";
+
+        int pushedPages = 0;
+        int pushedCollections = 0;
+        int pushedEntries = 0;
+
+        if (("PUSH".equals(mode) || "MERGE".equals(mode)) && body != null) {
+            if (body.get("pages") instanceof List<?> rawPages) {
+                for (Object item : rawPages) {
+                    if (!(item instanceof Map<?, ?> pMap)) continue;
+                    String id = pMap.get("id") != null ? String.valueOf(pMap.get("id")) : null;
+                    if (id == null || id.isBlank()) continue;
+                    PageEntity entity = pageRepository.findById(id).orElseGet(PageEntity::new);
+                    entity.setId(id);
+                    entity.setTitle(pMap.get("title") != null ? String.valueOf(pMap.get("title")) : "Untitled");
+                    entity.setSlug(pMap.get("slug") != null ? String.valueOf(pMap.get("slug")) : id);
+                    entity.setStatus(pMap.get("status") != null ? String.valueOf(pMap.get("status")) : "draft");
+                    entity.setDomainId(pMap.get("domainId") != null ? String.valueOf(pMap.get("domainId")) : null);
+                    entity.setDomain(pMap.get("domain") != null ? String.valueOf(pMap.get("domain")) : null);
+                    entity.setAuthor(pMap.get("author") != null ? String.valueOf(pMap.get("author")) : "Admin");
+                    entity.setSeoJson(objectMapper.writeValueAsString(pMap.get("seo") != null ? pMap.get("seo") : Map.of()));
+                    entity.setLayoutJson(objectMapper.writeValueAsString(pMap.get("layoutJSON") != null ? pMap.get("layoutJSON") : Map.of("sections", List.of())));
+                    if (entity.getCreatedAt() == null) entity.setCreatedAt(Instant.now());
+                    entity.setUpdatedAt(Instant.now());
+                    pageRepository.save(entity);
+                    pushedPages++;
+                }
+            }
+
+            if (body.get("collections") instanceof List<?> rawCols) {
+                for (Object item : rawCols) {
+                    if (!(item instanceof Map<?, ?> cMap)) continue;
+                    String id = cMap.get("id") != null ? String.valueOf(cMap.get("id")) : null;
+                    if (id == null || id.isBlank()) continue;
+                    CollectionEntity entity = collectionRepository.findById(id).orElseGet(CollectionEntity::new);
+                    entity.setId(id);
+                    entity.setName(cMap.get("name") != null ? String.valueOf(cMap.get("name")) : "Collection");
+                    entity.setSlug(cMap.get("slug") != null ? String.valueOf(cMap.get("slug")) : id);
+                    entity.setDescription(cMap.get("description") != null ? String.valueOf(cMap.get("description")) : "");
+                    entity.setFieldsJson(objectMapper.writeValueAsString(cMap.get("fields") != null ? cMap.get("fields") : List.of()));
+                    collectionRepository.save(entity);
+                    pushedCollections++;
+                }
+            }
+
+            if (body.get("entries") instanceof List<?> rawEntries) {
+                for (Object item : rawEntries) {
+                    if (!(item instanceof Map<?, ?> eMap)) continue;
+                    String id = eMap.get("id") != null ? String.valueOf(eMap.get("id")) : null;
+                    if (id == null || id.isBlank()) continue;
+                    CollectionEntryEntity entity = entryRepository.findById(id).orElseGet(CollectionEntryEntity::new);
+                    entity.setId(id);
+                    entity.setCollectionId(eMap.get("collectionId") != null ? String.valueOf(eMap.get("collectionId")) : "");
+                    entity.setStatus(eMap.get("status") != null ? String.valueOf(eMap.get("status")) : "draft");
+                    entity.setDataJson(objectMapper.writeValueAsString(eMap.get("data") != null ? eMap.get("data") : Map.of()));
+                    if (entity.getCreatedAt() == null) entity.setCreatedAt(Instant.now());
+                    entity.setUpdatedAt(Instant.now());
+                    entryRepository.save(entity);
+                    pushedEntries++;
+                }
+            }
+        }
+
+        List<Map<String, Object>> dbPages = pageRepository.findAll().stream().map(this::pageToSnapshotMap).toList();
+        List<Map<String, Object>> dbCollections = collectionRepository.findAll().stream().map(this::collectionToSnapshotMap).toList();
+        List<Map<String, Object>> dbEntries = entryRepository.findAll().stream().map(this::entryToSnapshotMap).toList();
+        List<Map<String, Object>> dbDomains = domainRepository.findAll().stream().map(this::domainToSnapshotMap).toList();
+
+        long durationMs = System.currentTimeMillis() - start;
+        Instant syncedAt = Instant.now();
+
+        ConsoleEventEntity evt = new ConsoleEventEntity();
+        evt.setId("evt_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+        evt.setLevel("INFO");
+        evt.setSource("SYSTEM");
+        evt.setCategory("DB_RESYNC");
+        evt.setMessage("Database re-sync (" + mode + ") completed in " + durationMs + "ms: "
+                + dbPages.size() + " pages, " + dbCollections.size() + " collections, "
+                + dbEntries.size() + " entries, " + dbDomains.size() + " domains.");
+        evt.setPath("/api/v1/console/database/resync");
+        evt.setMethod("POST");
+        evt.setHttpStatus(200);
+        evt.setDurationMs(durationMs);
+        evt.setActor(actor);
+        evt.setNodePath("/system/database/resync");
+        evt.setStatus("RESOLVED");
+        evt.setCreatedAt(syncedAt);
+        evt.setResolvedAt(syncedAt);
+        consoleEventRepository.save(evt);
+
+        Map<String, Object> pushed = new LinkedHashMap<>();
+        pushed.put("pages", pushedPages);
+        pushed.put("collections", pushedCollections);
+        pushed.put("entries", pushedEntries);
+
+        Map<String, Object> counts = new LinkedHashMap<>();
+        counts.put("pages", dbPages.size());
+        counts.put("collections", dbCollections.size());
+        counts.put("entries", dbEntries.size());
+        counts.put("domains", dbDomains.size());
+
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("pages", dbPages);
+        snapshot.put("collections", dbCollections);
+        snapshot.put("entries", dbEntries);
+        snapshot.put("domains", dbDomains);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("mode", mode);
+        result.put("syncedAt", syncedAt.toString());
+        result.put("durationMs", durationMs);
+        result.put("pushed", pushed);
+        result.put("counts", counts);
+        result.put("snapshot", snapshot);
+
+        return Map.of("success", true, "data", result);
     }
 
     @GetMapping("/replication")
@@ -638,6 +806,67 @@ public class ConsoleController {
         consoleEventRepository.save(evt);
 
         return Map.of("success", true, "data", toSave);
+    }
+
+    private Map<String, Object> pageToSnapshotMap(PageEntity p) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", p.getId());
+        map.put("title", p.getTitle());
+        map.put("slug", p.getSlug());
+        map.put("status", p.getStatus());
+        map.put("domainId", p.getDomainId());
+        map.put("domain", p.getDomain());
+        map.put("author", p.getAuthor());
+        map.put("seo", readJson(p.getSeoJson(), Map.of()));
+        map.put("layoutJSON", readJson(p.getLayoutJson(), Map.of()));
+        map.put("createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null);
+        map.put("updatedAt", p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : null);
+        return map;
+    }
+
+    private Map<String, Object> collectionToSnapshotMap(CollectionEntity c) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", c.getId());
+        map.put("name", c.getName());
+        map.put("slug", c.getSlug());
+        map.put("description", c.getDescription());
+        map.put("fields", readJson(c.getFieldsJson(), List.of()));
+        return map;
+    }
+
+    private Map<String, Object> entryToSnapshotMap(CollectionEntryEntity e) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", e.getId());
+        map.put("collectionId", e.getCollectionId());
+        map.put("status", e.getStatus());
+        map.put("data", readJson(e.getDataJson(), Map.of()));
+        map.put("createdAt", e.getCreatedAt() != null ? e.getCreatedAt().toString() : null);
+        map.put("updatedAt", e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null);
+        return map;
+    }
+
+    private Map<String, Object> domainToSnapshotMap(DomainEntity d) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", d.getId());
+        map.put("domain", d.getDomain());
+        map.put("hostingProvider", d.getHostingProvider());
+        map.put("siteName", d.getSiteName());
+        map.put("baseUrl", d.getBaseUrl());
+        map.put("connected", d.isConnected());
+        map.put("dnsVerified", d.isDnsVerified());
+        map.put("active", d.isActive());
+        map.put("resolvedIps", readJson(d.getResolvedIpsJson(), List.of()));
+        map.put("verifiedAt", d.getVerifiedAt() != null ? d.getVerifiedAt().toString() : null);
+        return map;
+    }
+
+    private <T> T readJson(String raw, T fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return objectMapper.readValue(raw, new TypeReference<T>() {});
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private Map<String, Object> replicationToMap(ReplicationRecordEntity r) {

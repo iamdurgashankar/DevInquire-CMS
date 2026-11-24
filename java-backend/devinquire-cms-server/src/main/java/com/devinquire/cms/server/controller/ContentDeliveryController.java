@@ -106,6 +106,47 @@ public class ContentDeliveryController {
         return Map.of("success", true, "data", collectionToMap(entity));
     }
 
+    @DeleteMapping("/collections/{id}")
+    public Map<String, Object> deleteCollection(@PathVariable String id) {
+        collectionRepository.deleteById(id);
+        return Map.of("success", true);
+    }
+
+    @GetMapping("/entries")
+    public Map<String, Object> listEntries(
+            @RequestParam(required = false) String collectionId,
+            @RequestParam(required = false) String status
+    ) {
+        List<CollectionEntryEntity> rows = (collectionId != null && !collectionId.isBlank())
+                ? entryRepository.findByCollectionId(collectionId)
+                : entryRepository.findAll();
+        List<Map<String, Object>> items = rows.stream()
+                .filter(e -> status == null || status.isBlank() || status.equalsIgnoreCase(e.getStatus()))
+                .map(this::entryToMap)
+                .toList();
+        return Map.of("success", true, "data", items);
+    }
+
+    @PostMapping("/entries")
+    public Map<String, Object> upsertEntry(@RequestBody Map<String, Object> body) throws Exception {
+        String id = String.valueOf(body.getOrDefault("id", UUID.randomUUID().toString()));
+        CollectionEntryEntity entity = entryRepository.findById(id).orElseGet(CollectionEntryEntity::new);
+        entity.setId(id);
+        entity.setCollectionId(String.valueOf(body.getOrDefault("collectionId", "")));
+        entity.setStatus(String.valueOf(body.getOrDefault("status", "draft")));
+        entity.setDataJson(objectMapper.writeValueAsString(body.getOrDefault("data", Map.of())));
+        if (entity.getCreatedAt() == null) entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+        entryRepository.save(entity);
+        return Map.of("success", true, "data", entryToMap(entity));
+    }
+
+    @DeleteMapping("/entries/{id}")
+    public Map<String, Object> deleteEntry(@PathVariable String id) {
+        entryRepository.deleteById(id);
+        return Map.of("success", true);
+    }
+
     @GetMapping("/collections/{collectionSlug}/items")
     public ResponseEntity<Map<String, Object>> listCollectionItems(@PathVariable String collectionSlug) {
         return collectionRepository.findBySlug(collectionSlug)

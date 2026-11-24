@@ -17,7 +17,7 @@ import { SAMPLE_TEMPLATES } from '../sampleData';
 import { generatePageIdea, generateCollectionSchema, smartSearchPages } from '../services/geminiService';
 import { toast } from 'sonner';
 
-type DashboardView = 'dashboard' | 'pages' | 'experience' | 'templates' | 'media' | 'settings' | 'seo' | 'global-styles' | 'profile' | 'page-settings' | 'rewrites' | 'users' | 'headless-api' | 'collections';
+type DashboardView = 'dashboard' | 'activity' | 'pages' | 'experience' | 'templates' | 'media' | 'settings' | 'seo' | 'global-styles' | 'profile' | 'page-settings' | 'rewrites' | 'users' | 'headless-api' | 'collections';
 
 import { logout } from '../firebase';
 import SmartSuggestions from '../components/SmartSuggestions';
@@ -61,11 +61,15 @@ const Dashboard: React.FC = () => {
     entries, setEntries,
     syncCollection, deleteCollectionOnServer,
     syncEntry, deleteEntryOnServer,
+    activityLogs, clearActivityLogs,
     logoutDemoUser,
     theme
   } = useCMS();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<DashboardView>('dashboard');
+  const [renameModalPage, setRenameModalPage] = useState<{ id: string; title: string; slug: string } | null>(null);
+  const [activityCategoryFilter, setActivityCategoryFilter] = useState<string>('ALL');
+  const [activitySearch, setActivitySearch] = useState<string>('');
   const [versionHistoryPageId, setVersionHistoryPageId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -90,6 +94,10 @@ const Dashboard: React.FC = () => {
   const activeRoleLabel = simulatedUser
     ? `${simulatedUser.role} (${simulatedUser.name})`
     : matchedDirectoryUser?.role || user?.role || 'Administrator';
+
+  const isAdminAccess = simulatedUser
+    ? simulatedUser.role === 'Administrator'
+    : (matchedDirectoryUser?.role || user?.role) === 'Administrator' || activePermissions.settings === 'manage';
 
   // Collections state
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
@@ -1053,7 +1061,11 @@ const Dashboard: React.FC = () => {
                 
                 <div className="cursor-pointer" onClick={() => setSelectedCollection(collection)}>
                   <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#4139BF] transition-colors">{collection.name}</h3>
-                  <p className="text-xs text-slate-400 mt-1 mb-6 leading-relaxed line-clamp-2">{collection.description}</p>
+                  <p className="text-xs text-slate-400 mt-1 mb-2 leading-relaxed line-clamp-2">{collection.description}</p>
+                  <p className="text-[11px] text-slate-500 mb-5">
+                    By <span className="font-semibold text-slate-700">{collection.createdBy || 'Team'}</span>
+                    {collection.updatedBy && collection.updatedBy !== collection.createdBy ? ` · Updated by ${collection.updatedBy}` : ''}
+                  </p>
                 </div>
                 
                 <div className="mt-auto flex items-center gap-4 pt-4 border-t border-slate-50">
@@ -2186,7 +2198,7 @@ const Dashboard: React.FC = () => {
                                   <span className="block font-semibold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-colors">{page.title}</span>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-[11px] text-[#86868B] dark:text-[#98989D] font-medium">
-                                      By {page.author} • {page.isCustomSite ? 'Custom Code' : `${page.layoutJSON.sections.length} Sections`} • {page.versions?.length || 1} {(page.versions?.length || 1) === 1 ? 'Version' : 'Versions'}
+                                      By {page.author}{page.updatedBy && page.updatedBy !== page.author ? ` · Updated by ${page.updatedBy}` : ''} • {page.isCustomSite ? 'Custom Code' : `${page.layoutJSON.sections.length} Sections`} • {page.versions?.length || 1} {(page.versions?.length || 1) === 1 ? 'Version' : 'Versions'}
                                     </span>
                                     {globalActivity[page.id]?.length > 0 && (
                                       <div className="flex items-center gap-1">
@@ -2228,6 +2240,18 @@ const Dashboard: React.FC = () => {
                                   label="Experience & Sitemap"
                                   color="blue"
                                 />
+                                <ActionButton
+                                  onClick={() =>
+                                    setRenameModalPage({
+                                      id: page.id,
+                                      title: page.title,
+                                      slug: page.slug,
+                                    })
+                                  }
+                                  icon={<Type size={16} />}
+                                  label="Rename"
+                                  color="blue"
+                                />
                                 <ActionButton onClick={() => navigate(`/editor/${page.id}`)} icon={<Edit3 size={16} />} label="Edit" color="blue" />
                                 <ActionButton onClick={() => window.open(`/cms/p/${page.slug}`, '_blank')} icon={<Eye size={16} />} label="View" color="blue" />
                                 <ActionButton onClick={() => duplicatePage(page)} icon={<Copy size={16} />} label="Copy" color="slate" />
@@ -2242,6 +2266,102 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Rename Page Modal */}
+              {renameModalPage && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
+                  <div className="bg-white dark:bg-[#2C2C2E] rounded-[28px] shadow-2xl border border-black/[0.08] dark:border-white/[0.1] w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] dark:border-white/[0.08]">
+                      <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Rename Page</h3>
+                      <button onClick={() => setRenameModalPage(null)} className="text-[#86868B] hover:text-[#1D1D1F] dark:hover:text-white cursor-pointer">
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const target = pages.find((p) => p.id === renameModalPage.id);
+                        if (!target) return;
+                        const cleanTitle = renameModalPage.title.trim() || target.title;
+                        const cleanSlug =
+                          renameModalPage.slug
+                            .trim()
+                            .toLowerCase()
+                            .replace(/[^a-z0-9-]+/g, '-')
+                            .replace(/^-|-$/g, '') || target.slug;
+                        const updated: Page = {
+                          ...target,
+                          title: cleanTitle,
+                          slug: cleanSlug,
+                          updatedAt: new Date().toISOString(),
+                        };
+                        await syncPage(updated);
+                        toast.success(`Renamed to "${cleanTitle}"`);
+                        setRenameModalPage(null);
+                      }}
+                      className="p-6 space-y-5"
+                    >
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">Page Title</label>
+                        <input
+                          type="text"
+                          required
+                          autoFocus
+                          value={renameModalPage.title}
+                          onChange={(e) => {
+                            const nextTitle = e.target.value;
+                            setRenameModalPage((prev) => {
+                              if (!prev) return null;
+                              const isAuto =
+                                prev.slug.startsWith('new-page-') ||
+                                prev.slug === prev.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                              const nextSlug = isAuto
+                                ? nextTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || prev.slug
+                                : prev.slug;
+                              return { ...prev, title: nextTitle, slug: nextSlug };
+                            });
+                          }}
+                          className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] focus:ring-2 focus:ring-[#4e45e1] outline-none"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-[#86868B] dark:text-[#98989D] uppercase tracking-wider">URL Slug</label>
+                        <div className="flex items-center bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-3">
+                          <span className="text-xs font-mono text-[#86868B] mr-1">/</span>
+                          <input
+                            type="text"
+                            required
+                            value={renameModalPage.slug}
+                            onChange={(e) =>
+                              setRenameModalPage((prev) =>
+                                prev
+                                  ? { ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }
+                                  : null
+                              )
+                            }
+                            className="w-full bg-transparent text-sm font-mono text-[#1D1D1F] dark:text-[#F5F5F7] outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setRenameModalPage(null)}
+                          className="flex-1 py-3 rounded-xl text-sm font-semibold bg-[#F5F5F7] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-[#F5F5F7] hover:opacity-80 transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-3 rounded-xl text-sm font-semibold bg-[#4e45e1] dark:bg-[#6B63F2] text-white hover:opacity-90 transition cursor-pointer"
+                        >
+                          Save Name
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           ) : activeView === 'templates' ? (
             <div className="space-y-6">
@@ -2419,7 +2539,9 @@ const Dashboard: React.FC = () => {
                       </div>
                       <div className="p-3.5 border-t border-black/[0.05] dark:border-white/[0.06]">
                         <p className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate" title={item.name}>{item.name}</p>
-                        <p className="text-[10px] text-[#86868B] dark:text-[#98989D] mt-0.5 font-mono">{(Number(item.size || 0) / 1024).toFixed(1)} KB</p>
+                        <p className="text-[10px] text-[#86868B] dark:text-[#98989D] mt-0.5 truncate">
+                          Uploaded by <span className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{item.uploadedBy || 'Team'}</span> · {(Number(item.size || 0) / 1024).toFixed(1)} KB
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -2674,7 +2796,7 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className={`grid grid-cols-1 ${isAdminAccess ? 'lg:grid-cols-2' : ''} gap-6`}>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Recent Pages</h2>
@@ -2694,7 +2816,10 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div>
                             <h4 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] text-sm group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] transition-colors">{page.title}</h4>
-                            <p className="text-[11px] font-mono text-[#86868B] dark:text-[#98989D]">/{page.slug}</p>
+                            <p className="text-[11px] text-[#86868B] dark:text-[#98989D]">
+                              <span className="font-mono">/{page.slug}</span> · By <span className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{page.author || 'Admin'}</span>
+                              {page.updatedBy && page.updatedBy !== page.author ? ` · Updated by ${page.updatedBy}` : ''}
+                            </p>
                           </div>
                         </div>
                         <ChevronRight size={16} className="text-[#86868B] group-hover:text-[#4e45e1] dark:group-hover:text-[#6B63F2] group-hover:translate-x-0.5 transition-all" />
@@ -2709,47 +2834,231 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* Team Activity Tracker (Admin Only) */}
+              {isAdminAccess && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Studio Tools</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Activity Tracker</h2>
+                    {Object.values(globalActivity).flat().length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
+                        {Object.values(globalActivity).flat().length} Live
+                      </span>
+                    )}
+                  </div>
+                  <button onClick={() => setActiveView('activity')} className="text-xs font-semibold text-[#4e45e1] dark:text-[#6B63F2] hover:underline cursor-pointer">View All</button>
                 </div>
-                <div className="space-y-4">
-                  <div 
-                    onClick={() => setActiveView('experience')}
-                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#4e45e1]/50 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 rounded-2xl text-[#4e45e1] dark:text-[#6B63F2]">
-                        <FolderTree size={22} />
+                <div className="apple-card rounded-[24px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+                  <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
+                    {activityLogs.slice(0, 5).map(act => (
+                      <div key={act.id} className="p-3.5 flex items-start justify-between gap-3 hover:bg-[#F5F5F7]/60 dark:hover:bg-white/[0.03] transition-colors">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-[#4e45e1]/12 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] flex items-center justify-center text-xs font-bold shrink-0 uppercase">
+                            {(act.userName || 'U').slice(0, 2)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs text-[#1D1D1F] dark:text-[#F5F5F7] leading-snug">
+                              <span className="font-semibold">{act.userName}</span>{' '}
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                act.action === 'deleted' ? 'bg-[#FF3B30]/12 text-[#FF3B30]' :
+                                act.action === 'published' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' :
+                                act.action === 'created' || act.action === 'uploaded' ? 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#6B63F2]' :
+                                'bg-[#FF9500]/12 text-[#FF9500]'
+                              }`}>
+                                {act.action}
+                              </span>{' '}
+                              <span className="text-[#86868B] dark:text-[#98989D]">{act.category}</span>{' '}
+                              <span className="font-semibold truncate">{act.targetName}</span>
+                            </p>
+                            <p className="text-[10px] text-[#86868B] dark:text-[#98989D] mt-0.5">
+                              {new Date(act.timestamp).toLocaleString()}{act.details ? ` · ${act.details}` : ''}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Experience Manager & Sitemap</h3>
-                        <p className="text-xs text-[#86868B] dark:text-[#98989D]">Visual inline page canvas & interactive hierarchy</p>
+                    ))}
+                    {activityLogs.length === 0 && (
+                      <div className="p-10 text-center space-y-1">
+                        <Activity size={22} className="mx-auto text-[#86868B]/60 mb-2" />
+                        <p className="text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">No activity recorded yet</p>
+                        <p className="text-xs text-[#86868B] dark:text-[#98989D]">
+                          Create or edit a page, media, template, or collection to track who updated what.
+                        </p>
                       </div>
-                    </div>
-                    <ChevronRight size={18} className="text-[#86868B] group-hover:text-[#4e45e1] group-hover:translate-x-0.5 transition-all" />
+                    )}
                   </div>
+                </div>
+              </div>
+              )}
+            </div>
 
-                  <div 
-                    onClick={() => setActiveView('headless-api')}
-                    className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#4e45e1]/50 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl text-[#1D1D1F] dark:text-[#F5F5F7]">
-                        <Terminal size={22} />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Headless Content API</h3>
-                        <p className="text-xs text-[#86868B] dark:text-[#98989D]">REST endpoints & interactive JSON console</p>
-                      </div>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Studio Tools</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div 
+                  onClick={() => setActiveView('experience')}
+                  className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#4e45e1]/50 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 rounded-2xl text-[#4e45e1] dark:text-[#6B63F2]">
+                      <FolderTree size={22} />
                     </div>
-                    <ExternalLink size={18} className="text-[#86868B] group-hover:text-[#4e45e1] transition-colors" />
+                    <div>
+                      <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Experience Manager &amp; Sitemap</h3>
+                      <p className="text-xs text-[#86868B] dark:text-[#98989D]">Visual inline page canvas &amp; interactive hierarchy</p>
+                    </div>
                   </div>
+                  <ChevronRight size={18} className="text-[#86868B] group-hover:text-[#4e45e1] group-hover:translate-x-0.5 transition-all" />
+                </div>
+
+                <div 
+                  onClick={() => setActiveView('headless-api')}
+                  className="flex items-center justify-between p-6 bg-white dark:bg-[#2C2C2E] border border-black/[0.06] dark:border-white/[0.08] rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-[#4e45e1]/50 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-[#F5F5F7] dark:bg-[#1C1C1E] rounded-2xl text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      <Terminal size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Headless Content API</h3>
+                      <p className="text-xs text-[#86868B] dark:text-[#98989D]">REST endpoints &amp; interactive JSON console</p>
+                    </div>
+                  </div>
+                  <ExternalLink size={18} className="text-[#86868B] group-hover:text-[#4e45e1] transition-colors" />
                 </div>
               </div>
             </div>
           </div>
         );
+      case 'activity': {
+        if (!isAdminAccess) {
+          return (
+            <SectionAccessDenied
+              sectionTitle="Team Activity Tracker"
+              requiredCapability="Administrator Access"
+              activeRoleName={activeRoleLabel}
+              isSimulating={Boolean(simulatedUser)}
+              onExitSimulation={() => setSimulatedUser(null)}
+              onBackToDashboard={() => setActiveView('dashboard')}
+            />
+          );
+        }
+
+        const filteredActivity = activityLogs.filter((act) => {
+          if (activityCategoryFilter !== 'ALL' && act.category !== activityCategoryFilter) return false;
+          if (activitySearch.trim()) {
+            const q = activitySearch.toLowerCase();
+            return (
+              act.userName?.toLowerCase().includes(q) ||
+              act.targetName?.toLowerCase().includes(q) ||
+              act.action?.toLowerCase().includes(q) ||
+              act.details?.toLowerCase().includes(q)
+            );
+          }
+          return true;
+        });
+
+        return (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Team Activity Tracker</h2>
+                <p className="text-sm text-[#86868B] dark:text-[#98989D]">
+                  Real-time audit trail of which user created, updated, published, or deleted items across every section.
+                </p>
+              </div>
+              {activityLogs.length > 0 && (
+                <button
+                  onClick={() => {
+                    clearActivityLogs();
+                    toast.success('Activity log cleared');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] hover:text-[#FF3B30] transition cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                  Clear Log
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#86868B]" />
+                <input
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  placeholder="Filter by user name, item title, or action..."
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] text-xs outline-none focus:border-[#4e45e1]"
+                />
+              </div>
+              <select
+                value={activityCategoryFilter}
+                onChange={(e) => setActivityCategoryFilter(e.target.value)}
+                className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#2C2C2E] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold outline-none"
+              >
+                <option value="ALL">All Sections</option>
+                <option value="page">Pages</option>
+                <option value="collection">Collections</option>
+                <option value="entry">Collection Entries</option>
+                <option value="media">Media Library</option>
+                <option value="template">Templates</option>
+                <option value="rewrite">URL Rewrites</option>
+                <option value="user">Team &amp; RBAC</option>
+                <option value="styles">Global Styles</option>
+                <option value="settings">Site Settings</option>
+              </select>
+            </div>
+
+            <div className="apple-card rounded-[24px] overflow-hidden">
+              <div className="divide-y divide-black/[0.05] dark:divide-white/[0.06]">
+                {filteredActivity.map((act) => (
+                  <div key={act.id} className="p-4 flex flex-wrap items-center justify-between gap-3 hover:bg-[#F5F5F7]/60 dark:hover:bg-white/[0.03] transition-colors">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-[#4e45e1]/12 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2] flex items-center justify-center text-xs font-bold shrink-0 uppercase">
+                        {(act.userName || 'U').slice(0, 2)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{act.userName}</span>
+                          {act.userRole && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-black/5 dark:bg-white/10 text-[#86868B] dark:text-[#98989D]">
+                              {act.userRole}
+                            </span>
+                          )}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                            act.action === 'deleted' ? 'bg-[#FF3B30]/12 text-[#FF3B30]' :
+                            act.action === 'published' ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]' :
+                            act.action === 'created' || act.action === 'uploaded' ? 'bg-[#4e45e1]/12 text-[#4e45e1] dark:text-[#6B63F2]' :
+                            'bg-[#FF9500]/12 text-[#FF9500]'
+                          }`}>
+                            {act.action}
+                          </span>
+                          <span className="text-xs text-[#86868B] dark:text-[#98989D] capitalize">{act.category}</span>
+                          <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] truncate">{act.targetName}</span>
+                        </div>
+                        {act.details && (
+                          <p className="text-[11px] text-[#86868B] dark:text-[#98989D] mt-0.5">{act.details}</p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-[#86868B] dark:text-[#98989D] font-mono shrink-0">
+                      {new Date(act.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                {filteredActivity.length === 0 && (
+                  <div className="p-14 text-center text-sm text-[#86868B]">
+                    No matching activity records found.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
       case 'rewrites':
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
@@ -3912,6 +4221,19 @@ console.log('Posts:', posts.map(p => p.title));`}
                 collapsed={isSidebarCollapsed}
               />
             </div>
+            {isAdminAccess && (
+              <NavItem 
+                id="nav-activity"
+                icon={<Activity size={18} />} 
+                label="Activity Tracker" 
+                active={activeView === 'activity'} 
+                onClick={() => {
+                  setActiveView('activity');
+                  setIsMobileSidebarOpen(false);
+                }}
+                collapsed={isSidebarCollapsed}
+              />
+            )}
             <div id="tour-pages">
               <NavItem 
                 id="nav-content-studio"

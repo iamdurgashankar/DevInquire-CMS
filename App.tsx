@@ -21,7 +21,7 @@ import PublicPage from './pages/PublicPage';
 import HeadlessClientDemo from './pages/HeadlessClientDemo';
 import ConsolePage from './pages/ConsolePage';
 import { initGlobalConsoleCapture, reportConsoleEvent } from './services/consoleLogger';
-import { Page, Template, GlobalStyles, User, MediaItem, URLRewrite, UserManagementItem, SiteConfig, Collection, CollectionEntry, getPermissionsForRole } from './types';
+import { Page, Template, GlobalStyles, User, MediaItem, URLRewrite, UserManagementItem, SiteConfig, Collection, CollectionEntry, ActivityLogItem, ActivityAction, ActivityCategory, getPermissionsForRole } from './types';
 import { SAMPLE_PAGES, SAMPLE_TEMPLATES, SAMPLE_MEDIA } from './sampleData';
 import { ensurePageBaselineVersion } from './components/VersionHistoryModal';
 
@@ -224,6 +224,17 @@ interface CMSContextType {
   deleteCollectionOnServer: (id: string) => Promise<void>;
   syncEntry: (entry: CollectionEntry) => Promise<void>;
   deleteEntryOnServer: (id: string) => Promise<void>;
+  resyncWithDatabase: (mode?: 'MERGE' | 'PUSH' | 'PULL') => Promise<{ success: boolean; data?: any; error?: string }>;
+  activityLogs: ActivityLogItem[];
+  logActivity: (entry: {
+    action: ActivityAction;
+    category: ActivityCategory;
+    targetId?: string;
+    targetName: string;
+    details?: string;
+    userName?: string;
+  }) => void;
+  clearActivityLogs: () => void;
   theme: AppleThemeMode;
   setTheme: (theme: AppleThemeMode) => void;
   toggleTheme: () => void;
@@ -284,6 +295,7 @@ const App: React.FC = () => {
   const [rewrites, setRewrites] = useState<URLRewrite[]>(() => loadFromStorage('devinquire_rewrites', []));
   const [collections, setCollections] = useState<Collection[]>(() => loadFromStorage('devinquire_collections', []));
   const [entries, setEntries] = useState<CollectionEntry[]>(() => loadFromStorage('devinquire_entries', []));
+  const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>(() => loadFromStorage('devinquire_activity_logs', []));
   const [loading, setLoading] = useState(true);
   const firestoreAvailableRef = useRef<boolean>(false);
 
@@ -386,6 +398,7 @@ const App: React.FC = () => {
   useEffect(() => { saveToStorage('devinquire_rewrites', rewrites); }, [rewrites]);
   useEffect(() => { saveToStorage('devinquire_collections', collections); }, [collections]);
   useEffect(() => { saveToStorage('devinquire_entries', entries); }, [entries]);
+  useEffect(() => { saveToStorage('devinquire_activity_logs', activityLogs); }, [activityLogs]);
   useEffect(() => { saveToStorage('devinquire_users', users); }, [users]);
 
   // Hydrate pages and active hosting domain from Java Spring Boot backend on startup
@@ -398,7 +411,35 @@ const App: React.FC = () => {
           setPages((prev) => {
             const byId = new Map<string, Page>();
             prev.forEach((p) => byId.set(p.id, p));
-            json.data.forEach((srvPage: Page) => byId.set(srvPage.id, srvPage));
+            json.data.forEach((srvPage: Page) => byId.set(srvPage.id, ensurePageBaselineVersion(srvPage)));
+            return Array.from(byId.values());
+          });
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${JAVA_API_BASE}/api/v1/content/collections`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+          setCollections((prev) => {
+            const byId = new Map<string, Collection>();
+            prev.forEach((c) => byId.set(c.id, c));
+            json.data.forEach((srvCol: Collection) => byId.set(srvCol.id, srvCol));
+            return Array.from(byId.values());
+          });
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${JAVA_API_BASE}/api/v1/content/entries`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+          setEntries((prev) => {
+            const byId = new Map<string, CollectionEntry>();
+            prev.forEach((e) => byId.set(e.id, e));
+            json.data.forEach((srvEntry: CollectionEntry) => byId.set(srvEntry.id, srvEntry));
             return Array.from(byId.values());
           });
         }
@@ -542,11 +583,44 @@ const App: React.FC = () => {
 
   const canSyncFirestore = () => Boolean(firebaseUser && firestoreAvailableRef.current);
 
+  const getActorName = () => user?.name || user?.email || 'Administrator';
+
+  const logActivity: CMSContextType['logActivity'] = ({
+    action,
+    category,
+    targetId,
+    targetName,
+    details,
+    userName,
+  }) => {
+    const item: ActivityLogItem = {
+      id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      userName: userName || getActorName(),
+      userEmail: user?.email,
+      userRole: user?.role || 'Administrator',
+      action,
+      category,
+      targetId,
+      targetName,
+      details,
+      timestamp: new Date().toISOString(),
+    };
+    setActivityLogs((prev) => [item, ...prev].slice(0, 250));
+  };
+
+  const clearActivityLogs = () => {
+    setActivityLogs([]);
+  };
+
   // Sync functions (used by components)
   const syncPage = async (rawPage: Page) => {
+    const actor = getActorName();
+    const existingPage = pages.find((p) => p.id === rawPage.id);
     const activeDomainObj = siteConfig.domains?.find((d) => d.id === siteConfig.activeDomainId);
     const enrichedPage: Page = {
       ...rawPage,
+      author: rawPage.author || existingPage?.author || actor,
+      updatedBy: actor,
       domainId: rawPage.domainId || activeDomainObj?.id || siteConfig.activeDomainId || undefined,
       domain: rawPage.domain || activeDomainObj?.domain || siteConfig.customDomain || undefined,
     };
@@ -554,6 +628,18 @@ const App: React.FC = () => {
     setPages(prev => {
       const exists = prev.some(p => p.id === page.id);
       return exists ? prev.map(p => p.id === page.id ? page : p) : [page, ...prev];
+    });
+    const action: ActivityAction = !existingPage
+      ? 'created'
+      : page.status === 'published' && existingPage.status !== 'published'
+      ? 'published'
+      : 'updated';
+    logActivity({
+      action,
+      category: 'page',
+      targetId: page.id,
+      targetName: page.title || page.slug || 'Untitled Page',
+      details: `/${page.slug} (${page.status})`,
     });
     if (JAVA_API_BASE) {
       try {
@@ -587,7 +673,15 @@ const App: React.FC = () => {
   };
 
   const deletePageOnServer = async (id: string) => {
+    const target = pages.find((p) => p.id === id);
     setPages(prev => prev.filter(p => p.id !== id));
+    logActivity({
+      action: 'deleted',
+      category: 'page',
+      targetId: id,
+      targetName: target?.title || id,
+      details: target?.slug ? `/${target.slug}` : undefined,
+    });
     if (JAVA_API_BASE) {
       fetch(`${JAVA_API_BASE}/api/v1/content/pages/${encodeURIComponent(id)}`, {
         method: 'DELETE',
@@ -610,6 +704,12 @@ const App: React.FC = () => {
 
   const syncGlobalStyles = async (styles: GlobalStyles) => {
     setGlobalStyles(styles);
+    logActivity({
+      action: 'updated',
+      category: 'styles',
+      targetName: 'Global Design System',
+      details: `Primary ${styles.primaryColor} · Font ${styles.headingFont}`,
+    });
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'config', 'globalStyles'), cleanFirestoreData(styles));
@@ -618,10 +718,24 @@ const App: React.FC = () => {
     }
   };
 
-  const syncTemplate = async (template: Template) => {
+  const syncTemplate = async (rawTemplate: Template) => {
+    const actor = getActorName();
+    const existing = templates.find(t => t.id === rawTemplate.id);
+    const template: Template = {
+      ...rawTemplate,
+      createdBy: rawTemplate.createdBy || existing?.createdBy || actor,
+      author: actor,
+    };
     setTemplates(prev => {
       const exists = prev.some(t => t.id === template.id);
       return exists ? prev.map(t => t.id === template.id ? template : t) : [template, ...prev];
+    });
+    logActivity({
+      action: existing ? 'updated' : 'created',
+      category: 'template',
+      targetId: template.id,
+      targetName: template.name,
+      details: `${template.type} template`,
     });
     if (!canSyncFirestore()) return;
     try {
@@ -632,7 +746,14 @@ const App: React.FC = () => {
   };
 
   const deleteTemplateOnServer = async (id: string) => {
+    const target = templates.find(t => t.id === id);
     setTemplates(prev => prev.filter(t => t.id !== id));
+    logActivity({
+      action: 'deleted',
+      category: 'template',
+      targetId: id,
+      targetName: target?.name || id,
+    });
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'templates', id));
@@ -641,10 +762,23 @@ const App: React.FC = () => {
     }
   };
 
-  const syncMedia = async (mediaItem: MediaItem) => {
+  const syncMedia = async (rawMediaItem: MediaItem) => {
+    const actor = getActorName();
+    const existing = media.find(m => m.id === rawMediaItem.id);
+    const mediaItem: MediaItem = {
+      ...rawMediaItem,
+      uploadedBy: rawMediaItem.uploadedBy || existing?.uploadedBy || actor,
+    };
     setMedia(prev => {
       const exists = prev.some(m => m.id === mediaItem.id);
       return exists ? prev.map(m => m.id === mediaItem.id ? mediaItem : m) : [mediaItem, ...prev];
+    });
+    logActivity({
+      action: existing ? 'updated' : 'uploaded',
+      category: 'media',
+      targetId: mediaItem.id,
+      targetName: mediaItem.name,
+      details: mediaItem.type,
     });
     if (!canSyncFirestore()) return;
     try {
@@ -655,7 +789,14 @@ const App: React.FC = () => {
   };
 
   const deleteMediaOnServer = async (id: string) => {
+    const target = media.find(m => m.id === id);
     setMedia(prev => prev.filter(m => m.id !== id));
+    logActivity({
+      action: 'deleted',
+      category: 'media',
+      targetId: id,
+      targetName: target?.name || id,
+    });
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'media', id));
@@ -665,9 +806,17 @@ const App: React.FC = () => {
   };
 
   const syncUserManagement = async (userItem: UserManagementItem) => {
+    const existing = users.find(u => u.id === userItem.id);
     setUsers(prev => {
       const exists = prev.some(u => u.id === userItem.id);
       return exists ? prev.map(u => u.id === userItem.id ? userItem : u) : [...prev, userItem];
+    });
+    logActivity({
+      action: existing ? 'updated' : 'created',
+      category: 'user',
+      targetId: userItem.id,
+      targetName: userItem.name || userItem.email,
+      details: `${userItem.role} (${userItem.status})`,
     });
     if (!canSyncFirestore()) return;
     try {
@@ -678,7 +827,14 @@ const App: React.FC = () => {
   };
 
   const deleteUserOnServer = async (id: string) => {
+    const target = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
+    logActivity({
+      action: 'deleted',
+      category: 'user',
+      targetId: id,
+      targetName: target?.name || target?.email || id,
+    });
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'users', id));
@@ -689,6 +845,12 @@ const App: React.FC = () => {
 
   const syncSiteConfig = async (config: SiteConfig) => {
     setSiteConfig(config);
+    logActivity({
+      action: 'updated',
+      category: 'settings',
+      targetName: config.siteName || config.customDomain || 'Site Configuration',
+      details: config.customDomain ? `Domain: ${config.customDomain}` : undefined,
+    });
     try {
       localStorage.setItem('devinquire_site_config', JSON.stringify(config));
     } catch {
@@ -703,9 +865,17 @@ const App: React.FC = () => {
   };
 
   const syncRewrite = async (rewrite: URLRewrite) => {
+    const existing = rewrites.find(r => r.id === rewrite.id);
     setRewrites(prev => {
       const exists = prev.some(r => r.id === rewrite.id);
       return exists ? prev.map(r => r.id === rewrite.id ? rewrite : r) : [...prev, rewrite];
+    });
+    logActivity({
+      action: existing ? 'updated' : 'created',
+      category: 'rewrite',
+      targetId: rewrite.id,
+      targetName: `${rewrite.source} → ${rewrite.target}`,
+      details: `${rewrite.type} redirect`,
     });
     if (!canSyncFirestore()) return;
     try {
@@ -716,7 +886,14 @@ const App: React.FC = () => {
   };
 
   const deleteRewriteOnServer = async (id: string) => {
+    const target = rewrites.find(r => r.id === id);
     setRewrites(prev => prev.filter(r => r.id !== id));
+    logActivity({
+      action: 'deleted',
+      category: 'rewrite',
+      targetId: id,
+      targetName: target ? `${target.source} → ${target.target}` : id,
+    });
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'rewrites', id));
@@ -725,10 +902,24 @@ const App: React.FC = () => {
     }
   };
 
-  const syncCollection = async (collectionData: Collection) => {
+  const syncCollection = async (rawCollectionData: Collection) => {
+    const actor = getActorName();
+    const existing = collections.find(c => c.id === rawCollectionData.id);
+    const collectionData: Collection = {
+      ...rawCollectionData,
+      createdBy: rawCollectionData.createdBy || existing?.createdBy || actor,
+      updatedBy: actor,
+    };
     setCollections(prev => {
       const exists = prev.some(c => c.id === collectionData.id);
       return exists ? prev.map(c => c.id === collectionData.id ? collectionData : c) : [...prev, collectionData];
+    });
+    logActivity({
+      action: existing ? 'updated' : 'created',
+      category: 'collection',
+      targetId: collectionData.id,
+      targetName: collectionData.name,
+      details: `${collectionData.fields?.length || 0} fields`,
     });
     if (JAVA_API_BASE) {
       fetch(`${JAVA_API_BASE}/api/v1/content/collections`, {
@@ -746,7 +937,19 @@ const App: React.FC = () => {
   };
 
   const deleteCollectionOnServer = async (id: string) => {
+    const target = collections.find(c => c.id === id);
     setCollections(prev => prev.filter(c => c.id !== id));
+    logActivity({
+      action: 'deleted',
+      category: 'collection',
+      targetId: id,
+      targetName: target?.name || id,
+    });
+    if (JAVA_API_BASE) {
+      fetch(`${JAVA_API_BASE}/api/v1/content/collections/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+    }
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'collections', id));
@@ -755,11 +958,35 @@ const App: React.FC = () => {
     }
   };
 
-  const syncEntry = async (entry: CollectionEntry) => {
+  const syncEntry = async (rawEntry: CollectionEntry) => {
+    const actor = getActorName();
+    const existing = entries.find(e => e.id === rawEntry.id);
+    const entry: CollectionEntry = {
+      ...rawEntry,
+      author: rawEntry.author || existing?.author || actor,
+      updatedBy: actor,
+    };
     setEntries(prev => {
       const exists = prev.some(e => e.id === entry.id);
       return exists ? prev.map(e => e.id === entry.id ? entry : e) : [...prev, entry];
     });
+    const entryTitle = String(
+      entry.data?.title || entry.data?.name || entry.data?.slug || Object.values(entry.data || {})[0] || entry.id
+    );
+    logActivity({
+      action: !existing ? 'created' : entry.status === 'published' && existing.status !== 'published' ? 'published' : 'updated',
+      category: 'entry',
+      targetId: entry.id,
+      targetName: entryTitle,
+      details: `${entry.status}`,
+    });
+    if (JAVA_API_BASE) {
+      fetch(`${JAVA_API_BASE}/api/v1/content/entries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      }).catch(() => {});
+    }
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'entries', entry.id), cleanFirestoreData(entry));
@@ -769,12 +996,113 @@ const App: React.FC = () => {
   };
 
   const deleteEntryOnServer = async (id: string) => {
+    const target = entries.find(e => e.id === id);
     setEntries(prev => prev.filter(e => e.id !== id));
+    const targetLabel = target
+      ? String(target.data?.title || target.data?.name || Object.values(target.data || {})[0] || id)
+      : id;
+    logActivity({
+      action: 'deleted',
+      category: 'entry',
+      targetId: id,
+      targetName: targetLabel,
+    });
+    if (JAVA_API_BASE) {
+      fetch(`${JAVA_API_BASE}/api/v1/content/entries/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+    }
     if (!canSyncFirestore()) return;
     try {
       await deleteDoc(doc(db, 'entries', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `entries/${id}`);
+    }
+  };
+
+  const resyncWithDatabase = async (
+    mode: 'MERGE' | 'PUSH' | 'PULL' = 'MERGE'
+  ): Promise<{ success: boolean; data?: any; error?: string }> => {
+    if (!JAVA_API_BASE) {
+      return { success: false, error: 'Java backend URL (VITE_API_URL) is not configured' };
+    }
+    try {
+      const res = await fetch(`${JAVA_API_BASE}/api/v1/console/database/resync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode,
+          pages: mode === 'PULL' ? [] : pages,
+          collections: mode === 'PULL' ? [] : collections,
+          entries: mode === 'PULL' ? [] : entries,
+          actor: user?.email || user?.name || 'Administrator',
+        }),
+      });
+      if (!res.ok) {
+        return { success: false, error: `HTTP ${res.status}` };
+      }
+      const json = await res.json();
+      if (!json?.success || !json?.data) {
+        return { success: false, error: json?.error || 'Database re-sync failed' };
+      }
+
+      const snapshot = json.data.snapshot;
+      if ((mode === 'PULL' || mode === 'MERGE') && snapshot) {
+        if (Array.isArray(snapshot.pages)) {
+          const normalized = snapshot.pages.map((p: Page) => ensurePageBaselineVersion(p));
+          if (mode === 'PULL') {
+            setPages(normalized);
+          } else {
+            setPages((prev) => {
+              const byId = new Map<string, Page>();
+              prev.forEach((p) => byId.set(p.id, p));
+              normalized.forEach((p: Page) => byId.set(p.id, p));
+              return Array.from(byId.values());
+            });
+          }
+        }
+        if (Array.isArray(snapshot.collections)) {
+          if (mode === 'PULL') {
+            setCollections(snapshot.collections);
+          } else {
+            setCollections((prev) => {
+              const byId = new Map<string, Collection>();
+              prev.forEach((c) => byId.set(c.id, c));
+              snapshot.collections.forEach((c: Collection) => byId.set(c.id, c));
+              return Array.from(byId.values());
+            });
+          }
+        }
+        if (Array.isArray(snapshot.entries)) {
+          if (mode === 'PULL') {
+            setEntries(snapshot.entries);
+          } else {
+            setEntries((prev) => {
+              const byId = new Map<string, CollectionEntry>();
+              prev.forEach((e) => byId.set(e.id, e));
+              snapshot.entries.forEach((e: CollectionEntry) => byId.set(e.id, e));
+              return Array.from(byId.values());
+            });
+          }
+        }
+        if (Array.isArray(snapshot.domains) && snapshot.domains.length > 0) {
+          const activeDomain =
+            snapshot.domains.find((d: any) => d.active) || snapshot.domains[0];
+          setSiteConfig((prev) => ({
+            ...prev,
+            domains: snapshot.domains,
+            activeDomainId: activeDomain?.id || prev.activeDomainId,
+            customDomain: activeDomain?.domain || prev.customDomain,
+            baseUrl: activeDomain?.baseUrl || prev.baseUrl,
+            hostingProvider: activeDomain?.hostingProvider || prev.hostingProvider,
+            hostingConnected: true,
+          }));
+        }
+      }
+
+      return { success: true, data: json.data };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Java backend unreachable' };
     }
   };
 
@@ -816,6 +1144,10 @@ const App: React.FC = () => {
         entries, setEntries,
         syncCollection, deleteCollectionOnServer,
         syncEntry, deleteEntryOnServer,
+        resyncWithDatabase,
+        activityLogs,
+        logActivity,
+        clearActivityLogs,
         theme,
         setTheme,
         toggleTheme

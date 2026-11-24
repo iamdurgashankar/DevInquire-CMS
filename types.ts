@@ -104,6 +104,7 @@ export interface Page {
   createdAt: string;
   updatedAt: string;
   author: string;
+  updatedBy?: string;
   isCustomSite?: boolean;
   customSiteUrl?: string;
   customHTML?: string;
@@ -320,6 +321,7 @@ export interface MediaItem {
   date?: string;
   category?: 'image' | 'illustration' | 'icon' | 'document' | 'banner';
   dimensions?: string;
+  uploadedBy?: string;
 }
 
 export interface UserManagementItem {
@@ -377,6 +379,8 @@ export interface Collection {
   fields: CollectionField[];
   createdAt: string;
   updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export interface CollectionEntry {
@@ -387,4 +391,40 @@ export interface CollectionEntry {
   createdAt: string;
   updatedAt: string;
   author: string;
+  updatedBy?: string;
+}
+
+export type ActivityAction =
+  | 'created'
+  | 'updated'
+  | 'published'
+  | 'deleted'
+  | 'uploaded'
+  | 'duplicated'
+  | 'restored'
+  | 'connected'
+  | 'synced';
+
+export type ActivityCategory =
+  | 'page'
+  | 'template'
+  | 'media'
+  | 'collection'
+  | 'entry'
+  | 'rewrite'
+  | 'user'
+  | 'settings'
+  | 'styles';
+
+export interface ActivityLogItem {
+  id: string;
+  userName: string;
+  userEmail?: string;
+  userRole?: string;
+  action: ActivityAction;
+  category: ActivityCategory;
+  targetId?: string;
+  targetName: string;
+  details?: string;
+  timestamp: string;
 }

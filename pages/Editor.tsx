@@ -299,43 +299,45 @@ const Editor: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const foundPage = pages.find((p) => p.id === id);
-    if (foundPage) {
-      setPage({ ...foundPage });
-      setTemplate(null);
-      return;
-    }
+    setPage((currentPage) => {
+      if (currentPage && currentPage.id === id) {
+        return currentPage;
+      }
+      const foundPage = pages.find((p) => p.id === id);
+      if (foundPage) {
+        setTemplate(null);
+        return { ...foundPage };
+      }
 
-    const foundTemplate = templates.find((t) => t.id === id);
-    if (foundTemplate) {
-      setTemplate({ ...foundTemplate });
-      // Create a mock page object for the editor to work with
-      const mockPage: Page = {
-        id: foundTemplate.id,
-        title: foundTemplate.name,
-        slug: `template-${foundTemplate.id}`,
-        status: "draft",
-        seo: { metaTitle: "", metaDescription: "", keywords: "", ogImage: "" },
-        layoutJSON:
-          foundTemplate.type === "page"
-            ? (foundTemplate.layoutJSON as LayoutJSON)
-            : {
-                sections: [foundTemplate.layoutJSON as Section],
-                layoutVersion: "1.0",
-              },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        author: foundTemplate.createdBy,
-        isCustomSite: foundTemplate.isCustomSite,
-        customHTML: foundTemplate.customHTML,
-        customCSS: foundTemplate.customCSS,
-        customJS: foundTemplate.customJS,
-      };
-      setPage(mockPage);
-      return;
-    }
+      const foundTemplate = templates.find((t) => t.id === id);
+      if (foundTemplate) {
+        setTemplate({ ...foundTemplate });
+        return {
+          id: foundTemplate.id,
+          title: foundTemplate.name,
+          slug: `template-${foundTemplate.id}`,
+          status: "draft",
+          seo: { metaTitle: "", metaDescription: "", keywords: "", ogImage: "" },
+          layoutJSON:
+            foundTemplate.type === "page"
+              ? (foundTemplate.layoutJSON as LayoutJSON)
+              : {
+                  sections: [foundTemplate.layoutJSON as Section],
+                  layoutVersion: "1.0",
+                },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          author: foundTemplate.createdBy,
+          isCustomSite: foundTemplate.isCustomSite,
+          customHTML: foundTemplate.customHTML,
+          customCSS: foundTemplate.customCSS,
+          customJS: foundTemplate.customJS,
+        };
+      }
 
-    navigate("/");
+      navigate("/");
+      return null;
+    });
   }, [id, pages, templates, navigate]);
 
   // Auto-save logic
@@ -370,7 +372,7 @@ const Editor: React.FC = () => {
     alert("Template saved successfully!");
   };
 
-  const handleSave = (silent = false) => {
+  const handleSave = (silent = false, publish = false) => {
     if (!page) return;
     if (!silent) setIsSaving(true);
 
@@ -395,8 +397,10 @@ const Editor: React.FC = () => {
         syncTemplate(updatedTemplate);
       } else {
         // Saving a page
+        const nextStatus: 'draft' | 'published' = publish ? "published" : page.status;
         const baseUpdatedPage: Page = {
           ...page,
+          status: nextStatus,
           updatedAt: new Date().toISOString(),
           isCustomSite: !!page.isCustomSite,
           ...(page.customHTML ? { customHTML: page.customHTML } : {}),
@@ -422,9 +426,9 @@ const Editor: React.FC = () => {
         setTimeout(() => {
           setIsSaving(false);
           setShowSuccess(true);
-          toast.success("Changes saved successfully!");
+          toast.success(publish ? "Page published live!" : "Changes saved successfully!");
           setTimeout(() => setShowSuccess(false), 2000);
-        }, 800);
+        }, 500);
       }
     } catch (error) {
       console.error("Save error:", error);
@@ -1650,12 +1654,35 @@ const Editor: React.FC = () => {
             <ChevronLeft size={19} />
           </button>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight">
-              {page.title}
-            </span>
-            <span className="text-[10px] text-[#86868B] dark:text-[#98989D] font-mono tracking-tight">
-              /{page.slug}
-            </span>
+            <input
+              type="text"
+              value={page.title}
+              onChange={(e) => {
+                const nextTitle = e.target.value;
+                setPage((prev) => {
+                  if (!prev) return null;
+                  const isAutoSlug = prev.slug.startsWith("new-page-") || prev.slug === prev.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                  const nextSlug = isAutoSlug
+                    ? nextTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || prev.slug
+                    : prev.slug;
+                  return { ...prev, title: nextTitle, slug: nextSlug };
+                });
+              }}
+              aria-label="Page Title"
+              title="Click to rename page"
+              className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] leading-tight bg-transparent border border-transparent hover:border-black/10 dark:hover:border-white/15 focus:border-[#4e45e1] dark:focus:border-[#6B63F2] rounded-md px-1.5 py-0.5 -ml-1.5 outline-none transition-colors w-44 sm:w-56"
+            />
+            <div className="flex items-center text-[10px] text-[#86868B] dark:text-[#98989D] font-mono tracking-tight">
+              <span>/</span>
+              <input
+                type="text"
+                value={page.slug}
+                onChange={(e) => setPage({ ...page, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
+                aria-label="Page URL Slug"
+                title="Click to edit URL slug"
+                className="bg-transparent border border-transparent hover:border-black/10 dark:hover:border-white/15 focus:border-[#4e45e1] rounded px-1 outline-none w-36 sm:w-44"
+              />
+            </div>
           </div>
         </div>
 
@@ -1761,10 +1788,21 @@ const Editor: React.FC = () => {
             <Download size={15} />
             <span>Export</span>
           </button>
+          {page.status === "published" && !template && (
+            <button
+              type="button"
+              onClick={() => window.open(`/cms/p/${page.slug}`, "_blank")}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158] hover:bg-[#34C759]/20 transition-all cursor-pointer"
+              title="Open published live page"
+            >
+              <Globe size={13} />
+              <span>View Live</span>
+            </button>
+          )}
           <button
             id="editor-publish"
             type="button"
-            onClick={() => handleSave()}
+            onClick={() => handleSave(false, true)}
             disabled={isSaving || showSuccess}
             className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all shadow-sm cursor-pointer ${
               showSuccess 
@@ -1782,7 +1820,7 @@ const Editor: React.FC = () => {
               <Save size={15} />
             )}
             <span>
-              {isSaving ? "Saving..." : showSuccess ? "Saved!" : "Publish"}
+              {isSaving ? "Publishing..." : showSuccess ? "Published!" : "Publish"}
             </span>
           </button>
           <div className="w-[1px] h-5 bg-black/[0.08] dark:bg-white/[0.1] mx-0.5"></div>

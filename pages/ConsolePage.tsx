@@ -57,11 +57,14 @@ interface ConsoleEvent {
 
 const ConsolePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, pages, templates, media, collections, entries, rewrites, siteConfig, theme } = useCMS();
+  const { user, pages, templates, media, collections, entries, rewrites, siteConfig, theme, resyncWithDatabase } = useCMS();
 
-  const [activeTab, setActiveTab] = useState<'issues' | 'replication' | 'i18n' | 'repository' | 'health' | 'sdk'>('issues');
+  const [activeTab, setActiveTab] = useState<'issues' | 'replication' | 'database' | 'i18n' | 'repository' | 'health' | 'sdk'>('issues');
   const [overview, setOverview] = useState<any>(null);
   const [nodeHealth, setNodeHealth] = useState<any>(null);
+  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [resyncingDb, setResyncingDb] = useState(false);
+  const [lastResyncResult, setLastResyncResult] = useState<any>(null);
   const [events, setEvents] = useState<ConsoleEvent[]>([]);
   const [repoData, setRepoData] = useState<any>(null);
   const [replication, setReplication] = useState<any>(null);
@@ -93,13 +96,14 @@ const ConsolePage: React.FC = () => {
   const fetchConsoleData = async () => {
     setLoading(true);
     try {
-      const [overviewRes, eventsRes, repoRes, replicationRes, webhookRes, i18nRes, nodeRes] = await Promise.all([
+      const [overviewRes, eventsRes, repoRes, replicationRes, webhookRes, i18nRes, dbStatusRes, nodeRes] = await Promise.all([
         JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/overview`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
         JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/events`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
         JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/repository`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
         JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/replication`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
         JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/replication/webhook`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
         JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/i18n`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
+        JAVA_API_BASE ? fetch(`${JAVA_API_BASE}/api/v1/console/database/status`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
         fetch('/cms/api/health').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
 
@@ -120,6 +124,7 @@ const ConsolePage: React.FC = () => {
         setI18nConfig(i18nRes.data);
         saveLocalI18nConfig(i18nRes.data);
       }
+      if (dbStatusRes?.data) setDbStatus(dbStatusRes.data);
       if (nodeRes) setNodeHealth(nodeRes);
     } finally {
       setLoading(false);
@@ -372,6 +377,25 @@ const ConsolePage: React.FC = () => {
     }
   };
 
+  const handleResyncDatabase = async (mode: 'MERGE' | 'PUSH' | 'PULL' = 'MERGE') => {
+    setResyncingDb(true);
+    try {
+      const result = await resyncWithDatabase(mode);
+      if (result.success && result.data) {
+        setLastResyncResult(result.data);
+        const c = result.data.counts || {};
+        toast.success(
+          `Database re-sync (${mode}) completed in ${result.data.durationMs ?? 0}ms · ${c.pages ?? 0} pages, ${c.collections ?? 0} collections, ${c.entries ?? 0} entries`
+        );
+        await fetchConsoleData();
+      } else {
+        toast.error(result.error || 'Database re-sync failed');
+      }
+    } finally {
+      setResyncingDb(false);
+    }
+  };
+
   const handleSimulateIssue = async () => {
     await reportConsoleEvent({
       level: 'ERROR',
@@ -480,6 +504,14 @@ const ConsolePage: React.FC = () => {
               Test Issue Capture
             </button>
             <button
+              onClick={() => handleResyncDatabase('MERGE')}
+              disabled={resyncingDb}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158] hover:bg-[#34C759]/20 transition cursor-pointer disabled:opacity-60"
+            >
+              <Database size={14} className={resyncingDb ? 'animate-spin' : ''} />
+              {resyncingDb ? 'Syncing DB...' : 'Re-Sync Database'}
+            </button>
+            <button
               onClick={handleRunDiagnostics}
               disabled={runningDiag}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#4e45e1] dark:bg-[#6B63F2] text-white hover:opacity-90 transition cursor-pointer disabled:opacity-60"
@@ -562,6 +594,7 @@ const ConsolePage: React.FC = () => {
           {[
             { id: 'issues', label: 'Issue & Exception Log', icon: AlertTriangle },
             { id: 'replication', label: 'Replication & Auto Cache', icon: Globe },
+            { id: 'database', label: 'Database Sync', icon: Database },
             { id: 'i18n', label: 'Multi-Language & Geo', icon: Languages },
             { id: 'repository', label: 'Repository Explorer (JCR)', icon: FolderTree },
             { id: 'health', label: 'System & SDK Health', icon: Activity },
@@ -938,6 +971,152 @@ const ConsolePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* TAB 2.5: Database Sync */}
+        {activeTab === 'database' && (() => {
+          const dbCounts = dbStatus?.counts || repoStats || {};
+          const localDomainsCount = siteConfig?.domains?.length || 0;
+          const rows = [
+            { label: 'Pages', local: pages.length, db: dbCounts.pages ?? 0 },
+            { label: 'Collections', local: collections.length, db: dbCounts.collections ?? 0 },
+            { label: 'Collection Entries', local: entries.length, db: dbCounts.entries ?? 0 },
+            { label: 'Hosting Domains', local: localDomainsCount, db: dbCounts.domains ?? 0 },
+          ];
+          const allInSync = Boolean(dbStatus?.connected) && rows.every((r) => r.local === r.db);
+
+          return (
+            <div className="space-y-5">
+              <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-6 flex flex-wrap items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                        !dbStatus?.connected
+                          ? 'bg-[#FF3B30]/12 text-[#FF3B30]'
+                          : allInSync
+                          ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]'
+                          : 'bg-[#FF9500]/12 text-[#FF9500]'
+                      }`}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          !dbStatus?.connected
+                            ? 'bg-[#FF3B30]'
+                            : allInSync
+                            ? 'bg-[#34C759]'
+                            : 'bg-[#FF9500] animate-pulse'
+                        }`}
+                      />
+                      {!dbStatus?.connected
+                        ? 'Database Offline'
+                        : allInSync
+                        ? 'CMS & Database In Sync'
+                        : 'Sync Recommended (Count Mismatch)'}
+                    </span>
+                    {dbStatus?.engine && (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-[#4e45e1]/10 dark:bg-[#6B63F2]/15 text-[#4e45e1] dark:text-[#6B63F2]">
+                        {dbStatus.engine}
+                      </span>
+                    )}
+                    {dbStatus?.latencyMs !== undefined && (
+                      <span className="text-[11px] font-mono text-[#86868B]">
+                        {dbStatus.latencyMs}ms latency
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#86868B] dark:text-[#98989D]">
+                    Last Re-Sync:{' '}
+                    <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      {lastResyncResult?.syncedAt
+                        ? new Date(lastResyncResult.syncedAt).toLocaleString()
+                        : dbStatus?.lastResyncAt
+                        ? new Date(dbStatus.lastResyncAt).toLocaleString()
+                        : 'Never'}
+                    </strong>
+                    {' · '}Events: <strong>{dbCounts.events ?? events.length}</strong>
+                    {' · '}Replications: <strong>{dbCounts.replications ?? 0}</strong>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    onClick={() => handleResyncDatabase('PUSH')}
+                    disabled={resyncingDb}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#F5F5F7] dark:bg-[#1C1C1E] hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer disabled:opacity-60"
+                  >
+                    <Database size={14} />
+                    Push Local → DB
+                  </button>
+                  <button
+                    onClick={() => handleResyncDatabase('PULL')}
+                    disabled={resyncingDb}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#F5F5F7] dark:bg-[#1C1C1E] hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer disabled:opacity-60"
+                  >
+                    <RefreshCw size={14} className={resyncingDb ? 'animate-spin' : ''} />
+                    Pull DB → CMS
+                  </button>
+                  <button
+                    onClick={() => handleResyncDatabase('MERGE')}
+                    disabled={resyncingDb}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#4e45e1] dark:bg-[#6B63F2] text-white hover:opacity-90 transition cursor-pointer disabled:opacity-60"
+                  >
+                    <Zap size={14} className={resyncingDb ? 'animate-pulse' : ''} />
+                    {resyncingDb ? 'Re-Syncing...' : 'Full Re-Sync (Merge)'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-5">
+                <h3 className="text-sm font-bold mb-4">Local CMS State vs Database Comparison</h3>
+                <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08]">
+                  {rows.map((row) => {
+                    const matched = row.local === row.db;
+                    return (
+                      <div key={row.label} className="py-3 flex items-center justify-between gap-4 text-xs">
+                        <span className="font-semibold">{row.label}</span>
+                        <div className="flex items-center gap-6">
+                          <span className="text-[#86868B]">
+                            Local: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7] font-mono">{row.local}</strong>
+                          </span>
+                          <span className="text-[#86868B]">
+                            Database: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7] font-mono">{row.db}</strong>
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              matched
+                                ? 'bg-[#34C759]/12 text-[#248A3D] dark:text-[#30D158]'
+                                : 'bg-[#FF9500]/12 text-[#FF9500]'
+                            }`}
+                          >
+                            {matched ? 'IN SYNC' : 'NEEDS SYNC'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {lastResyncResult && (
+                <div className="bg-white dark:bg-[#2C2C2E] rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] p-5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold">Last Re-Sync Result ({lastResyncResult.mode})</h3>
+                    <span className="text-xs font-mono text-[#86868B]">{lastResyncResult.durationMs}ms</span>
+                  </div>
+                  <p className="text-xs text-[#86868B] dark:text-[#98989D]">
+                    Pushed to DB: <strong>{lastResyncResult.pushed?.pages ?? 0}</strong> pages,{' '}
+                    <strong>{lastResyncResult.pushed?.collections ?? 0}</strong> collections,{' '}
+                    <strong>{lastResyncResult.pushed?.entries ?? 0}</strong> entries.
+                    {' · '}Authoritative DB totals: <strong>{lastResyncResult.counts?.pages ?? 0}</strong> pages,{' '}
+                    <strong>{lastResyncResult.counts?.collections ?? 0}</strong> collections,{' '}
+                    <strong>{lastResyncResult.counts?.entries ?? 0}</strong> entries,{' '}
+                    <strong>{lastResyncResult.counts?.domains ?? 0}</strong> domains.
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* TAB 3: Multi-Language & Geo */}
         {activeTab === 'i18n' && (

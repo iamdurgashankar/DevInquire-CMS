@@ -87,6 +87,18 @@ const PublicPage: React.FC = () => {
     }
   }, [slug, pages, rewrites]);
 
+  const activeLocaleObj = useMemo(
+    () => i18nConfig.supportedLocales.find((l) => l.code === activeLocale),
+    [i18nConfig, activeLocale]
+  );
+
+  const localizedSections = useMemo(() => {
+    const sections = targetPage?.layoutJSON?.sections || [];
+    if (!targetPage) return [];
+    if (!i18nConfig.multiLanguageEnabled) return sections;
+    return localizeSections(sections, activeLocale);
+  }, [targetPage, i18nConfig.multiLanguageEnabled, activeLocale]);
+
   if (redirectUrl) {
     return <Navigate to={redirectUrl.startsWith('/') ? redirectUrl : `/p/${redirectUrl}`} replace />;
   }
@@ -129,17 +141,6 @@ const PublicPage: React.FC = () => {
       </>
     );
   }
-
-  const activeLocaleObj = useMemo(
-    () => i18nConfig.supportedLocales.find((l) => l.code === activeLocale),
-    [i18nConfig, activeLocale]
-  );
-
-  const localizedSections = useMemo(() => {
-    if (!targetPage) return [];
-    if (!i18nConfig.multiLanguageEnabled) return targetPage.layoutJSON.sections;
-    return localizeSections(targetPage.layoutJSON.sections, activeLocale);
-  }, [targetPage, i18nConfig.multiLanguageEnabled, activeLocale]);
 
   // Render CMS Page
   return (
