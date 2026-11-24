@@ -94,7 +94,7 @@ jobs:
               sudo dnf install -y nodejs
             fi
 
-            mkdir -p ~/DevInquire-CMS
+            mkdir -p ~/DevInquire-CMS/java-backend/data
             tar -xzf ~/deploy.tar.gz -C ~/DevInquire-CMS
             rm -f ~/deploy.tar.gz
 
@@ -109,7 +109,7 @@ jobs:
             [Service]
             User=opc
             WorkingDirectory=/home/opc/DevInquire-CMS/java-backend
-            ExecStart=/usr/bin/java -Xmx512m -jar /home/opc/DevInquire-CMS/java-backend/devinquire-cms-server/target/devinquire-cms-server-1.0.0.jar
+            ExecStart=/usr/bin/java -Xmx1024m -jar /home/opc/DevInquire-CMS/java-backend/devinquire-cms-server/target/devinquire-cms-server-1.0.0.jar
             Restart=always
             RestartSec=5
             [Install]
@@ -169,4 +169,8 @@ jobs:
             sudo systemctl enable --now nginx
             sudo systemctl reload nginx
 
+            sleep 3
+            curl -sf http://127.0.0.1/cms/ >/dev/null
+            curl -sf http://127.0.0.1/api/health
+            echo ""
             echo "Deployment completed successfully!"
