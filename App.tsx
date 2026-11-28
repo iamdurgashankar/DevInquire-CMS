@@ -462,6 +462,24 @@ const App: React.FC = () => {
         }
       })
       .catch(() => {});
+
+    fetch(`${JAVA_API_BASE}/api/v1/content/config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.success && json.data) {
+          if (json.data.config) {
+            setSiteConfig((prev) => ({
+              ...prev,
+              ...json.data.config,
+              domains: prev.domains?.length ? prev.domains : json.data.config.domains,
+            }));
+          }
+          if (json.data.styles) {
+            setGlobalStyles((prev) => ({ ...prev, ...json.data.styles }));
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Helper to remove any undefined fields before writing to Firestore
@@ -699,6 +717,16 @@ const App: React.FC = () => {
 
   const syncGlobalStyles = async (styles: GlobalStyles) => {
     setGlobalStyles(styles);
+    try {
+      localStorage.setItem('devinquire_global_styles', JSON.stringify(styles));
+    } catch {
+      // ignore storage quota errors
+    }
+    fetch(`${JAVA_API_BASE}/api/v1/content/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ styles }),
+    }).catch(() => {});
     logActivity({
       action: 'updated',
       category: 'styles',
@@ -851,6 +879,11 @@ const App: React.FC = () => {
     } catch {
       // ignore storage quota errors
     }
+    fetch(`${JAVA_API_BASE}/api/v1/content/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config }),
+    }).catch(() => {});
     if (!canSyncFirestore()) return;
     try {
       await setDoc(doc(db, 'config', 'siteConfig'), cleanFirestoreData(config));

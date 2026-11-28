@@ -17,29 +17,34 @@ public class ContentDeliveryController {
     private final PageRepository pageRepository;
     private final CollectionRepository collectionRepository;
     private final CollectionEntryRepository entryRepository;
+    private final SystemSettingRepository systemSettingRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ContentDeliveryController(
             PageRepository pageRepository,
             CollectionRepository collectionRepository,
-            CollectionEntryRepository entryRepository
+            CollectionEntryRepository entryRepository,
+            SystemSettingRepository systemSettingRepository
     ) {
         this.pageRepository = pageRepository;
         this.collectionRepository = collectionRepository;
         this.entryRepository = entryRepository;
+        this.systemSettingRepository = systemSettingRepository;
     }
 
     @GetMapping("/pages")
     public Map<String, Object> listPublishedPages(
             @RequestParam(required = false) String domainId,
+            @RequestParam(required = false) String domain,
             @RequestParam(required = false, defaultValue = "false") boolean includeDrafts
     ) {
         List<PageEntity> baseRows = domainId != null && !domainId.isBlank()
                 ? pageRepository.findByDomainId(domainId)
                 : pageRepository.findAll();
-        List<PageEntity> rows = includeDrafts
-                ? baseRows
-                : baseRows.stream().filter(p -> "published".equals(p.getStatus())).toList();
+        List<PageEntity> rows = baseRows.stream()
+                .filter(p -> includeDrafts || "published".equals(p.getStatus()))
+                .filter(p -> domain == null || domain.isBlank() || (p.getDomain() != null && domain.equalsIgnoreCase(p.getDomain())))
+                .toList();
         List<Map<String, Object>> pages = rows.stream().map(this::pageToMap).toList();
         return Map.of("success", true, "data", pages);
     }
@@ -51,10 +56,31 @@ public class ContentDeliveryController {
     }
 
     @GetMapping("/pages/{slug}")
-    public ResponseEntity<Map<String, Object>> getPageBySlug(@PathVariable String slug) {
+    public ResponseEntity<Map<String, Object>> getPageBySlug(
+            @PathVariable String slug,
+            @RequestParam(required = false) String domain
+    ) {
+        if (domain != null && !domain.isBlank()) {
+            Optional<PageEntity> domainMatch = pageRepository.findFirstBySlugAndDomainIgnoreCaseAndStatus(slug, domain, "published");
+            if (domainMatch.isPresent()) {
+                return ResponseEntity.ok(Map.of("success", true, "data", pageToMap(domainMatch.get())));
+            }
+        }
         return pageRepository.findFirstBySlugAndStatus(slug, "published")
                 .map(p -> ResponseEntity.ok(Map.<String, Object>of("success", true, "data", pageToMap(p))))
                 .orElseGet(() -> ResponseEntity.status(404).body(Map.of("success", false, "error", "Published page not found")));
+    }
+
+    @GetMapping("/site-home")
+    public ResponseEntity<Map<String, Object>> getSiteHome(@RequestParam String domain) {
+        List<PageEntity> domainPages = pageRepository.findByDomainIgnoreCaseAndStatus(domain, "published");
+        Optional<PageEntity> home = domainPages.stream()
+                .filter(p -> "home".equalsIgnoreCase(p.getSlug()) || "index".equalsIgnoreCase(p.getSlug()))
+                .findFirst()
+                .or(() -> domainPages.stream().findFirst());
+        return home
+                .map(p -> ResponseEntity.ok(Map.<String, Object>of("success", true, "data", pageToMap(p))))
+                .orElseGet(() -> ResponseEntity.status(404).body(Map.of("success", false, "error", "No published home page found for domain")));
     }
 
     @PostMapping("/pages")
@@ -82,13 +108,46 @@ public class ContentDeliveryController {
 
     @GetMapping("/config")
     public Map<String, Object> getConfig() {
+        Map<String, Object> defaultStyles = Map.of(
+                "primaryColor", "#4e45e1",
+                "accentColor", "#6B63F2"
+        );
+        Map<String, Object> defaultConfig = Map.of(
+                "siteName", "DevInquire Official",
+                "baseUrl", "https://devinquire.com"
+        );
+        Map<String, Object> styles = systemSettingRepository.findById("global_styles")
+                .map(s -> readJson(s.getSettingValue(), defaultStyles))
+                .orElse(defaultStyles);
+        Map<String, Object> config = systemSettingRepository.findById("site_config")
+                .map(s -> readJson(s.getSettingValue(), defaultConfig))
+                .orElse(defaultConfig);
         return Map.of(
                 "success", true,
                 "data", Map.of(
-                        "styles", Map.of("primaryColor", "#4e45e1", "accentColor", "#6B63F2"),
-                        "config", Map.of("siteName", "DevInquire Official", "baseUrl", "https://devinquire.com")
+                        "styles", styles,
+                        "config", config
                 )
         );
+    }
+
+    @RequestMapping(value = "/config", method = {RequestMethod.POST, RequestMethod.PUT})
+    public Map<String, Object> saveConfig(@RequestBody Map<String, Object> body) throws Exception {
+        if (body.get("config") != null) {
+            SystemSettingEntity cfgEntity = systemSettingRepository.findById("site_config").orElseGet(SystemSettingEntity::new);
+            cfgEntity.setSettingKey("site_config");
+            cfgEntity.setSettingValue(objectMapper.writeValueAsString(body.get("config")));
+            cfgEntity.setUpdatedAt(Instant.now());
+            systemSettingRepository.save(cfgEntity);
+        }
+        if (body.get("styles") != null) {
+            SystemSettingEntity stylesEntity = systemSettingRepository.findById("global_styles").orElseGet(SystemSettingEntity::new);
+            stylesEntity.setSettingKey("global_styles");
+            stylesEntity.setSettingValue(objectMapper.writeValueAsString(body.get("styles")));
+            stylesEntity.setUpdatedAt(Instant.now());
+            systemSettingRepository.save(stylesEntity);
+        }
+        return getConfig();
     }
 
     @GetMapping("/collections")

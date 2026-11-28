@@ -116,8 +116,30 @@ async function startServer() {
     next();
   });
 
-  // Redirect root and bare /cms (without trailing slash) to /cms/
-  app.get("/", (_req, res) => res.redirect(302, "/cms/"));
+  // Route root "/" to the connected domain's published home page if present, otherwise to CMS Studio "/cms/"
+  app.get("/", async (req, res) => {
+    const reqHost = String(req.headers.host || "").split(":")[0].toLowerCase();
+    if (reqHost && reqHost !== "localhost" && reqHost !== "127.0.0.1" && !/^\d+\.\d+\.\d+\.\d+$/.test(reqHost)) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 1500);
+        const javaRes = await fetch(
+          `http://127.0.0.1:8080/api/v1/content/site-home?domain=${encodeURIComponent(reqHost)}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timer);
+        if (javaRes.ok) {
+          const json: any = await javaRes.json().catch(() => null);
+          if (json?.success && json?.data?.slug) {
+            return res.redirect(302, `/cms/p/${encodeURIComponent(json.data.slug)}`);
+          }
+        }
+      } catch {
+        // fallback to CMS Studio
+      }
+    }
+    return res.redirect(302, "/cms/");
+  });
   app.use((req, res, next) => {
     if (req.method === "GET" && req.originalUrl === "/cms") {
       return res.redirect(302, "/cms/");

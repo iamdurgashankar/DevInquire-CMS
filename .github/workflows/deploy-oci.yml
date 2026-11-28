@@ -142,7 +142,6 @@ jobs:
                 server_name _;
                 client_max_body_size 50M;
 
-                location = / { return 302 /cms/; }
                 location = /cms { return 302 /cms/; }
 
                 location /cms/ {

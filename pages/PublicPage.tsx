@@ -60,17 +60,23 @@ const PublicPage: React.FC = () => {
       }
     }
 
-    // 2. Find the page locally first, then verify/fetch from Java backend for instant live updates
-    const localPage = pages.find(p => p.slug === currentSlug && p.status === 'published');
+    // 2. Find the page locally first (preferring current hostname), then verify/fetch from backend
+    const currentHost = window.location.hostname.toLowerCase();
+    const localPage =
+      pages.find(p => p.slug === currentSlug && p.status === 'published' && p.domain?.toLowerCase() === currentHost) ||
+      pages.find(p => p.slug === currentSlug && p.status === 'published');
     if (localPage) {
       setTargetPage(localPage);
       setNotFound(false);
     }
 
     const apiBase = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
+    const domainQuery = currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1'
+      ? `?domain=${encodeURIComponent(currentHost)}`
+      : '';
     const endpoints = apiBase
-      ? [`${apiBase}/api/v1/content/pages/${encodeURIComponent(currentSlug)}`, `/cms/api/v1/content/pages/${encodeURIComponent(currentSlug)}`]
-      : [`/cms/api/v1/content/pages/${encodeURIComponent(currentSlug)}`];
+      ? [`${apiBase}/api/v1/content/pages/${encodeURIComponent(currentSlug)}${domainQuery}`, `/cms/api/v1/content/pages/${encodeURIComponent(currentSlug)}${domainQuery}`]
+      : [`/cms/api/v1/content/pages/${encodeURIComponent(currentSlug)}${domainQuery}`];
 
     (async () => {
       for (const url of endpoints) {

@@ -8,5 +8,7 @@ import java.util.Optional;
 public interface PageRepository extends JpaRepository<PageEntity, String> {
     List<PageEntity> findByStatus(String status);
     Optional<PageEntity> findFirstBySlugAndStatus(String slug, String status);
+    Optional<PageEntity> findFirstBySlugAndDomainIgnoreCaseAndStatus(String slug, String domain, String status);
+    List<PageEntity> findByDomainIgnoreCaseAndStatus(String domain, String status);
     List<PageEntity> findByDomainId(String domainId);
 }

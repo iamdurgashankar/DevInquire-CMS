@@ -1419,8 +1419,9 @@ const Dashboard: React.FC = () => {
     setIsSaving(true);
     try {
       await syncGlobalStyles(globalStyles);
-      await syncUser(user);
+      if (user) await syncUser(user);
       await syncSiteConfig(siteConfig);
+      toast.success('Site settings saved successfully!');
       setConfirmModal({
         show: true,
         title: 'Settings Saved',
@@ -1430,6 +1431,7 @@ const Dashboard: React.FC = () => {
       });
     } catch (error) {
       console.error("Error saving settings:", error);
+      toast.error('Failed to save site settings.');
     } finally {
       setIsSaving(false);
     }
@@ -2617,9 +2619,13 @@ const Dashboard: React.FC = () => {
                           className="w-full bg-white dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
                         >
                           <option value="Hostinger">Hostinger</option>
+                          <option value="WordPress">WordPress (Existing / Managed)</option>
+                          <option value="Web Application">Web Application (React / Next.js / SPA)</option>
                           <option value="Vercel">Vercel</option>
                           <option value="Netlify">Netlify</option>
                           <option value="Cloudflare Pages">Cloudflare Pages</option>
+                          <option value="cPanel / Shared Hosting">cPanel / Shared Hosting</option>
+                          <option value="AWS / GCP / OCI">AWS / Google Cloud / OCI</option>
                           <option value="Custom Node.js / VPS">Custom Node.js / VPS</option>
                         </select>
                       </div>
@@ -3681,9 +3687,13 @@ console.log('Posts:', posts.map(p => p.title));`}
                             className="w-full bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-[#1D1D1F] dark:text-[#F5F5F7] outline-none focus:ring-2 focus:ring-[#4e45e1]/40"
                           >
                             <option value="Hostinger">Hostinger</option>
+                            <option value="WordPress">WordPress (Existing / Managed)</option>
+                            <option value="Web Application">Web Application (React / Next.js / SPA)</option>
                             <option value="Vercel">Vercel</option>
                             <option value="Netlify">Netlify</option>
                             <option value="Cloudflare Pages">Cloudflare Pages</option>
+                            <option value="cPanel / Shared Hosting">cPanel / Shared Hosting</option>
+                            <option value="AWS / GCP / OCI">AWS / Google Cloud / OCI</option>
                             <option value="Custom Node.js / VPS">Custom Node.js / VPS</option>
                           </select>
                         </div>
@@ -3757,6 +3767,32 @@ console.log('Posts:', posts.map(p => p.title));`}
                                       Switch Here
                                     </button>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await handleSelectDomain(dom.id);
+                                      const id = Math.random().toString(36).substr(2, 9);
+                                      const newPage: Page = {
+                                        id,
+                                        title: `${dom.siteName || dom.domain} Page`,
+                                        slug: `new-page-${id}`,
+                                        status: 'draft',
+                                        seo: { metaTitle: '', metaDescription: '', keywords: '', ogImage: '' },
+                                        layoutJSON: { sections: [], layoutVersion: '1.0' },
+                                        createdAt: new Date().toISOString(),
+                                        updatedAt: new Date().toISOString(),
+                                        author: user?.name || 'Admin',
+                                        domainId: dom.id,
+                                        domain: dom.domain,
+                                      };
+                                      await syncPage(newPage);
+                                      navigate(`/editor/${id}`);
+                                    }}
+                                    className="apple-pill-btn px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Plus size={12} />
+                                    <span>Build Page</span>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => {
